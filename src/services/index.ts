@@ -1,6 +1,7 @@
 export { api, getErrorMessage, getErrorStatus, USE_MOCKS } from './api'
 export { authService } from './authService'
 export { tournamentService } from './tournamentService'
+export { leagueService } from './leagueService'
 export { teamService } from './teamService'
 export { playerService } from './playerService'
 export { matchService } from './matchService'

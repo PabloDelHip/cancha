@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Check, Search } from 'lucide-vue-next'
-import type { KnockoutTiebreak, Team, Tournament, TournamentInput, TournamentSettings } from '@/types'
+import type { KnockoutTiebreak, LeagueSummary, Team, Tournament, TournamentInput, TournamentSettings } from '@/types'
+import { leagueService } from '@/services'
 import { COMPETITION_SYSTEMS, DATA_COVERAGE, defaultSettings, KNOCKOUT_TIEBREAKS, MODALITY_LABELS, TIEBREAKERS } from '@/utils/labels'
 import { formatProblems, hasKnockout, hasRoundRobin, MAX_GROUPS, PLAYOFF_SIZES } from '@/utils/formats'
 import { USE_MOCKS } from '@/services/api'
@@ -27,12 +28,29 @@ const props = withDefaults(
     disabled?: boolean
     /** Equipos inscritos: candidatos a "en seguimiento" con cobertura parcial (6G). */
     teams?: Team[]
+    /** Liga preseleccionada al crear (p. ej. desde "Mis ligas"). */
+    defaultLeagueId?: string
   }>(),
-  { settingsEditable: true, settingsNote: undefined, hasResults: false, disabled: false, teams: () => [] },
+  { settingsEditable: true, settingsNote: undefined, hasResults: false, disabled: false, teams: () => [], defaultLeagueId: undefined },
 )
 const emit = defineEmits<{ submit: [input: TournamentInput] }>()
 
 const initialSettings = props.initial?.settings ?? defaultSettings()
+
+// ─── Liga: todo torneo vive en una (elegir una mía o crear una nueva aquí mismo) ──
+const NEW_LEAGUE = '__new__'
+const leagues = ref<LeagueSummary[]>([])
+const league = ref<string>(props.initial?.leagueId ?? props.defaultLeagueId ?? '')
+const newLeagueName = ref('')
+onMounted(async () => {
+  if (USE_MOCKS) return
+  try {
+    leagues.value = await leagueService.mine()
+  } catch {
+    leagues.value = []
+  }
+  if (!league.value) league.value = leagues.value.length === 1 ? leagues.value[0]!.id : leagues.value.length ? '' : NEW_LEAGUE
+})
 const form = reactive({
   name: props.initial?.name ?? '',
   modality: props.initial?.modality ?? 'F7',
@@ -77,7 +95,7 @@ function toggleTracked(id: string) {
   tracked.value = next
 }
 
-const { errors, set, clear, hasErrors, aria } = useFormErrors<'name' | 'category' | 'startDate' | 'endDate' | 'points' | 'format' | 'tracked'>()
+const { errors, set, clear, hasErrors, aria } = useFormErrors<'name' | 'category' | 'startDate' | 'endDate' | 'points' | 'format' | 'tracked' | 'league'>()
 
 /** "Pasa el mejor de la tabla" solo tiene sentido con fase regular (liga + playoffs). */
 const tiebreakOptions = computed(() => KNOCKOUT_TIEBREAKS.filter((t) => t.value !== 'better_position' || form.system === 'league_playoffs'))
@@ -117,6 +135,11 @@ const validPoints = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 &&
 function onSubmit() {
   clear()
   set('name', form.name.trim().length < 3 && 'Escribe un nombre de al menos 3 caracteres.')
+  set(
+    'league',
+    !USE_MOCKS &&
+      ((!league.value && 'Elige la liga del torneo.') || (league.value === NEW_LEAGUE && newLeagueName.value.trim().length < 3 && 'Escribe el nombre de la nueva liga (3 caracteres o más).')),
+  )
   set('category', !form.category.trim() && 'La categoría es obligatoria.')
   set('startDate', !form.startDate && 'Indica la fecha de inicio.')
   set('endDate', form.endDate && form.startDate && form.endDate < form.startDate && 'Debe ser posterior a la fecha de inicio.')
@@ -134,6 +157,7 @@ function onSubmit() {
   )
   if (hasErrors()) return
   emit('submit', {
+    ...(USE_MOCKS ? {} : league.value === NEW_LEAGUE ? { newLeagueName: newLeagueName.value.trim() } : { leagueId: league.value }),
     name: form.name.trim(),
     modality: form.modality,
     category: form.category.trim(),
@@ -155,8 +179,18 @@ function onSubmit() {
   <form :id="formId" class="space-y-8" novalidate @submit.prevent="onSubmit">
     <fieldset :disabled="disabled" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <legend class="mb-3 text-base font-bold text-zinc-900">Datos del torneo</legend>
+      <FormField v-if="!USE_MOCKS" id="t-league" label="Liga" :error="errors.league" required hint="Los torneos de una liga comparten su historia: campeones, récords y estadísticas." class="sm:col-span-2">
+        <select id="t-league" v-model="league" class="input" v-bind="aria('league', 't-league')">
+          <option value="" disabled>Elige una liga</option>
+          <option v-for="l in leagues" :key="l.id" :value="l.id">{{ l.name }}</option>
+          <option :value="NEW_LEAGUE">＋ Nueva liga…</option>
+        </select>
+      </FormField>
+      <FormField v-if="!USE_MOCKS && league === NEW_LEAGUE" id="t-new-league" label="Nombre de la nueva liga" required class="sm:col-span-2">
+        <input id="t-new-league" v-model="newLeagueName" class="input" placeholder="Liga Fut 7 Cancún" maxlength="80" />
+      </FormField>
       <FormField id="t-name" label="Nombre del torneo" :error="errors.name" required class="sm:col-span-2">
-        <input id="t-name" v-model="form.name" class="input" placeholder="Liga Mazatlán Apertura 2027" v-bind="aria('name', 't-name')" autofocus />
+        <input id="t-name" v-model="form.name" class="input" placeholder="Liga Cancún Apertura 2027" v-bind="aria('name', 't-name')" autofocus />
       </FormField>
 
       <FormField id="t-category" label="Categoría" :error="errors.category" required hint="Ej. Libre varonil, Femenil, Sub-17">

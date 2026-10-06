@@ -42,7 +42,7 @@ async function onSubmit() {
 // Cuentas demo descritas por lo que HACEN (una persona puede tener varios roles), no por un tipo de
 // cuenta. Pablo y Carlos solo existen en el seed del backend (roles de equipo requieren servidor).
 const demoAccounts = [
-  { email: 'demo@cancha.local', label: 'Laura · organiza ligas de Mazatlán' },
+  { email: 'demo@cancha.local', label: 'Laura · organiza ligas de Cancún' },
   { email: 'organizador2@cancha.local', label: 'Mariana · organiza la Liga Cancún' },
   ...(USE_MOCKS
     ? []

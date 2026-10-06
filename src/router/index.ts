@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 
 const publicRoutes: RouteRecordRaw[] = [
   { path: '', name: 'home', component: () => import('@/views/public/HomeView.vue'), meta: { title: 'Inicio' } },
+  { path: 'leagues', name: 'leagues', component: () => import('@/views/public/LeaguesView.vue'), meta: { title: 'Ligas' } },
+  { path: 'leagues/:id', name: 'league', component: () => import('@/views/public/LeagueView.vue'), props: true },
   {
     path: 'tournaments',
     name: 'tournaments',
@@ -67,6 +69,7 @@ const teamWorkspace: RouteRecordRaw[] = [
 
 const adminRoutes: RouteRecordRaw[] = [
   { path: '', name: 'admin-dashboard', component: () => import('@/views/admin/DashboardView.vue'), meta: { title: 'Panel' } },
+  { path: 'leagues', name: 'admin-leagues', component: () => import('@/views/admin/LeaguesAdminView.vue'), meta: { title: 'Mis ligas · Panel' } },
   { path: 'tournaments', name: 'admin-tournaments', component: () => import('@/views/admin/TournamentsAdminView.vue'), meta: { title: 'Mis torneos · Panel' } },
   {
     path: 'tournaments/:id',

@@ -152,6 +152,8 @@ export type DataCoverage = 'full' | 'partial'
 
 export interface Tournament extends Timestamps {
   id: ID
+  /** Liga a la que pertenece (todo torneo vive en una; el modo demo no tiene ligas). */
+  leagueId?: ID | null
   name: string
   modality: TournamentModality
   category: string
@@ -286,6 +288,10 @@ export type TournamentInput = Pick<
   Tournament,
   'name' | 'modality' | 'category' | 'startDate' | 'endDate' | 'status' | 'venue' | 'settings' | 'dataCoverage'
 > & {
+  /** Liga (del organizador) donde vive el torneo. */
+  leagueId?: ID | null
+  /** Crear una liga nueva con este nombre y poner ahí el torneo (en lugar de `leagueId`). */
+  newLeagueName?: string
   /** Solo al editar (al crear aún no hay inscritos). */
   trackedTeamIds?: ID[]
 }
@@ -942,4 +948,94 @@ export interface TieInput {
   homeTeamId: ID
   awayTeamId: ID
   legs: { date: ISODate; time: string; venue: string | null }[]
+}
+
+// ─── Ligas ──────────────────────────────────────────────────────────────────
+// Una liga agrupa los torneos de un organizador (Apertura, Clausura, copas…) y su histórico.
+
+export interface League {
+  id: ID
+  name: string
+  city: string | null
+  description: string | null
+  /** Creada por el sistema para los torneos que no tenían liga (se puede renombrar). */
+  isDefault: boolean
+}
+
+export type LeagueInput = Pick<League, 'name' | 'city' | 'description'>
+
+/** Mis ligas (panel) o el listado público, con su número de torneos. */
+export interface LeagueSummary extends League {
+  tournaments: number
+  lastStartDate?: ISODate
+}
+
+export interface LeagueTournament {
+  id: ID
+  name: string
+  status: TournamentStatus
+  category: string
+  modality: TournamentModality
+  startDate: ISODate
+  endDate: ISODate | null
+  system: CompetitionSystem
+}
+
+export interface LeagueDetail extends League {
+  tournaments: LeagueTournament[]
+}
+
+export interface LeagueMatchRef {
+  id: ID
+  date: ISODate
+  tournament: { id: ID; name: string } | null
+  homeTeam: TeamRef | null
+  awayTeam: TeamRef | null
+  homeScore: number
+  awayScore: number
+}
+
+export interface LeagueHistory {
+  summary: { tournaments: number; finished: number; matches: number; goals: number; goalsPerMatch: number | null; teams: number; players: number; firstYear: number | null }
+  champions: {
+    tournament: { id: ID; name: string }
+    year: number
+    champion: TeamRef | null
+    runnerUp: TeamRef | null
+    decidedBy: 'league_table' | 'final'
+    topScorer: { player: SquadEntry['player']; goals: number } | null
+  }[]
+  teams: {
+    team: TeamRef
+    played: number
+    won: number
+    drawn: number
+    lost: number
+    goalsFor: number
+    goalsAgainst: number
+    goalDifference: number
+    points: number
+    cleanSheets: number
+    tournaments: number
+    titles: number
+    runnerUps: number
+  }[]
+  players: LeaguePlayerStat[]
+  keepers: LeaguePlayerStat[]
+  records: { biggestWin: LeagueMatchRef | null; highestScoring: LeagueMatchRef | null }
+}
+
+export interface LeaguePlayerStat {
+  player: SquadEntry['player']
+  team: TeamRef | null
+  appearances: number
+  goals: number
+  assists: number
+  ownGoals: number
+  yellowCards: number
+  redCards: number
+  conceded: number
+  cleanSheets: number
+  teams: number
+  tournaments: number
 }

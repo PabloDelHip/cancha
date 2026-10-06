@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ID, Tournament, TournamentInput, TournamentTeam } from '@/types'
-import { tournamentService } from '@/services'
+import { leagueService, tournamentService } from '@/services'
 import { createLoader, createOwnership } from './loader'
 import { useTeamsStore } from './teams'
 
@@ -43,14 +43,20 @@ export const useTournamentsStore = defineStore('tournaments', () => {
       .sort((a, b) => b.startDate.localeCompare(a.startDate))
   }
 
+  /** "Nueva liga…" en el formulario: se crea primero y el torneo va dentro. */
+  async function withLeague<T extends Partial<TournamentInput>>(input: T): Promise<T> {
+    if (!input.newLeagueName) return input
+    const league = await leagueService.create({ name: input.newLeagueName, city: null, description: null })
+    return { ...input, leagueId: league.id, newLeagueName: undefined }
+  }
   async function create(input: TournamentInput) {
-    const created = await tournamentService.create(input)
+    const created = await tournamentService.create(await withLeague(input))
     items.value.push(created)
     ownership.markMine(created.id)
     return created
   }
   async function update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean }) {
-    const updated = await tournamentService.update(id, input, options)
+    const updated = await tournamentService.update(id, await withLeague(input), options)
     items.value = items.value.map((t) => (t.id === id ? updated : t))
     return updated
   }

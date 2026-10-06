@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Plus } from 'lucide-vue-next'
 import type { Tournament, TournamentInput } from '@/types'
 import { useHomeStore, useTournamentsStore } from '@/stores'
+import { leagueService, USE_MOCKS } from '@/services'
 import { useOrganizerOptIn } from '@/composables/useOrganizerOptIn'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useEditor } from '@/composables/useEditor'
@@ -20,6 +21,20 @@ const { loading, error, reload } = useAdminData()
 const tournaments = useTournamentsStore()
 const editor = useEditor<Tournament>()
 const router = useRouter()
+const route = useRoute()
+/** Nombre de cada liga mía (para mostrarla en las tarjetas). */
+const leagueNames = ref(new Map<string, string>())
+/** "Nuevo torneo" desde Mis ligas: ?new=1&league=<id> abre el alta con esa liga. */
+const presetLeague = ref<string | undefined>(typeof route.query.league === 'string' ? route.query.league : undefined)
+onMounted(async () => {
+  if (route.query.new === '1') editor.create()
+  if (USE_MOCKS) return
+  try {
+    leagueNames.value = new Map((await leagueService.mine()).map((l) => [l.id, l.name]))
+  } catch {
+    // Sin nombres de liga: las tarjetas se ven igual.
+  }
+})
 const home = useHomeStore()
 const optIn = useOrganizerOptIn()
 
@@ -82,7 +97,7 @@ function onSubmit(input: TournamentInput) {
       <section v-for="g in groups" :key="g.key" :aria-labelledby="`group-${g.key}`">
         <h2 :id="`group-${g.key}`" class="eyebrow mb-3">{{ g.title }} · {{ g.items.length }}</h2>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <AdminTournamentCard v-for="t in g.items" :key="t.id" :tournament="t" />
+          <AdminTournamentCard v-for="t in g.items" :key="t.id" :tournament="t" :league-name="t.leagueId ? leagueNames.get(t.leagueId) : undefined" />
           <button
             v-if="g.key === groups[0]?.key"
             type="button"
@@ -107,6 +122,7 @@ function onSubmit(input: TournamentInput) {
         v-if="editor.open.value"
         form-id="tournament-form"
         :initial="null"
+        :default-league-id="presetLeague"
         @submit="onSubmit"
       />
       <template #footer>

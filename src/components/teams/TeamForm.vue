@@ -29,7 +29,7 @@ const teams = useTeamsStore()
 const form = reactive({
   name: props.initial?.name ?? '',
   shortName: props.initial?.shortName ?? '',
-  city: props.initial?.city ?? 'Mazatlán, Sin.',
+  city: props.initial?.city ?? 'Cancún, Q. Roo',
   primary: props.initial?.colors.primary ?? '#15803d',
   secondary: props.initial?.colors.secondary ?? '#fafafa',
 })

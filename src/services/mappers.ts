@@ -103,6 +103,7 @@ export interface ApiTournamentSettings {
 
 export interface ApiTournament extends ApiTimestamps {
   id: string
+  leagueId?: string | null
   name: string
   format: ApiFormat
   category: string
@@ -230,6 +231,7 @@ function defined<T extends object>(value: T): Partial<T> {
 export function toTournament(t: ApiTournament): Tournament {
   return {
     id: t.id,
+    leagueId: t.leagueId ?? null,
     name: t.name,
     modality: MODALITY_IN[t.format],
     category: t.category,
@@ -252,6 +254,8 @@ const SYSTEM: Record<TournamentSettings['system'], ApiSystem> = {
   league_playoffs: 'LEAGUE_PLAYOFFS',
 }
 const SYSTEM_IN = invert(SYSTEM)
+/** Sistema de competición desde el texto de la API (respuestas ligeras, p. ej. torneos de una liga). */
+export const SYSTEM_IN_PUBLIC = (s: string): TournamentSettings['system'] => SYSTEM_IN[s as ApiSystem] ?? 'league'
 
 function toSettings(s: ApiTournamentSettings): TournamentSettings {
   return {
@@ -420,6 +424,7 @@ export function toPlayerMatchStats(rows: ApiPlayerMatchStats[]): PlayerMatchStat
  */
 export function fromTournamentInput(input: Partial<TournamentInput>, { withStatus = false } = {}) {
   return defined({
+    leagueId: input.leagueId ?? undefined,
     name: input.name,
     format: input.modality && MODALITY[input.modality],
     category: input.category,

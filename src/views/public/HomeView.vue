@@ -47,7 +47,7 @@ const topPlayers = computed(() => featuredStats.topScorers.value.slice(0, 4))
       <div class="relative mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.3fr_1fr] md:items-center md:py-14">
         <div>
           <p class="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-lime-300">
-            Fútbol amateur · Mazatlán
+            Fútbol amateur · Cancún
           </p>
           <h1 class="display text-4xl leading-[0.95] sm:text-6xl">
             Cada partido<br />cuenta tu <span class="text-lime-400">historia</span>.

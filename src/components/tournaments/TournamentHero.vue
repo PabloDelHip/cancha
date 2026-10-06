@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CalendarDays, Crown, MapPin, Trophy } from 'lucide-vue-next'
+import { CalendarDays, ChevronRight, Crown, MapPin, Medal, Trophy } from 'lucide-vue-next'
 import type { Standing, Team, Tournament } from '@/types'
 import { MODALITY_LABELS, SYSTEM_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDateRange } from '@/utils/format'
@@ -19,6 +19,8 @@ const props = defineProps<{
   goals: number
   /** Primero de la tabla (solo liga con cobertura completa y partidos jugados). */
   leader?: { standing: Standing; team: Team } | null
+  /** Liga a la que pertenece (enlace a su página e histórico). */
+  league?: { id: string; name: string } | null
 }>()
 
 const progress = computed(() => (props.scheduled ? Math.round((props.played / props.scheduled) * 100) : 0))
@@ -38,6 +40,9 @@ const figures = computed(() => [
     <Trophy class="pointer-events-none absolute -right-6 -bottom-10 size-56 text-white/5 sm:right-10 sm:size-72" aria-hidden="true" />
 
     <div class="relative mx-auto max-w-6xl px-4 pt-8 pb-8 sm:px-6 sm:pt-12 sm:pb-10">
+      <RouterLink v-if="league" :to="{ name: 'league', params: { id: league.id } }" class="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-lime-300 hover:text-lime-200">
+        <Medal class="size-4" aria-hidden="true" /> {{ league.name }} <ChevronRight class="size-4" aria-hidden="true" />
+      </RouterLink>
       <div class="flex flex-wrap items-center gap-2">
         <StatusBadge v-bind="TOURNAMENT_STATUS[tournament.status]" :pulse="tournament.status === 'active'" />
         <span class="rounded-full bg-lime-400 px-2 py-0.5 text-xs font-bold text-pitch-950">{{ SYSTEM_LABELS[tournament.settings.system] }}</span>

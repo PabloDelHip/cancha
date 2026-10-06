@@ -8,7 +8,7 @@ import { MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDate, plural } from '@/utils/format'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 
-const props = defineProps<{ tournament: Tournament }>()
+const props = defineProps<{ tournament: Tournament; leagueName?: string }>()
 
 const tournaments = useTournamentsStore()
 const matches = useMatchesStore()
@@ -41,6 +41,7 @@ const accent = computed(
         </RouterLink>
       </h3>
       <p class="mt-0.5 text-sm text-zinc-500">{{ MODALITY_LABELS[tournament.modality] }} · {{ tournament.category }}</p>
+      <p v-if="leagueName" class="mt-1 inline-flex max-w-full items-center rounded-full bg-pitch-50 px-2 py-0.5 text-xs font-semibold text-pitch-800"><span class="truncate">{{ leagueName }}</span></p>
 
       <div class="mt-5">
         <div class="flex items-baseline justify-between text-xs">
