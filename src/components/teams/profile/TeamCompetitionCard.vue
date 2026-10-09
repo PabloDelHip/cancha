@@ -28,7 +28,7 @@ const STATS = [
           {{ competition.tournament.name }}
         </RouterLink>
         <p class="mt-0.5 text-xs text-zinc-500">
-          {{ MODALITY_LABELS[competition.tournament.modality] }} · {{ competition.tournament.category }}<template v-if="competition.tournament.dataCoverage === 'partial'"> · Seguimiento parcial</template>
+          {{ MODALITY_LABELS[competition.tournament.modality] }} · {{ competition.tournament.category }}
         </p>
       </div>
       <StatusBadge v-bind="COMPETITION_STATUS[competition.tournament.status]" class="shrink-0" />

@@ -1,4 +1,4 @@
-import type { AdvancePhaseInput, AdvancePreview, ID, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, TrackedSummary } from '@/types'
+import type { AdvancePhaseInput, AdvancePreview, ID, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, UploadProgress } from '@/types'
 import { api, fetchAll, USE_MOCKS } from './api'
 import {
   fromTournamentInput,
@@ -7,17 +7,17 @@ import {
   toStructure,
   type ApiAdvancePreview,
   toTournament,
-  toTrackedSummary,
-  type ApiTrackedSummary,
   type ApiStructure,
   toTournamentTeam,
   type ApiStanding,
   type ApiTournament,
   type ApiTournamentTeam,
 } from './mappers'
+import { defaultTournamentInformation, publicTournament } from '@/types/tournamentInformation'
+import { informationProblems } from '@/utils/tournamentInformation'
+import { putImage, blobToDataUrl } from './imageUpload'
 import { defaultSettings } from '@/utils/labels'
 import { computeStandings } from '@/utils/stats'
-import { buildMockTrackedSummary } from '@/mocks/teamProfile'
 import { delay, getDb, MockNotFoundError, mutate, now, plain } from '@/mocks/db'
 import { createId } from '@/utils/id'
 import { getMockUserId, MockHttpError, requireMockUser } from '@/mocks/session'
@@ -28,6 +28,9 @@ export interface TournamentService {
   /** Torneos del organizador autenticado. */
   listMine(): Promise<Tournament[]>
   get(id: ID): Promise<Tournament>
+  getOwned(id: ID): Promise<Tournament>
+  uploadLogo(id: ID, image: Blob, onProgress?: UploadProgress): Promise<Tournament>
+  removeLogo(id: ID): Promise<Tournament>
   create(input: TournamentInput): Promise<Tournament>
   /** `resetSchedule`: confirma cambiar el formato borrando un calendario generado y SIN jugar. */
   update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean }): Promise<Tournament>
@@ -49,8 +52,6 @@ export interface TournamentService {
   standings(id: ID): Promise<Standing[]>
   /** Estructura del formato: fases, grupos, cuadro y campeón (GET /tournaments/:id/structure). */
   structure(id: ID): Promise<TournamentStructure>
-  /** 6G: tarjetas de TODOS los equipos en seguimiento en una sola petición (nunca una por equipo). */
-  trackedSummary(id: ID): Promise<TrackedSummary>
   /** Genera la eliminatoria desde la tabla o los grupos terminados (o un cuadro vacío, a mano). */
   advance(id: ID, input: AdvancePhaseInput): Promise<TournamentStructure>
   /** La eliminatoria que generaría `advance` con el mismo cuerpo, sin guardar nada. */
@@ -71,6 +72,9 @@ export interface TournamentSummary {
 }
 
 const http: TournamentService = {
+  async getOwned(id) { return toTournament((await api.get<ApiTournament>(`/admin/tournaments/${id}`)).data) },
+  async uploadLogo(id, image, onProgress) { return toTournament(await putImage<ApiTournament>(`/tournaments/${id}/logo`, image, onProgress)) },
+  async removeLogo(id) { return toTournament((await api.delete<ApiTournament>(`/tournaments/${id}/logo`)).data) },
   async list() {
     return (await fetchAll<ApiTournament>('/tournaments')).map(toTournament)
   },
@@ -114,9 +118,6 @@ const http: TournamentService = {
   async structure(id) {
     return toStructure((await api.get<ApiStructure>(`/tournaments/${id}/structure`)).data)
   },
-  async trackedSummary(id) {
-    return toTrackedSummary((await api.get<ApiTrackedSummary>(`/tournaments/${id}/tracked-summary`)).data)
-  },
   async advance(id, input) {
     return toStructure((await api.post<ApiStructure>(`/tournaments/${id}/phases/advance`, input)).data)
   },
@@ -132,18 +133,44 @@ const http: TournamentService = {
 }
 
 const mock: TournamentService = {
-  list: () => delay(getDb().tournaments),
+  getOwned(id) {
+    return guard(() => assertTournamentOwner(id), () => delay(getDb().tournaments.find((t) => t.id === id)!))
+  },
+  async uploadLogo(id, image, onProgress) {
+    assertTournamentWritable(id)
+    const url = await blobToDataUrl(image)
+    assertTournamentWritable(id)
+    onProgress?.(100)
+    return mutate((db) => {
+      const t = db.tournaments.find((t) => t.id === id)!
+      t.logoUrl = url
+      t.updatedAt = now()
+      return delay(t)
+    })
+  },
+  removeLogo(id) {
+    return guard(() => assertTournamentWritable(id), () => mutate((db) => {
+      const t = db.tournaments.find((t) => t.id === id)!
+      t.logoUrl = null
+      t.updatedAt = now()
+      return delay(t)
+    }))
+  },
+  list: () => delay(getDb().tournaments.map(publicTournament)),
   listMine: () =>
     guard(requireMockUser, () => delay(getDb().tournaments.filter((t) => t.organizerId === getMockUserId()))),
   get(id) {
     const found = getDb().tournaments.find((t) => t.id === id)
-    return found ? delay(found) : Promise.reject(new MockNotFoundError('Torneo', id))
+    return found ? delay(publicTournament(found)) : Promise.reject(new MockNotFoundError('Torneo', id))
   },
   create(input) {
     return guard(requireMockUser, () => {
     const tournament = mutate((db) => {
       const created: Tournament = {
         ...plain(input),
+        information: defaultTournamentInformation(input.information),
+        registration: input.registration ?? { deadline: null, maxTeams: null },
+        dataCoverage: 'full',
         trackedTeamIds: [],
         id: createId('t'),
         // Como hará el backend con el JWT: el dueño es quien tiene la sesión, nunca un campo del formulario.
@@ -151,6 +178,8 @@ const mock: TournamentService = {
         createdAt: now(),
         updatedAt: now(),
       }
+      const problems = informationProblems(defaultTournamentInformation(created.information), created.registration!)
+      if (problems.length) throw new MockHttpError(400, problems.join(' '))
       db.tournaments.push(created)
       return created
     })
@@ -164,16 +193,17 @@ const mock: TournamentService = {
       // Igual que el backend: el estado no cambia por aquí (start/finish).
       const rest = plain(input)
       delete rest.status
-      // Mismas reglas que el backend (6G): en FULL no hay seguidos; en PARTIAL, solo inscritos.
-      const coverage = rest.dataCoverage ?? t.dataCoverage
-      if (coverage === 'full') {
-        if (rest.trackedTeamIds?.length) return Promise.reject(new MockHttpError(400, 'Los equipos en seguimiento solo existen con cobertura parcial'))
-        rest.trackedTeamIds = []
-      } else if (rest.trackedTeamIds) {
-        const enrolled = new Set(db.tournamentTeams.filter((tt) => tt.tournamentId === id).map((tt) => tt.teamId))
-        if (new Set(rest.trackedTeamIds).size !== rest.trackedTeamIds.length) return Promise.reject(new MockHttpError(400, 'trackedTeamIds no puede repetir equipos'))
-        if (rest.trackedTeamIds.some((x) => !enrolled.has(x))) return Promise.reject(new MockHttpError(409, 'Solo se puede dar seguimiento a equipos inscritos en este torneo.'))
+      rest.dataCoverage = 'full'
+      rest.trackedTeamIds = []
+      const information = defaultTournamentInformation(t.information)
+      if (rest.information) {
+        for (const key of ['schedule', 'enrollment', 'costs', 'rules', 'awards', 'contact'] as const) rest.information[key] = { ...information[key], ...rest.information[key] } as never
+        rest.information = { ...information, ...rest.information }
       }
+      if (rest.registration) rest.registration = { ...t.registration, ...rest.registration }
+      const problems = informationProblems(defaultTournamentInformation(rest.information ?? t.information), rest.registration ?? t.registration ?? { deadline: null, maxTeams: null })
+      if (problems.length) throw new MockHttpError(400, problems.join(' '))
+      if (rest.registration?.maxTeams != null && rest.registration.maxTeams < db.tournamentTeams.filter((e) => e.tournamentId === id).length) throw new MockHttpError(400, 'El cupo no puede ser menor que los equipos inscritos.')
       Object.assign(t, rest, { updatedAt: now() })
       return delay(t)
     }))
@@ -251,10 +281,6 @@ const mock: TournamentService = {
       tiebreaks: [],
       teams,
     })
-  },
-  trackedSummary(id) {
-    const summary = buildMockTrackedSummary(id)
-    return summary ? delay(summary) : Promise.reject(new MockNotFoundError('Torneo', id))
   },
   advance() {
     return Promise.reject(new MockHttpError(409, 'Los formatos con fases (grupos, eliminatorias, playoffs) requieren el servidor'))

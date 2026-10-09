@@ -66,7 +66,7 @@ const toTeamTournament = ({ tournament: t, players, ...rest }: ApiTeamTournament
     status: T_STATUS_IN[t.status],
     startDate: t.startDate,
     endDate: t.endDate,
-    dataCoverage: t.dataCoverage === 'PARTIAL' ? 'partial' : 'full',
+    dataCoverage: 'full',
   },
   players: players.map((p) => ({ player: toPlayer(p.player), jerseyNumber: p.membership.jerseyNumber })),
 })

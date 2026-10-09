@@ -114,15 +114,13 @@ const cta = computed<{ label: string; to: RouteLocationRaw; icon: typeof Clipboa
       <!-- Top 4 -->
       <div class="rounded-2xl bg-white/5 p-4">
         <div class="mb-2 flex items-center justify-between">
-          <h3 class="text-xs font-semibold tracking-wider text-pitch-300 uppercase">{{ stats.partial.value ? 'Seguimiento parcial' : 'Tabla' }}</h3>
-          <RouterLink v-if="!stats.partial.value" :to="{ name: 'tournament-standings', params: { id: t.id } }" class="text-xs font-semibold text-lime-300 hover:text-lime-200">
+          <h3 class="text-xs font-semibold tracking-wider text-pitch-300 uppercase">Tabla</h3>
+          <RouterLink :to="{ name: 'tournament-standings', params: { id: t.id } }" class="text-xs font-semibold text-lime-300 hover:text-lime-200">
             Completa →
           </RouterLink>
         </div>
-        <p v-if="stats.partial.value" class="py-6 text-center text-sm text-pitch-300">
-          {{ played }} {{ played === 1 ? 'partido registrado' : 'partidos registrados' }}. Sin tabla general: Cancha sigue a algunos equipos.
-        </p>
-        <ol v-else-if="top.length" class="space-y-1">
+
+        <ol v-if="top.length" class="space-y-1">
           <li v-for="row in top" :key="row.teamId" class="flex items-center gap-3 rounded-lg px-2 py-2 odd:bg-white/[0.03]">
             <span
               class="grid size-6 place-items-center rounded-md text-xs font-bold"

@@ -237,7 +237,7 @@ function onKey(e: KeyboardEvent) {
                 >
                 de {{ c.standing.teams }}
               </span>
-              <!-- Sin posición (p. ej. seguimiento parcial) no significa sin partidos. -->
+              <!-- Un equipo puede tener partidos aunque aún no tenga posición. -->
               <span v-else class="shrink-0 text-xs text-white/70">{{
                 c.record.played
                   ? `${c.record.played} PJ`

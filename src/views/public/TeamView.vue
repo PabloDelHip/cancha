@@ -40,8 +40,6 @@ trackViewOnce('team_profile_viewed', () => (!loading.value && !error.value && !n
 
 const current = computed(() => profile.value?.competitions.filter((c) => c.current) ?? [])
 const color = computed(() => profile.value?.team.colors.primary ?? '#143d2a')
-/** Alguna competición con seguimiento parcial (6F): se aclara una sola vez de dónde salen los números. */
-const anyPartial = computed(() => profile.value?.competitions.some((c) => c.tournament.dataCoverage === 'partial') ?? false)
 </script>
 
 <template>
@@ -59,7 +57,6 @@ const anyPartial = computed(() => profile.value?.competitions.some((c) => c.tour
 
       <div class="mx-auto max-w-6xl px-4 sm:px-6">
         <TeamRecordCard :record="profile.record" :form="profile.form" class="relative -mt-12 sm:-mt-14" />
-        <p v-if="anyPartial" class="mt-2 text-xs text-zinc-500">Estadísticas basadas en partidos registrados en Cancha.</p>
 
         <TeamHonours :honors="profile.honors" :runner-ups="profile.runnerUps" :color="color" class="mt-8" />
 

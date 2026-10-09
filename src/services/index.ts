@@ -11,3 +11,4 @@ export { teamManagementService, TEAM_MANAGEMENT_REQUIRES_SERVER } from './teamMa
 export { registrationService, REGISTRATION_REQUIRES_SERVER } from './registrationService'
 export { possibleDuplicates } from './playerDuplicates'
 export { meService } from './meService'
+export { disciplineService, DISCIPLINE_REQUIRES_SERVER } from './disciplineService'

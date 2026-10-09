@@ -95,7 +95,7 @@ const quickActions = computed(() => [
       </section>
     </div>
 
-    <section v-if="stats.teams.value.length && !stats.partial.value" aria-labelledby="ov-table">
+    <section v-if="stats.teams.value.length" aria-labelledby="ov-table">
       <div class="mb-2 flex items-baseline justify-between">
         <h2 id="ov-table" class="text-lg font-bold">Tabla</h2>
         <RouterLink :to="{ name: 'admin-tournament-standings', params }" class="link text-sm">Completa</RouterLink>

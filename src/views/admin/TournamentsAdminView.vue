@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Plus } from 'lucide-vue-next'
+import { ArrowLeft, ArrowRight, Plus } from 'lucide-vue-next'
 import type { Tournament, TournamentInput } from '@/types'
 import { useHomeStore, useTournamentsStore } from '@/stores'
 import { leagueService, USE_MOCKS } from '@/services'
 import { useOrganizerOptIn } from '@/composables/useOrganizerOptIn'
 import { useAdminData } from '@/composables/useLeagueData'
+import { useImageAfterCreate } from '@/composables/useImageAfterCreate'
+import { tournamentService } from '@/services'
 import { useEditor } from '@/composables/useEditor'
 import PageHeader from '@/components/common/PageHeader.vue'
 import AppButton from '@/components/common/AppButton.vue'
@@ -20,6 +22,11 @@ import AdminTournamentCard from '@/components/admin/AdminTournamentCard.vue'
 const { loading, error, reload } = useAdminData()
 const tournaments = useTournamentsStore()
 const editor = useEditor<Tournament>()
+/** Alta en pasos: cada vez que se abre, empieza en el primero. */
+const formRef = ref<InstanceType<typeof TournamentForm> | null>(null)
+const formStep = ref(0)
+watch(editor.open, (open) => open && (formStep.value = 0))
+const attachImage = useImageAfterCreate()
 const router = useRouter()
 const route = useRoute()
 /** Nombre de cada liga mía (para mostrarla en las tarjetas). */
@@ -67,9 +74,11 @@ function createIn(leagueId?: string) {
 }
 
 /** Al crear, se entra directo al workspace del torneo: ahí la guía muestra el siguiente paso. */
-function onSubmit(input: TournamentInput) {
+function onSubmit(input: TournamentInput, image: Blob | null) {
   editor.save(async () => {
     const created = await tournaments.create({ ...input, status: 'draft' })
+    const withImage = await attachImage(image, (blob) => tournamentService.uploadLogo(created.id, blob))
+    if (withImage) tournaments.replace(withImage)
     await router.push({ name: 'admin-tournament', params: { id: created.id } })
   }, 'Torneo creado. Sigue los pasos para ponerlo en marcha.')
 }
@@ -131,20 +140,27 @@ function onSubmit(input: TournamentInput) {
     <BaseModal
       :open="editor.open.value && home.canOrganize"
       title="Nuevo torneo"
-      description="Empieza como borrador: lo inicias cuando tengas equipos y calendario."
+      description="En 3 pasos. Arranca como borrador y lo inicias cuando tengas equipos."
       size="lg"
       @close="editor.close()"
     >
       <TournamentForm
         v-if="editor.open.value"
+        ref="formRef"
+        v-model:step="formStep"
         form-id="tournament-form"
+        wizard
         :initial="null"
+        :disabled="editor.saving.value"
         :default-league-id="presetLeague"
         @submit="onSubmit"
       />
       <template #footer>
-        <AppButton variant="secondary" :disabled="editor.saving.value" @click="editor.close()">Cancelar</AppButton>
-        <AppButton type="submit" form="tournament-form" :loading="editor.saving.value">Crear torneo</AppButton>
+        <AppButton v-if="formStep === 0" variant="secondary" :disabled="editor.saving.value" @click="editor.close()">Cancelar</AppButton>
+        <AppButton v-else variant="secondary" :disabled="editor.saving.value" @click="formRef?.back()"><ArrowLeft class="size-4" aria-hidden="true" /> Atrás</AppButton>
+        <AppButton v-if="formStep === 2" variant="ghost" type="submit" form="tournament-form" :loading="editor.saving.value">Crear sin detalles</AppButton>
+        <AppButton v-if="formStep < 3" @click="formRef?.next()">Siguiente <ArrowRight class="size-4" aria-hidden="true" /></AppButton>
+        <AppButton v-else type="submit" form="tournament-form" :loading="editor.saving.value">Crear torneo</AppButton>
       </template>
     </BaseModal>
   </div>

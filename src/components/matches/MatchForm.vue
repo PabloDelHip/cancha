@@ -44,6 +44,10 @@ const form = reactive<MatchInput>({
 })
 
 const hasResult = computed(() => props.initial?.homeScore != null || props.initial?.status === 'finished')
+/** Reprogramar un pospuesto sin cambiar su fecha: las suspensiones no sabrían cuándo se jugó. */
+const keepsPostponedDate = computed(
+  () => props.initial?.status === 'postponed' && form.status !== 'postponed' && form.status !== 'cancelled' && form.date === props.initial.date && form.time === props.initial.time,
+)
 const roundOptions = computed(() => {
   const list = props.rounds.map((r) => ({ value: r.number, label: r.label }))
   if (!list.some((o) => o.value === nextNumber.value)) list.push({ value: nextNumber.value, label: `Nueva: Jornada ${nextNumber.value}` })
@@ -149,6 +153,9 @@ function onSubmit() {
     </FormField>
     <p v-if="form.status === 'postponed'" class="-mt-2 text-xs text-amber-700 sm:col-span-2">
       Un partido pospuesto conserva su jornada y sus equipos. Cuando tengas nueva fecha, cámbiala y vuelve a "Programado".
+    </p>
+    <p v-else-if="keepsPostponedDate" class="-mt-2 text-xs text-amber-700 sm:col-span-2" role="status">
+      Conserva la fecha con la que se pospuso. Si se jugará (o se jugó) en otra fecha, cámbiala: mientras tanto este partido no cuenta para cumplir suspensiones.
     </p>
     <p v-else-if="form.status === 'cancelled'" class="-mt-2 text-xs text-zinc-500 sm:col-span-2">
       Un partido cancelado no se jugará y no cuenta en la tabla.

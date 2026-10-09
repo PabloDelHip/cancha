@@ -11,21 +11,16 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import StandingsTable from '@/components/tournaments/StandingsTable.vue'
 import TopScorersTable from '@/components/tournaments/TopScorersTable.vue'
 import MatchCard from '@/components/matches/MatchCard.vue'
-import TrackedTeamsSection from '@/components/tournaments/tracking/TrackedTeamsSection.vue'
 
 const props = defineProps<{ id: string }>()
-// Vista pública: en seguimiento parcial solo cuentan los partidos de equipos seguidos (6G).
-const stats = useTournamentStats(() => props.id, { publicView: true })
+
+const stats = useTournamentStats(() => props.id)
 
 const currentRound = computed(() => stats.rounds.value.find((r) => r.round === stats.currentRound.value))
 const roundMatches = computed(() => currentRound.value?.matches ?? [])
 const finished = computed(() => stats.tournament.value?.status === 'finished')
-const partial = stats.partial
-// Campeón oficial y eliminatoria: los calcula el servidor (nunca en seguimiento parcial).
-const { structure } = useTournamentStructure(() => props.id, () => !partial.value)
+const { structure } = useTournamentStructure(() => props.id)
 const { knockout } = useTournamentChampion(structure)
-/** Seguimiento parcial: en lugar de tabla y goleadores, los últimos partidos registrados. */
-const latestResults = computed(() => stats.matches.value.filter((m) => m.status === 'finished').slice(-6).reverse())
 </script>
 
 <template>
@@ -46,8 +41,6 @@ const latestResults = computed(() => stats.matches.value.filter((m) => m.status 
         <BracketView :phase="knockout" :teams="structure.teams" />
       </section>
 
-      <TrackedTeamsSection v-if="partial" :tournament-id="id" />
-
       <section v-if="roundMatches.length && !finished" aria-label="Jornada actual">
         <SectionHeader :title="currentRound?.label ?? ''" link-label="Calendario" :to="{ name: 'tournament-matches', params: { id } }" />
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -55,14 +48,7 @@ const latestResults = computed(() => stats.matches.value.filter((m) => m.status 
         </div>
       </section>
 
-      <section v-if="partial && latestResults.length" aria-label="Últimos resultados">
-        <SectionHeader title="Últimos resultados" link-label="Todos los partidos" :to="{ name: 'tournament-matches', params: { id } }" />
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <MatchCard v-for="m in latestResults" :key="m.id" :match="m" />
-        </div>
-      </section>
-
-      <div v-if="!partial" class="grid grid-cols-1 gap-10 lg:grid-cols-[1.2fr_1fr]">
+      <div class="grid grid-cols-1 gap-10 lg:grid-cols-[1.2fr_1fr]">
         <section aria-label="Tabla de posiciones">
           <SectionHeader :title="finished ? 'Tabla final' : 'Tabla'" link-label="Completa" :to="{ name: 'tournament-standings', params: { id } }" />
           <div class="card overflow-hidden">

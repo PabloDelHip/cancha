@@ -49,6 +49,8 @@ const figures = computed(() => [
         <span class="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white ring-1 ring-white/15">{{ tournament.category }}</span>
       </div>
 
+      <img v-if="tournament.logoUrl" :src="tournament.logoUrl" :alt="`Logo de ${tournament.name}`" class="mt-4 size-20 rounded-2xl bg-white object-contain p-2 sm:size-24" />
+      <p v-if="tournament.information?.season" class="mt-3 text-sm font-semibold text-lime-300">{{ tournament.information.season }}</p>
       <h1 class="display mt-3 max-w-4xl text-[2.6rem] leading-[0.92] break-words sm:text-7xl">{{ tournament.name }}</h1>
       <p class="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-pitch-200">
         <span class="inline-flex items-center gap-1.5"><CalendarDays class="size-4" aria-hidden="true" /> {{ formatDateRange(tournament.startDate, tournament.endDate) }}</span>

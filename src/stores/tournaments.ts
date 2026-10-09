@@ -1,3 +1,4 @@
+import { publicTournament } from '@/types/tournamentInformation'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { ID, Tournament, TournamentInput, TournamentTeam } from '@/types'
@@ -51,17 +52,17 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   }
   async function create(input: TournamentInput) {
     const created = await tournamentService.create(await withLeague(input))
-    items.value.push(created)
+    items.value.push(publicTournament(created))
     ownership.markMine(created.id)
     return created
   }
   async function update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean }) {
     const updated = await tournamentService.update(id, await withLeague(input), options)
-    items.value = items.value.map((t) => (t.id === id ? updated : t))
+    items.value = items.value.map((t) => (t.id === id ? publicTournament(updated) : t))
     return updated
   }
   function replace(updated: Tournament) {
-    items.value = items.value.map((t) => (t.id === updated.id ? updated : t))
+    items.value = items.value.map((t) => (t.id === updated.id ? publicTournament(updated) : t))
   }
   async function start(id: ID) {
     const updated = await tournamentService.start(id)
@@ -102,6 +103,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     teamIdsOf,
     tournamentsOfTeam,
     create,
+    replace,
     update,
     start,
     finish,

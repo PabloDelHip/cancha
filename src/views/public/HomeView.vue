@@ -4,8 +4,6 @@ import { ArrowRight, CalendarClock, Goal, Radio } from 'lucide-vue-next'
 import { useMatchesStore, usePlayersStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useLeagueData } from '@/composables/useLeagueData'
 import { useTournamentStats } from '@/composables/useTournamentStats'
-import { isPubliclyTracked } from '@/utils/coverage'
-import type { Match } from '@/types'
 import TournamentCard from '@/components/tournaments/TournamentCard.vue'
 import StandingsTable from '@/components/tournaments/StandingsTable.vue'
 import MatchCard from '@/components/matches/MatchCard.vue'
@@ -21,13 +19,10 @@ const matches = useMatchesStore()
 const players = usePlayersStore()
 const teams = useTeamsStore()
 
-// Destacado: preferentemente uno con cobertura completa (los parciales no tienen tabla general).
-const featured = computed(() => tournaments.active.find((t) => t.dataCoverage !== 'partial') ?? tournaments.active[0])
-const featuredStats = useTournamentStats(() => featured.value?.id ?? '', { publicView: true })
-// Seguimiento parcial (6G): fuera los partidos entre equipos no seguidos.
-const visible = (m: Match) => isPubliclyTracked(m, tournaments.get(m.tournamentId))
-const recent = computed(() => matches.recent.filter(visible).slice(0, 4))
-const upcoming = computed(() => matches.upcoming.filter(visible).slice(0, 4))
+const featured = computed(() => tournaments.active[0])
+const featuredStats = useTournamentStats(() => featured.value?.id ?? '')
+const recent = computed(() => matches.recent.slice(0, 4))
+const upcoming = computed(() => matches.upcoming.slice(0, 4))
 const topPlayers = computed(() => featuredStats.topScorers.value.slice(0, 4))
 </script>
 
@@ -149,7 +144,7 @@ const topPlayers = computed(() => featuredStats.topScorers.value.slice(0, 4))
             </div>
             <EmptyState v-else title="No hay torneos activos" compact class="card" />
           </section>
-          <section v-if="featured && !featuredStats.partial.value" aria-label="Tabla de posiciones">
+          <section v-if="featured" aria-label="Tabla de posiciones">
             <SectionHeader title="Tabla" link-label="Tabla completa" :to="{ name: 'tournament-standings', params: { id: featured.id } }" />
             <div class="card overflow-hidden">
               <StandingsTable :standings="featuredStats.standings.value" compact />

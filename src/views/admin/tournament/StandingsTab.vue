@@ -17,12 +17,9 @@ import AppButton from '@/components/common/AppButton.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 
-import { useFullCoverageOnly } from '@/composables/useFullCoverageOnly'
-
 const props = defineProps<{ id: string }>()
 const stats = useTournamentStats(() => props.id)
-const { partial } = useFullCoverageOnly(() => props.id, 'admin-tournament')
-const { structure, loading, error, reload } = useTournamentStructure(() => props.id, () => !partial.value)
+const { structure, loading, error, reload } = useTournamentStructure(() => props.id)
 const { readOnly } = useTournamentWorkspace(() => props.id)
 const matches = useMatchesStore()
 const rounds = useRoundsStore()
@@ -77,7 +74,7 @@ async function onAdvanced(next: TournamentStructure) {
 </script>
 
 <template>
-  <section v-if="!partial" aria-labelledby="st-title">
+  <section aria-labelledby="st-title">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 id="st-title" class="text-xl font-bold">{{ system === 'league' ? (stats.tournament.value?.status === 'finished' ? 'Tabla final' : 'Tabla de posiciones') : 'Competición' }}</h2>

@@ -265,3 +265,11 @@ el header público muestre "Mi panel" sin llamar a `/auth` en cada visita anóni
 
 - Consumir los endpoints agregados del backend en lugar de colecciones completas.
 - Flujo de "reclamar perfil" (User ↔ Player).
+
+## Cobertura de torneos
+
+Todos los torneos muestran la competición completa: equipos, partidos, tabla, goleadores y estructura. El modo de seguimiento parcial fue retirado. Los campos antiguos se normalizan a cobertura completa y equipos seguidos vacíos al leerlos; no se borran partidos, resultados ni estadísticas. La API rechaza `PARTIAL` y listas de equipos seguidos no vacías.
+
+## Información y condiciones del torneo
+
+Los torneos pueden incluir temporada, descripción, horarios, cuotas y costos, reglamento en texto, premios y contacto con privacidad por campo. El formulario conserva las reglas deportivas y reutiliza la fecha límite y el cupo existentes. El logo utiliza la integración actual de Cloudinary; los PDF no están habilitados. Ver [contrato e inventario](../docs/tournament-information.md).

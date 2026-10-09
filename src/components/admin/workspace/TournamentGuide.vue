@@ -23,8 +23,7 @@ const { start, askFinish } = useTournamentLifecycle()
 const t = computed(() => stats.tournament.value!)
 const teams = computed(() => stats.teams.value)
 const emptyTeams = computed(() => teams.value.filter((team) => !players.rosterOf(team.id, props.tournamentId).length))
-// Seguimiento parcial: basta con que tengan plantilla los equipos seguidos; los rivales pueden no tenerla.
-const partial = computed(() => stats.partial.value)
+
 const total = computed(() => stats.matches.value.length)
 const pendingCapture = computed(() => stats.matches.value.filter((m) => isPendingCapture(m)))
 const nextOpen = computed(() => stats.matches.value.find((m) => m.status === 'scheduled' || m.status === 'live'))
@@ -53,10 +52,8 @@ const steps = computed<Step[]>(() => [
   {
     key: 'players',
     title: 'Plantillas',
-    done: teams.value.length >= 2 && (partial.value ? emptyTeams.value.length < teams.value.length : emptyTeams.value.length === 0),
-    message: partial.value
-      ? 'Registra la plantilla de los equipos a los que das seguimiento. Los rivales pueden quedarse sin plantilla.'
-      : `${plural(emptyTeams.value.length, 'equipo')} todavía sin jugadores. Registra o reutiliza jugadores y asígnales dorsal.`,
+    done: teams.value.length >= 2 && emptyTeams.value.length === 0,
+    message: `${plural(emptyTeams.value.length, 'equipo')} todavía sin jugadores. Registra o reutiliza jugadores y asígnales dorsal.`,
     action: emptyTeams.value[0]
       ? { label: `Armar plantilla de ${emptyTeams.value[0].name}`, to: { name: 'admin-tournament-team', params: { ...p.value, teamId: emptyTeams.value[0].id } } }
       : undefined,
@@ -81,7 +78,7 @@ const steps = computed<Step[]>(() => [
     title: 'Resultados',
     done: total.value > 0 && stats.openCount.value === 0,
     message: pendingCapture.value.length
-      ? `${plural(pendingCapture.value.length, 'partido espera', 'partidos esperan')} resultado. Al capturarlo, ${partial.value ? 'los perfiles de equipos y jugadores' : 'la tabla y los goleadores'} se actualizan solos.`
+      ? `${plural(pendingCapture.value.length, 'partido espera', 'partidos esperan')} resultado. Al capturarlo, la tabla y los goleadores se actualizan solos.`
       : nextOpen.value
         ? `${stats.playedCount.value} de ${total.value} partidos jugados. Siguiente: ${rounds.labelOf(props.tournamentId, nextOpen.value.round)}, ${formatMatchDay(nextOpen.value.date)}.`
         : `Quedan partidos pospuestos por reprogramar.`,
@@ -146,14 +143,11 @@ const champion = computed(() => (stats.playedCount.value ? stats.teams.value.fin
       <div class="min-w-0 flex-1">
         <h2 id="guide-title" class="font-bold text-zinc-950">Torneo finalizado</h2>
         <p class="text-sm text-zinc-600">
-          <template v-if="stats.partial.value">Sus partidos y estadísticas registrados quedan como historial de sus equipos y jugadores.</template>
-          <template v-else>
-            <template v-if="champion">Campeón: <strong>{{ champion.name }}</strong>. </template>
-            La tabla final y todos los resultados quedan como historial.
-          </template>
+          <template v-if="champion">Campeón: <strong>{{ champion.name }}</strong>. </template>
+          La tabla final y todos los resultados quedan como historial.
         </p>
       </div>
-      <RouterLink v-if="!stats.partial.value" :to="{ name: 'admin-tournament-standings', params: p }" class="btn btn-secondary shrink-0">Tabla final</RouterLink>
+      <RouterLink :to="{ name: 'admin-tournament-standings', params: p }" class="btn btn-secondary shrink-0">Tabla final</RouterLink>
     </div>
   </section>
 </template>

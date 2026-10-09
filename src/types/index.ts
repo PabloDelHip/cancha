@@ -1,3 +1,5 @@
+import type { TournamentInformation, TournamentRegistrationInfo } from './tournamentInformation'
+export type { TournamentInformation, TournamentRegistrationInfo, ContactField } from './tournamentInformation'
 /**
  * Modelo de dominio.
  *
@@ -157,7 +159,7 @@ export interface TournamentSettings {
   playoffTeams: number | null
 }
 
-export type DataCoverage = 'full' | 'partial'
+export type DataCoverage = 'full'
 
 export interface Tournament extends Timestamps {
   id: ID
@@ -171,16 +173,12 @@ export interface Tournament extends Timestamps {
   status: TournamentStatus
   venue: string | null
   settings: TournamentSettings
-  /**
-   * Cobertura de datos (6F). `full`: Cancha conoce toda la competición (tabla, goleadores,
-   * estructura). `partial`: solo se sigue a algunos equipos; no se muestran rankings globales,
-   * pero sus partidos cuentan en equipos y jugadores. Lo decide el servidor, nunca se infiere.
-   */
+  information?: TournamentInformation | null
+  registration?: TournamentRegistrationInfo
+  logoUrl?: string | null
+  /** Campo de compatibilidad: siempre cobertura completa. */
   dataCoverage: DataCoverage
-  /**
-   * Equipos en seguimiento (6G): solo con cobertura parcial, subconjunto de los inscritos. Vacío
-   * en FULL. Participar ≠ estar seguido.
-   */
+  /** Campo obsoleto de compatibilidad: siempre vacío. */
   trackedTeamIds: ID[]
   /**
    * Organizador propietario: decide QUIÉN lo administra, no quién lo ve (la lectura es pública).
@@ -256,7 +254,14 @@ export interface PlayerMatchStats {
   ownGoals?: number
   yellowCards: number
   redCards: number
+  /**
+   * Tipo de expulsión. null = sin expulsión. undefined = captura anterior sin clasificar
+   * (roja o dos amarillas que no se interpretan automáticamente).
+   */
+  sendOff?: SendOff | null
 }
+
+export type SendOff = 'direct' | 'second_yellow'
 
 // ─── Datos derivados (calculados, no persistidos) ───────────────────────────
 
@@ -301,6 +306,8 @@ export type TournamentInput = Pick<
   leagueId?: ID | null
   /** Crear una liga nueva con este nombre y poner ahí el torneo (en lugar de `leagueId`). */
   newLeagueName?: string
+  information?: TournamentInformation
+  registration?: TournamentRegistrationInfo
   /** Solo al editar (al crear aún no hay inscritos). */
   trackedTeamIds?: ID[]
 }
@@ -378,7 +385,6 @@ export interface TournamentRef {
   modality: TournamentModality
   startDate: ISODate
   endDate: ISODate | null
-  /** 6F: `partial` = sin posición, títulos ni goleador del torneo derivados de él. */
   dataCoverage: DataCoverage
 }
 
@@ -901,26 +907,6 @@ export interface MyRegistrationTeam {
   requests: RegistrationRequestSummary[]
 }
 
-/** Tarjeta de un equipo en seguimiento (6G): SUS partidos registrados en ese torneo. No es una clasificación. */
-export interface TrackedTeamCard {
-  team: TeamRef
-  /** `played === 0` → "Aún sin partidos registrados" (no mostrar ceros como datos). */
-  record: TeamRecord
-  /** Últimos resultados, del más antiguo al más reciente. */
-  form: FormResult[]
-  lastMatch: TeamMatch | null
-  nextMatch: TeamMatch | null
-  topScorer: { player: TeamTopScorer['player']; goals: number } | null
-  topAssist: { player: TeamTopScorer['player']; assists: number } | null
-  /** Jugadores en la plantilla del equipo en este torneo (0 → "Plantilla pendiente"). */
-  squadSize: number
-}
-
-export interface TrackedSummary {
-  tournamentId: ID
-  trackedTeams: TrackedTeamCard[]
-}
-
 // ─── Panel según capacidades de la cuenta ───────────────────────────────────
 
 /** Paso guardado de una inscripción por enlace aún no enviada. */
@@ -1058,4 +1044,124 @@ export interface LeaguePlayerStat {
   cleanSheets: number
   teams: number
   tournaments: number
+}
+
+// ─── Disciplina (GET /tournaments/:id/discipline) ───────────────────────────
+//
+// Solo del organizador. Las sanciones automáticas las calcula el servidor con las tarjetas y el
+// calendario actuales; `ref` identifica cada sanción (id de la manual o clave de la automática).
+
+export type EligibilityMode = 'warn' | 'block'
+export type SanctionKind = 'auto' | 'manual'
+export type SanctionCause = 'accumulation' | 'direct_red' | 'second_yellow' | 'manual'
+export type SanctionStatus = 'active' | 'pending' | 'served' | 'annulled'
+export type DisciplineAction =
+  | 'rules_updated'
+  | 'sanction_created'
+  | 'sanction_updated'
+  | 'sanction_annulled'
+  | 'sanction_restored'
+  | 'played_while_suspended'
+
+export interface DisciplineRules {
+  enabled: boolean
+  /** Cada cuántas amarillas se suspende; null = sin acumulación. */
+  yellowsForSuspension: number | null
+  accumulationMatches: number
+  directRedMatches: number
+  secondYellowMatches: number
+  resetAccumulationOnPhaseChange: boolean
+  eligibility: EligibilityMode
+}
+
+export interface Sanction {
+  ref: string
+  kind: SanctionKind
+  cause: SanctionCause
+  playerId: ID
+  teamId: ID
+  /** Automática: partido que la originó. Manual: partido desde el que aplica. */
+  matchId: ID
+  matches: number
+  ruleMatches: number | null
+  adjusted: boolean
+  reason: string | null
+  served: number
+  remaining: number
+  status: SanctionStatus
+  coveredMatchIds: ID[]
+  upcomingMatchIds: ID[]
+  incidentMatchIds: ID[]
+  /** Pospuestos con su fecha original dentro de su alcance: no cuentan hasta corregirla. */
+  staleMatchIds: ID[]
+}
+
+export interface OrphanSanction {
+  ref: string
+  cause: SanctionCause
+  playerId: ID
+  teamId: ID
+  matchId: ID
+  matches: number | null
+  annulled: boolean
+}
+
+export interface PlayerDiscipline {
+  playerId: ID
+  teamId: ID
+  yellows: number
+  towardNext: number
+  directReds: number
+  secondYellows: number
+  unclassified: number
+  remaining: number
+  suspended: boolean
+}
+
+export interface DisciplineMatchRef {
+  id: ID
+  homeTeamId: ID
+  awayTeamId: ID
+  status: MatchStatus
+  date: ISODate
+  time: string
+  round: number
+  phase: number
+}
+
+export interface DisciplineOverview {
+  rules: DisciplineRules
+  readOnly: boolean
+  sanctions: Sanction[]
+  orphans: OrphanSanction[]
+  players: PlayerDiscipline[]
+  unclassified: { matchId: ID; playerId: ID; teamId: ID; yellowCards: number; redCards: number }[]
+  incidents: { ref: string; matchId: ID; playerId: ID; teamId: ID }[]
+  /** Pospuestos reprogramados o capturados con su fecha original. */
+  staleMatchIds: ID[]
+  refs: {
+    players: Record<ID, { id: ID; firstName: string; lastName: string; photoUrl: string | null }>
+    teams: Record<ID, TeamRef>
+    matches: Record<ID, DisciplineMatchRef>
+  }
+}
+
+export interface DisciplineLogEntry {
+  id: ID
+  action: DisciplineAction
+  ref: string | null
+  playerId: ID | null
+  matchId: ID | null
+  by: { id: ID; name: string | null }
+  justification: string | null
+  before: Record<string, unknown> | null
+  after: Record<string, unknown> | null
+  createdAt: ISODateTime
+}
+
+export interface MatchEligibility {
+  mode: EligibilityMode
+  /** Pospuesto con su fecha original: no cuenta para las suspensiones hasta corregirla. */
+  staleDate: boolean
+  suspended: { ref: string; playerId: ID; teamId: ID; cause: SanctionCause; matches: number; remaining: number; reason: string | null }[]
 }

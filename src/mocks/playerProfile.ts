@@ -163,8 +163,8 @@ export function buildMockProfile(playerId: ID): PlayerProfile | null {
   const tournamentRecords = new Map(db.tournaments.map((t) => [t.id, t]))
   const outcomeOf = (tournamentId: ID, teamId: ID): ProfileOutcome | null => {
     const t = tournamentRecords.get(tournamentId)
-    // Seguimiento parcial (6F): sin resultado oficial derivado de la tabla.
-    if (!t || t.status !== 'finished' || t.settings.system !== 'league' || t.dataCoverage === 'partial') return null
+
+    if (!t || t.status !== 'finished' || t.settings.system !== 'league') return null
     const all = db.matches.filter((m) => m.tournamentId === t.id)
     const rows = computeStandings(
       db.tournamentTeams.filter((e) => e.tournamentId === t.id).map((e) => e.teamId),
@@ -212,7 +212,7 @@ export function buildMockProfile(playerId: ID): PlayerProfile | null {
         system: tournamentRecords.get(id)?.settings.system ?? null,
         stats,
         teams: list,
-        topScorer: finished && stats.appearances && tournamentRecords.get(id)?.dataCoverage !== 'partial' ? goalsIn(id) : null,
+        topScorer: finished && stats.appearances ? goalsIn(id) : null,
       }
     })
     .sort(

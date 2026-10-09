@@ -18,6 +18,7 @@ const publicRoutes: RouteRecordRaw[] = [
     props: true,
     children: [
       { path: '', name: 'tournament', component: () => import('@/views/public/tournament/OverviewTab.vue'), props: true },
+      { path: 'informacion', name: 'tournament-information', component: () => import('@/views/public/tournament/InformationTab.vue'), props: true },
       { path: 'tabla', name: 'tournament-standings', component: () => import('@/views/public/tournament/StandingsTab.vue'), props: true },
       { path: 'partidos', name: 'tournament-matches', component: () => import('@/views/public/tournament/MatchesTab.vue'), props: true },
       { path: 'equipos', name: 'tournament-teams', component: () => import('@/views/public/tournament/TeamsTab.vue'), props: true },
@@ -54,6 +55,7 @@ const tournamentWorkspace: RouteRecordRaw[] = [
   { path: 'calendario', name: 'admin-tournament-schedule', component: () => import('@/views/admin/tournament/ScheduleTab.vue'), props: true },
   { path: 'tabla', name: 'admin-tournament-standings', component: () => import('@/views/admin/tournament/StandingsTab.vue'), props: true },
   { path: 'goleadores', name: 'admin-tournament-scorers', component: () => import('@/views/admin/tournament/ScorersTab.vue'), props: true },
+  { path: 'disciplina', name: 'admin-tournament-discipline', component: () => import('@/views/admin/tournament/DisciplineTab.vue'), props: true },
   { path: 'inscripciones', name: 'admin-tournament-registration', component: () => import('@/views/admin/tournament/RegistrationTab.vue'), props: true },
   { path: 'configuracion', name: 'admin-tournament-settings', component: () => import('@/views/admin/tournament/SettingsTab.vue'), props: true },
 ]

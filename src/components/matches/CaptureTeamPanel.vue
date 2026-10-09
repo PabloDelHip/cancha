@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Users } from 'lucide-vue-next'
-import type { Team } from '@/types'
+import { Ban, Users } from 'lucide-vue-next'
+import type { SendOff, Team } from '@/types'
 import { fullName } from '@/utils/players'
 import { POSITION_SHORT } from '@/utils/labels'
 import NumberStepper from '@/components/common/NumberStepper.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CardIcon from '@/components/players/CardIcon.vue'
-import type { CaptureRow } from './captureTypes'
+import { needsSendOffReview, type CaptureRow } from './captureTypes'
 
-const props = withDefaults(defineProps<{ team: Team | undefined; tournamentId: string | undefined; rows: CaptureRow[]; score: number; rivalOwnGoals?: number }>(), { rivalOwnGoals: 0 })
+const props = withDefaults(
+  defineProps<{ team: Team | undefined; tournamentId: string | undefined; rows: CaptureRow[]; score: number; rivalOwnGoals?: number; blockSuspended?: boolean }>(),
+  { rivalOwnGoals: 0, blockSuspended: false },
+)
 
 /** Goles de este equipo explicados: los de sus jugadores + los autogoles del rival. */
 const assigned = computed(() => props.rows.reduce((s, r) => s + r.goals, 0) + props.rivalOwnGoals)
@@ -20,9 +23,12 @@ const allPlayed = computed(() => props.rows.length > 0 && props.rows.every((r) =
 function touch(row: CaptureRow) {
   row.played = true
 }
+/** Con el reglamento en modo bloqueo, un suspendido no se puede marcar como jugado. */
+const locked = (row: CaptureRow) => props.blockSuspended && !!row.suspension && !row.played
 function togglePlayed(row: CaptureRow) {
+  if (locked(row)) return
   row.played = !row.played
-  if (!row.played) Object.assign(row, { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0 })
+  if (!row.played) Object.assign(row, { goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0, sendOff: null })
 }
 function toggleAll() {
   const value = !allPlayed.value
@@ -33,13 +39,25 @@ function cycleOwnGoal(row: CaptureRow) {
   row.ownGoals = (row.ownGoals + 1) % 4
   touch(row)
 }
+/** Amarillas 0 → 1 → 2 → 0. La segunda es expulsión por doble amarilla (lleva la roja). */
 function cycleYellow(row: CaptureRow) {
-  row.yellowCards = (row.yellowCards + 1) % 3
+  const yellows = (row.yellowCards + 1) % 3
+  if (yellows === 2) Object.assign(row, { yellowCards: 2, redCards: 1, sendOff: 'second_yellow' })
+  else if (yellows === 0 && row.sendOff === 'second_yellow') Object.assign(row, { yellowCards: 0, redCards: 0, sendOff: null })
+  else Object.assign(row, { yellowCards: yellows, sendOff: row.redCards ? 'direct' : null })
   touch(row)
 }
+/** Roja directa (con o sin amarilla previa). Quitarla en una doble amarilla deja solo la primera. */
 function toggleRed(row: CaptureRow) {
-  row.redCards = row.redCards ? 0 : 1
+  if (row.sendOff === 'second_yellow') Object.assign(row, { yellowCards: 1, redCards: 0, sendOff: null })
+  else if (row.redCards) Object.assign(row, { redCards: 0, sendOff: null })
+  else Object.assign(row, { redCards: 1, sendOff: 'direct' })
   touch(row)
+}
+/** Clasificar una expulsión de una captura anterior. */
+function classify(row: CaptureRow, sendOff: SendOff) {
+  if (sendOff === 'second_yellow') Object.assign(row, { yellowCards: 2, redCards: 1, sendOff })
+  else Object.assign(row, { yellowCards: Math.min(row.yellowCards, 1), redCards: 1, sendOff })
 }
 </script>
 
@@ -93,6 +111,7 @@ function toggleRed(row: CaptureRow) {
               type="checkbox"
               class="size-5 shrink-0 cursor-pointer rounded accent-pitch-700"
               :checked="row.played"
+              :disabled="locked(row)"
               :aria-label="`${fullName(row.player)} jugó el partido`"
               @change="togglePlayed(row)"
             />
@@ -100,6 +119,14 @@ function toggleRed(row: CaptureRow) {
             <span class="min-w-0">
               <span class="block truncate text-sm font-semibold" :class="row.played ? 'text-zinc-900' : 'text-zinc-400'">{{ fullName(row.player) }}</span>
               <span class="text-[11px] text-zinc-400">{{ POSITION_SHORT[row.player.position] }}</span>
+              <span
+                v-if="row.suspension"
+                class="ml-1.5 inline-flex items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold"
+                :class="row.played ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'"
+              >
+                <Ban class="size-3" aria-hidden="true" />
+                Suspendido{{ row.played ? ': no debería jugar' : '' }}
+              </span>
             </span>
           </label>
           <div class="ml-auto flex items-center gap-1.5" :class="!row.played && 'opacity-50'">
@@ -118,6 +145,12 @@ function toggleRed(row: CaptureRow) {
               AG
               <span v-if="row.ownGoals > 1" class="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">{{ row.ownGoals }}</span>
             </button>
+            <template v-if="needsSendOffReview(row)">
+              <span class="text-[11px] font-semibold text-amber-800">Expulsión sin clasificar:</span>
+              <button type="button" class="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100" @click="classify(row, 'direct')">Roja directa</button>
+              <button type="button" class="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100" @click="classify(row, 'second_yellow')">Doble amarilla</button>
+            </template>
+            <template v-else>
             <button
               type="button"
               class="relative grid size-8 place-items-center rounded-lg border transition"
@@ -130,14 +163,17 @@ function toggleRed(row: CaptureRow) {
             </button>
             <button
               type="button"
-              class="grid size-8 place-items-center rounded-lg border transition"
+              class="relative grid size-8 place-items-center rounded-lg border transition"
               :class="row.redCards ? 'border-red-400 bg-red-50' : 'border-zinc-200 hover:bg-zinc-100'"
               :aria-pressed="row.redCards > 0"
-              :aria-label="`Roja para ${fullName(row.player)}`"
+              :aria-label="row.sendOff === 'second_yellow' ? `Expulsión por doble amarilla de ${fullName(row.player)}` : `Roja directa para ${fullName(row.player)}`"
+              :title="row.sendOff === 'second_yellow' ? 'Expulsión por doble amarilla. Toca para dejar solo una amarilla.' : 'Roja directa'"
               @click="toggleRed(row)"
             >
               <CardIcon color="red" :class="!row.redCards && 'opacity-30'" />
+              <span v-if="row.sendOff === 'second_yellow'" class="absolute -right-1.5 -bottom-1.5 rounded bg-yellow-400 px-0.5 text-[9px] leading-tight font-bold text-zinc-900">2A</span>
             </button>
+            </template>
           </div>
         </li>
       </ul>

@@ -13,7 +13,14 @@ function load(): MockDatabase {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as MockDatabase
-      if (parsed.version === SEED_VERSION) return parsed
+      if (parsed.version === SEED_VERSION) {
+        for (const tournament of parsed.tournaments) {
+          tournament.dataCoverage = 'full'
+          tournament.trackedTeamIds = []
+        }
+        persist(parsed)
+        return parsed
+      }
     }
   } catch {
     // localStorage no disponible o datos corruptos: se regenera la semilla.

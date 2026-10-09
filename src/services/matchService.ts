@@ -63,7 +63,8 @@ const http: MatchService = {
       status: fromMatchStatus(result.status),
       penalties: result.penalties ?? null,
       extraTime: result.extraTime ?? false,
-      playerStats: result.stats.map((s) => ({ ...s, played: true })),
+      // sendOff omitido = fila sin clasificar (capturas anteriores que el organizador no tocó).
+      playerStats: result.stats.map(({ sendOff, ...s }) => ({ ...s, played: true, ...(sendOff !== undefined ? { sendOff: sendOff?.toUpperCase() ?? null } : {}) })),
     })
     return { match: toMatch(data.match), stats: toPlayerMatchStats(data.playerStats) }
   },

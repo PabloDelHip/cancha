@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useMatchesStore } from '@/stores'
-import { Archive, ChevronLeft, ExternalLink, Eye, Lock, Play, Trophy } from 'lucide-vue-next'
+import { Archive, ChevronLeft, ExternalLink, Lock, Play, Trophy } from 'lucide-vue-next'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useTournamentLifecycle } from '@/composables/useTournamentLifecycle'
 import { usePageTitle } from '@/composables/usePageTitle'
-import { DATA_COVERAGE_LABEL, MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
+import { MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDateRange } from '@/utils/format'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import TabNav from '@/components/common/TabNav.vue'
@@ -30,9 +30,6 @@ const matches = useMatchesStore()
 const canStart = computed(() => tournament.value?.status === 'draft' && matches.ofTournament(props.id).length > 0)
 usePageTitle(() => (tournament.value ? `${tournament.value.name} · Panel` : undefined))
 
-const partial = computed(() => tournament.value?.dataCoverage === 'partial')
-
-// Seguimiento parcial: sin Tabla/Competición ni Goleadores (rankings globales engañosos).
 const tabs = computed(() => {
   const params = { id: props.id }
   const all = [
@@ -40,12 +37,13 @@ const tabs = computed(() => {
     { label: 'Equipos', to: { name: 'admin-tournament-teams', params }, exact: false },
     { label: 'Jugadores', to: { name: 'admin-tournament-players', params } },
     { label: 'Calendario', to: { name: 'admin-tournament-schedule', params } },
-    { label: tournament.value?.settings.system && tournament.value.settings.system !== 'league' ? 'Competición' : 'Tabla', to: { name: 'admin-tournament-standings', params }, global: true },
-    { label: 'Goleadores', to: { name: 'admin-tournament-scorers', params }, global: true },
+    { label: tournament.value?.settings.system && tournament.value.settings.system !== 'league' ? 'Competición' : 'Tabla', to: { name: 'admin-tournament-standings', params } },
+    { label: 'Goleadores', to: { name: 'admin-tournament-scorers', params } },
+    { label: 'Disciplina', to: { name: 'admin-tournament-discipline', params } },
     { label: 'Inscripciones', to: { name: 'admin-tournament-registration', params } },
     { label: 'Configuración', to: { name: 'admin-tournament-settings', params } },
   ]
-  return all.filter((t) => !(partial.value && t.global)).map(({ label, to, exact }) => ({ label, to, exact }))
+  return all.map(({ label, to, exact }) => ({ label, to, exact }))
 })
 </script>
 
@@ -78,13 +76,7 @@ const tabs = computed(() => {
             <span class="text-xs font-semibold text-zinc-500">
               {{ MODALITY_LABELS[tournament.modality] }} · {{ tournament.category }} · {{ formatDateRange(tournament.startDate, tournament.endDate) }}
             </span>
-            <RouterLink
-              :to="{ name: 'admin-tournament-settings', params: { id } }"
-              class="rounded-full px-2 py-0.5 text-xs font-semibold"
-              :class="partial ? 'bg-amber-100 text-amber-900' : 'bg-zinc-200/70 text-zinc-700'"
-            >
-              Cobertura: {{ DATA_COVERAGE_LABEL[tournament.dataCoverage] }}<template v-if="partial"> · {{ tournament.trackedTeamIds.length ? `${tournament.trackedTeamIds.length} en seguimiento` : 'sin equipos en seguimiento' }}</template>
-            </RouterLink>
+
           </div>
           <h1 class="display text-3xl leading-none text-zinc-950 sm:text-4xl">{{ tournament.name }}</h1>
         </div>
@@ -106,10 +98,6 @@ const tabs = computed(() => {
         </p>
       </div>
 
-      <p v-if="partial" class="mb-4 flex items-start gap-2 text-sm text-zinc-600">
-        <Eye class="mt-0.5 size-4 shrink-0 text-pitch-700" aria-hidden="true" />
-        <span>Seguimiento parcial: registras partidos, resultados y estadísticas como siempre, pero no se muestran tabla ni goleadores generales.</span>
-      </p>
       <TabNav :tabs="tabs" label="Secciones del torneo" class="mb-6" />
       <RouterView />
       <FinishTournamentDialog />

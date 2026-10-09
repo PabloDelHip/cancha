@@ -12,7 +12,6 @@ import type {
   TeamPlayerStat,
   KnockoutTiebreak,
   PlayerCandidate,
-  TrackedSummary,
   BracketTieView,
   AdvancePreview,
   KnockoutSeed,
@@ -59,12 +58,15 @@ import type {
   TeamRef,
   TeamMembership,
   Tournament,
+  TournamentInformation,
+  TournamentRegistrationInfo,
   TournamentInput,
   TournamentModality,
   TournamentRef,
   TournamentSettings,
   TournamentStatus,
   TournamentTeam,
+  SendOff,
 } from '@/types'
 import { defaultSettings } from '@/utils/labels'
 
@@ -114,6 +116,9 @@ export interface ApiTournament extends ApiTimestamps {
   venue: string | null
   /** Ausente en torneos anteriores a Torneo Real V1: se asume Liga 3/1/0. */
   settings?: ApiTournamentSettings
+  information?: TournamentInformation | null
+  registration?: TournamentRegistrationInfo
+  logoUrl?: string | null
   /** 6F. El servidor siempre lo envía (FULL si el documento es antiguo). */
   dataCoverage?: 'FULL' | 'PARTIAL'
   /** 6G. Vacío en FULL. */
@@ -201,6 +206,8 @@ export interface ApiPlayerMatchStats {
   ownGoals?: number
   yellowCards: number
   redCards: number
+  /** Ausente en capturas anteriores al control disciplinario (sin clasificar). */
+  sendOff?: 'DIRECT' | 'SECOND_YELLOW' | null
 }
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
@@ -243,8 +250,11 @@ export function toTournament(t: ApiTournament): Tournament {
     status: T_STATUS_IN[t.status],
     venue: t.venue,
     settings: t.settings ? toSettings(t.settings) : defaultSettings(),
-    dataCoverage: t.dataCoverage === 'PARTIAL' ? 'partial' : 'full',
-    trackedTeamIds: t.dataCoverage === 'PARTIAL' ? (t.trackedTeamIds ?? []) : [],
+    information: t.information ?? null,
+    registration: t.registration ?? { deadline: null, maxTeams: null },
+    logoUrl: t.logoUrl ?? null,
+    dataCoverage: 'full',
+    trackedTeamIds: [],
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -418,6 +428,7 @@ export function toPlayerMatchStats(rows: ApiPlayerMatchStats[]): PlayerMatchStat
       ownGoals: s.ownGoals ?? 0,
       yellowCards: s.yellowCards,
       redCards: s.redCards,
+      ...(s.sendOff !== undefined ? { sendOff: s.sendOff ? (s.sendOff.toLowerCase() as SendOff) : null } : {}),
     }))
 }
 
@@ -438,7 +449,9 @@ export function fromTournamentInput(input: Partial<TournamentInput>, { withStatu
     status: withStatus && input.status ? T_STATUS[input.status] : undefined,
     venue: input.venue,
     settings: input.settings && fromSettings(input.settings),
-    dataCoverage: input.dataCoverage && (input.dataCoverage === 'partial' ? 'PARTIAL' : 'FULL'),
+    information: input.information,
+    registration: input.registration,
+    dataCoverage: input.dataCoverage && 'FULL',
     trackedTeamIds: input.trackedTeamIds,
   })
 }
@@ -522,7 +535,7 @@ function toTournamentRef(t: ApiTournamentRef): TournamentRef {
     modality: MODALITY_IN[t.format],
     startDate: t.startDate,
     endDate: t.endDate,
-    dataCoverage: t.dataCoverage === 'PARTIAL' ? 'partial' : 'full',
+    dataCoverage: 'full',
   }
 }
 
@@ -886,39 +899,6 @@ export const toMyRegistrationTeam = (t: ApiMyRegistrationTeam): MyRegistrationTe
   myRole: t.myRole === 'OWNER' ? 'owner' : 'manager',
   requests: t.requests.map(toRequestSummary),
 })
-
-// ─── 6G: resumen de equipos en seguimiento ──────────────────────────────────
-
-export interface ApiTrackedSummary {
-  tournamentId: string
-  trackedTeams: {
-    team: TeamRef
-    record: ApiTeamRecord
-    form: FormResult[]
-    lastMatch: ApiTeamMatch | null
-    nextMatch: ApiTeamMatch | null
-    topScorer: { player: Omit<ApiPlayer, 'createdAt' | 'updatedAt'>; goals: number } | null
-    topAssist: { player: Omit<ApiPlayer, 'createdAt' | 'updatedAt'>; assists: number } | null
-    squadSize: number
-  }[]
-}
-
-/** GET /tournaments/:id/tracked-summary → modelo del front (solo nomenclatura). */
-export function toTrackedSummary(s: ApiTrackedSummary): TrackedSummary {
-  return {
-    tournamentId: s.tournamentId,
-    trackedTeams: s.trackedTeams.map((c) => ({
-      team: c.team,
-      record: toTeamRecord(c.record),
-      form: c.form,
-      lastMatch: c.lastMatch && toTeamMatch(c.lastMatch),
-      nextMatch: c.nextMatch && toTeamMatch(c.nextMatch),
-      topScorer: c.topScorer && { player: toProfilePlayer(c.topScorer.player), goals: c.topScorer.goals },
-      topAssist: c.topAssist && { player: toProfilePlayer(c.topAssist.player), assists: c.topAssist.assists },
-      squadSize: c.squadSize,
-    })),
-  }
-}
 
 // ─── Posibles duplicados al registrar un jugador ────────────────────────────
 

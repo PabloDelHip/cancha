@@ -9,15 +9,12 @@ import {
 } from '@/stores'
 import { computeTopScorers, POINTS } from '@/utils/stats'
 import { isOpen } from '@/utils/matches'
-import { isPubliclyTracked } from '@/utils/coverage'
 import type { ID } from '@/types'
 
 /**
  * Datos derivados de un torneo: equipos, jornadas, partidos, tabla y goleadores.
- * `publicView` (vistas públicas): en seguimiento parcial, partidos, jornadas y contadores solo con
- * los partidos de equipos seguidos (6G). El panel del organizador lo omite y ve todos.
  */
-export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>, { publicView = false } = {}) {
+export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>) {
   const tournaments = useTournamentsStore()
   const teams = useTeamsStore()
   const matches = useMatchesStore()
@@ -26,25 +23,11 @@ export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>, { publicV
   const standingsStore = useStandingsStore()
 
   const tournament = computed(() => tournaments.get(toValue(tournamentId)))
-  /**
-   * Seguimiento parcial (6F, `Tournament.dataCoverage`): sin rankings GLOBALES. `standings` y
-   * `topScorers` quedan vacíos (ni se piden al servidor, que respondería 409) y cada vista debe
-   * ocultar su sección con `partial`, nunca mostrar una tabla vacía. Partidos y equipos, igual.
-   */
-  const partial = computed(() => tournament.value?.dataCoverage === 'partial')
   const teamIds = computed(() => tournaments.teamIdsOf(toValue(tournamentId)))
   const tournamentTeams = computed(() =>
     teamIds.value.map((id) => teams.get(id)).filter((t) => t !== undefined).sort((a, b) => a.name.localeCompare(b.name)),
   )
-  const tournamentMatches = computed(() => {
-    const all = matches.ofTournament(toValue(tournamentId))
-    return publicView ? all.filter((m) => isPubliclyTracked(m, tournament.value)) : all
-  })
-  /** Equipos en seguimiento (6G), en el orden del nombre. Vacío en FULL. */
-  const trackedTeams = computed(() => {
-    const ids = new Set(partial.value ? (tournament.value?.trackedTeamIds ?? []) : [])
-    return tournamentTeams.value.filter((t) => ids.has(t.id))
-  })
+  const tournamentMatches = computed(() => matches.ofTournament(toValue(tournamentId)))
   const playedCount = computed(() => tournamentMatches.value.filter((m) => m.status === 'finished').length)
   /** Programados, en juego o pospuestos: lo que falta por jugarse. */
   const openCount = computed(() => tournamentMatches.value.filter(isOpen).length)
@@ -59,18 +42,16 @@ export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>, { publicV
   // Se espera a tener torneos y partidos: antes, la versión cambiaría varias veces seguidas.
   const dataReady = computed(() => tournaments.loaded && matches.loaded)
   watch(
-    [() => toValue(tournamentId), standingsVersion, dataReady, partial],
-    ([id, version, ready, isPartial]) => {
-      // Al volver a cobertura completa se pide la tabla (la versión de datos no cambió).
-      if (id && ready && !isPartial) void standingsStore.sync(id, version)
+    [() => toValue(tournamentId), standingsVersion, dataReady],
+    ([id, version, ready]) => {
+      if (id && ready) void standingsStore.sync(id, version)
     },
     { immediate: true },
   )
-  const standings = computed(() => (partial.value ? [] : (standingsStore.of(toValue(tournamentId)) ?? [])))
-  const standingsLoaded = computed(() => partial.value || standingsStore.of(toValue(tournamentId)) !== undefined)
+  const standings = computed(() => (standingsStore.of(toValue(tournamentId)) ?? []))
+  const standingsLoaded = computed(() => standingsStore.of(toValue(tournamentId)) !== undefined)
 
   const topScorers = computed(() => {
-    if (partial.value) return []
     const ids = new Set(tournamentMatches.value.map((m) => m.id))
     // Ranking completo del torneo (las vistas resumidas recortan con slice).
     return computeTopScorers(
@@ -88,12 +69,7 @@ export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>, { publicV
 
   const roundViews = computed(() => roundsStore.roundsOf(toValue(tournamentId)))
   /** Compatibilidad con las vistas públicas: { round, label, matches }. */
-  const rounds = computed(() =>
-    roundViews.value
-      .map((r) => ({ round: r.number, label: r.label, matches: publicView ? r.matches.filter((m) => isPubliclyTracked(m, tournament.value)) : r.matches }))
-      // En la vista pública parcial, una jornada sin partidos seguidos no se muestra.
-      .filter((r) => !(publicView && partial.value) || r.matches.length),
-  )
+  const rounds = computed(() => roundViews.value.map((r) => ({ round: r.number, label: r.label, matches: r.matches })))
 
   /**
    * Jornada "actual": la primera con partidos por jugarse (programados o en juego). Los
@@ -110,9 +86,7 @@ export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>, { publicV
 
   return {
     tournament,
-    partial,
     teams: tournamentTeams,
-    trackedTeams,
     matches: tournamentMatches,
     rounds,
     roundViews,

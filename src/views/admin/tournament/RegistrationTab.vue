@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { Copy, Link2, Link2Off, RefreshCw, Save, Server, UsersRound } from 'lucide-vue-next'
 import type { RegistrationAdminState, RegistrationRequestStatus, RegistrationRequestSummary } from '@/types'
 import { getErrorMessage, REGISTRATION_REQUIRES_SERVER, registrationService, USE_MOCKS } from '@/services'
-import { ensureAdminData } from '@/stores'
+import { ensureAdminData, useTournamentsStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -83,6 +83,9 @@ async function save() {
       maxTeams: num(form.maxTeams),
       deadline: form.deadline || null,
     })
+    const tournaments = useTournamentsStore()
+    const tournament = tournaments.get(props.id)
+    if (tournament) tournaments.replace({ ...tournament, registration: { deadline: state.value.registration.deadline, maxTeams: state.value.registration.maxTeams } })
     fillForm(state.value)
     toast.success(form.enabled ? 'Inscripciones abiertas.' : 'Configuración guardada.')
   } catch (e) {

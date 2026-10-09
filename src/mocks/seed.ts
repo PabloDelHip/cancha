@@ -538,12 +538,9 @@ export function createSeed(): MockDatabase {
   })
   register('t-apertura-2027', 'team-venados', rookieId, 27, '2027-03-20')
 
-  // Seguimiento parcial (6F/6G): liga real de 6 equipos donde Cancha solo sigue a Halcones y Olas.
-  // Hay partidos de equipos seguidos y partidos entre no seguidos (existen, pero no se muestran en
-  // público). Determinista (sin rand) y al final para no alterar los datos anteriores.
+  // Liga adicional para mostrar resultados y calendario.
   const DOMINICAL = 't-dominical-2027'
   const dominicalTeams = TEAM_DEFS.map((t) => t.id)
-  const trackedDominical = ['team-halcones', 'team-olas']
   tournaments.push({
     id: DOMINICAL,
     name: 'Liga Dominical Cancún 2027',
@@ -554,13 +551,13 @@ export function createSeed(): MockDatabase {
     status: 'active',
     venue: 'Campos del Malecón',
     settings: defaultSettings(),
-    dataCoverage: 'partial',
-    trackedTeamIds: trackedDominical,
+    dataCoverage: 'full',
+    trackedTeamIds: [],
     organizerId: ORGANIZER_ID,
     ...ts,
   })
   enroll(DOMINICAL, dominicalTeams)
-  registerSquads(DOMINICAL, trackedDominical, '2027-03-07')
+  registerSquads(DOMINICAL, dominicalTeams, '2027-03-07')
   const dominicalMatch = (round: number, home: ID, away: ID, hs: number | null, as: number | null) => {
     matchSeq++
     const id = `m-${String(matchSeq).padStart(3, '0')}`
@@ -572,9 +569,8 @@ export function createSeed(): MockDatabase {
       venue: 'Campos del Malecón', status: finished ? 'finished' : 'scheduled', homeScore: hs, awayScore: as, ...ts,
     })
     if (!finished) return
-    // Solo los equipos seguidos tienen plantilla y estadísticas: goles a sus delanteros/medios en orden.
+    // Asigna los goles a los delanteros y medios de cada plantilla.
     for (const [teamId, goals] of [[home, hs], [away, as]] as const) {
-      if (!trackedDominical.includes(teamId)) continue
       const lineup = rosterAt(DOMINICAL, teamId)
       const shooters = lineup.filter((p) => p.position === 'FWD' || p.position === 'MID')
       const rows = new Map(lineup.map((p) => [p.id, { id: `pms-${id}-${p.id}`, matchId: id, playerId: p.id, teamId, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }]))

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
-import { Archive, ArrowLeft, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
-import type { ID, MatchStatus, PlayerMatchStatsInput } from '@/types'
+import { Archive, ArrowLeft, Ban, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
+import type { ID, MatchEligibility, MatchStatus, PlayerMatchStatsInput } from '@/types'
 import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
-import { getErrorMessage } from '@/services'
+import { disciplineService, getErrorMessage, USE_MOCKS } from '@/services'
 import { formatDate } from '@/utils/format'
 import { MATCH_STATUS } from '@/utils/labels'
 import { isPendingCapture } from '@/utils/matches'
@@ -21,6 +21,7 @@ import ErrorState from '@/components/common/ErrorState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CaptureTeamPanel from '@/components/matches/CaptureTeamPanel.vue'
 import type { CaptureRow } from '@/components/matches/captureTypes'
+import { plural } from '@/utils/format'
 
 const props = defineProps<{ id: string }>()
 
@@ -135,23 +136,49 @@ function buildRows(teamId: ID): CaptureRow[] {
   }
   return roster.map(({ player, shirtNumber }) => {
     const s = statsOf.get(player.id)
+    const suspended = suspendedIds.value.has(player.id)
+    // Captura anterior sin tipo de expulsión: solo queda sin clasificar si hay roja o dos amarillas.
+    const legacy = s && s.sendOff === undefined && (s.redCards > 0 || s.yellowCards > 1)
     return {
       player,
       shirtNumber,
-      // En un partido sin captura previa se asume que jugó toda la plantilla: es más rápido desmarcar ausentes.
-      played: Boolean(s) || isNew,
+      // En un partido sin captura previa se asume que jugó toda la plantilla (menos los suspendidos):
+      // es más rápido desmarcar ausentes.
+      played: Boolean(s) || (isNew && !suspended),
       goals: s?.goals ?? 0,
       assists: s?.assists ?? 0,
       ownGoals: s?.ownGoals ?? 0,
       yellowCards: s?.yellowCards ?? 0,
       redCards: s?.redCards ?? 0,
+      sendOff: legacy ? undefined : (s?.sendOff ?? null),
+      suspension: suspended ? { remaining: eligibility.value!.suspended.find((x) => x.playerId === player.id)!.remaining } : null,
     }
   })
 }
 
-function init() {
+// ─── Elegibilidad (control disciplinario) ───────────────────────────────────
+// Suspendidos para este partido según las sanciones del torneo. Se cargan antes de armar las filas.
+const eligibility = ref<MatchEligibility | null>(null)
+const suspendedIds = computed(() => new Set(eligibility.value?.suspended.map((s) => s.playerId) ?? []))
+const blockSuspended = computed(() => eligibility.value?.mode === 'block')
+const suspendedPlaying = computed(() => [...homeRows.value, ...awayRows.value].filter((r) => r.suspension && r.played))
+async function loadEligibility() {
+  eligibility.value = null
+  if (USE_MOCKS || readOnly.value || !match.value) return
+  try {
+    eligibility.value = await disciplineService.eligibility(props.id)
+  } catch {
+    // Sin avisos si falla: el servidor vuelve a validar al guardar.
+  }
+}
+
+async function init() {
+  const id = props.id
+  if (!match.value) return
+  await loadEligibility()
+  // Otro partido mientras se cargaba ("Siguiente partido"): ese init arma sus filas.
   const m = match.value
-  if (!m) return
+  if (id !== props.id || !m) return
   homeScore.value = m.homeScore ?? 0
   awayScore.value = m.awayScore ?? 0
   status.value = m.status === 'live' ? 'live' : 'finished'
@@ -195,6 +222,8 @@ function toStats(rows: CaptureRow[], teamId: ID): PlayerMatchStatsInput[] {
       ownGoals: r.ownGoals,
       yellowCards: r.yellowCards,
       redCards: r.redCards,
+      // undefined (expulsión anterior sin clasificar) no se envía: sigue sin clasificar.
+      ...(r.sendOff !== undefined ? { sendOff: r.sendOff } : {}),
     }))
 }
 
@@ -312,10 +341,10 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
       <div v-else-if="justSaved && !dirty" class="mb-4 flex flex-col gap-3 rounded-2xl border border-pitch-200 bg-pitch-50 px-4 py-3 text-sm sm:flex-row sm:items-center" role="status">
         <p class="flex flex-1 items-center gap-2 font-semibold text-pitch-900">
           <CheckCircle2 class="size-5 shrink-0 text-pitch-600" aria-hidden="true" />
-          {{ tournament?.dataCoverage === 'partial' ? 'Resultado guardado. Los perfiles de los equipos y jugadores ya están actualizados.' : 'Resultado guardado. La tabla y los goleadores ya están actualizados.' }}
+          Resultado guardado. La tabla y los goleadores ya están actualizados.
         </p>
         <div class="flex flex-wrap gap-2">
-          <AppButton v-if="tournament?.dataCoverage !== 'partial'" variant="secondary" size="sm" :to="{ name: 'admin-tournament-standings', params: { id: match.tournamentId } }">Ver tabla</AppButton>
+          <AppButton variant="secondary" size="sm" :to="{ name: 'admin-tournament-standings', params: { id: match.tournamentId } }">Ver tabla</AppButton>
           <AppButton v-if="nextPending" size="sm" :to="{ name: 'admin-match-capture', params: { id: nextPending.id } }">Siguiente partido</AppButton>
           <AppButton v-else variant="ghost" size="sm" :to="backTo">Calendario</AppButton>
         </div>
@@ -380,9 +409,38 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
         </button>
       </div>
 
+      <div
+        v-if="!readOnly && (match.status === 'postponed' || eligibility?.staleDate)"
+        class="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        role="status"
+      >
+        <CalendarClock class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <p>
+          <strong>{{ match.status === 'postponed' ? 'Partido pospuesto.' : 'Conserva la fecha con la que se pospuso.' }}</strong>
+          Antes de capturarlo, ponle en el calendario la fecha en que se jugó: mientras conserve la original no cuenta para cumplir suspensiones.
+          <RouterLink :to="backTo" class="link ml-1">Ir al calendario</RouterLink>
+        </p>
+      </div>
+
+      <div
+        v-if="eligibility?.suspended.length"
+        class="mb-4 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm"
+        :class="suspendedPlaying.length ? 'border-red-200 bg-red-50 text-red-900' : 'border-amber-200 bg-amber-50 text-amber-900'"
+        role="status"
+      >
+        <Ban class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <p>
+          <strong>{{ plural(eligibility.suspended.length, 'jugador suspendido', 'jugadores suspendidos') }} para este partido.</strong>
+          <template v-if="blockSuspended"> El reglamento no permite alinearlos.</template>
+          <template v-else-if="suspendedPlaying.length"> Si los marcas como jugados se guardará, pero quedará registrada la incidencia y este partido no contará para su suspensión.</template>
+          <template v-else> Están desmarcados: este partido cuenta para cumplir su suspensión.</template>
+          <RouterLink :to="{ name: 'admin-tournament-discipline', params: { id: match.tournamentId } }" class="link ml-1">Ver disciplina</RouterLink>
+        </p>
+      </div>
+
       <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" />
-        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" />
+        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" :block-suspended="blockSuspended" />
+        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" :block-suspended="blockSuspended" />
       </div>
 
       </fieldset>

@@ -1,26 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { CalendarClock } from 'lucide-vue-next'
-import type { ID, Match } from '@/types'
+import type { Match } from '@/types'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { formatDate } from '@/utils/format'
 import MatchCard from '@/components/matches/MatchCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const props = defineProps<{ id: string }>()
-// Vista pública: en seguimiento parcial solo los partidos con al menos un equipo seguido (6G).
-const { rounds: allRounds, currentRound, partial, trackedTeams } = useTournamentStats(() => props.id, { publicView: true })
 
-/** Filtro opcional por equipo seguido (solo con más de uno). */
-const teamFilter = ref<ID | null>(null)
-const rounds = computed(() =>
-  teamFilter.value
-    ? allRounds.value
-        .map((r) => ({ ...r, matches: r.matches.filter((m) => m.homeTeamId === teamFilter.value || m.awayTeamId === teamFilter.value) }))
-        .filter((r) => r.matches.length)
-    : allRounds.value,
-)
-watch(teamFilter, () => (selected.value = rounds.value.find((r) => r.round === selected.value) ? selected.value : (rounds.value[0]?.round ?? null)))
+const { rounds, currentRound } = useTournamentStats(() => props.id)
 
 type Mode = 'round' | 'upcoming' | 'finished'
 const mode = ref<Mode>('round')
@@ -46,21 +35,7 @@ const filtered = computed(() => {
 
 <template>
   <section aria-label="Partidos">
-    <div v-if="partial && trackedTeams.length > 1" role="radiogroup" aria-label="Filtrar por equipo" class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
-      <button
-        v-for="o in [{ id: null, name: 'Todos' }, ...trackedTeams.map((t) => ({ id: t.id, name: t.name }))]"
-        :key="o.id ?? 'all'"
-        type="button"
-        role="radio"
-        :aria-checked="teamFilter === o.id"
-        class="h-8 shrink-0 rounded-full border px-3 text-sm font-semibold transition-colors"
-        :class="teamFilter === o.id ? 'border-pitch-900 bg-pitch-900 text-white' : 'border-zinc-300 bg-white text-zinc-700 hover:border-zinc-400'"
-        @click="teamFilter = o.id"
-      >
-        {{ o.name }}
-      </button>
-    </div>
-    <p v-if="partial" class="mb-3 text-xs text-zinc-500">Partidos registrados de los equipos en seguimiento.</p>
+
     <template v-if="rounds.length">
       <div role="radiogroup" aria-label="Ver partidos" class="mb-4 inline-flex rounded-lg bg-zinc-200/70 p-1">
         <button
@@ -118,6 +93,6 @@ const filtered = computed(() => {
         <EmptyState v-else :icon="CalendarClock" :title="mode === 'upcoming' ? 'No quedan partidos por jugar' : 'Aún no hay resultados'" class="card" />
       </template>
     </template>
-    <EmptyState v-else :icon="CalendarClock" :title="partial ? 'Aún no hay partidos registrados de los equipos en seguimiento' : 'Aún no hay partidos programados'" class="card" />
+    <EmptyState v-else :icon="CalendarClock" :title="'Aún no hay partidos programados'" class="card" />
   </section>
 </template>

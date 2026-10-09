@@ -1,4 +1,4 @@
-import type { RegistrationClosedReason, RegistrationRequestStatus } from '@/types'
+import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus } from '@/types'
 import type { CompetitionSystem, KnockoutTiebreak, MatchStatus, PlayerPosition, PointsRule, TournamentModality, TournamentSettings, TournamentStatus } from '@/types'
 
 export type Tone = 'neutral' | 'green' | 'lime' | 'amber' | 'red' | 'blue'
@@ -115,18 +115,27 @@ export function playersRange(min: number | null, max: number | null): string | n
   return null
 }
 
-/** Cobertura de datos del torneo (6F). En la UI nunca FULL/PARTIAL. */
-export const DATA_COVERAGE = [
-  { value: 'full', label: 'Completa', description: 'Cancha administra los resultados de toda la competición.' },
-  {
-    value: 'partial',
-    label: 'Parcial',
-    description: 'Cancha realiza seguimiento de algunos equipos. Las clasificaciones y rankings generales no se mostrarán porque podrían estar incompletos.',
-  },
-] as const
+// ─── Disciplina ─────────────────────────────────────────────────────────────
 
-export const DATA_COVERAGE_LABEL = { full: 'Completa', partial: 'Parcial' } as const
+export const SANCTION_STATUS: Record<SanctionStatus, { label: string; tone: Tone }> = {
+  active: { label: 'Activa', tone: 'red' },
+  pending: { label: 'Pendiente', tone: 'amber' },
+  served: { label: 'Cumplida', tone: 'green' },
+  annulled: { label: 'Anulada', tone: 'neutral' },
+}
 
-/** Aviso público de un torneo con seguimiento parcial. */
-export const PARTIAL_COVERAGE_NOTICE =
-  'Cancha realiza seguimiento de algunos equipos de esta competición. La información mostrada corresponde a los partidos registrados de esos equipos.'
+export const SANCTION_CAUSE: Record<SanctionCause, string> = {
+  accumulation: 'Acumulación de amarillas',
+  direct_red: 'Roja directa',
+  second_yellow: 'Doble amarilla',
+  manual: 'Sanción manual',
+}
+
+export const DISCIPLINE_ACTION: Record<DisciplineAction, string> = {
+  rules_updated: 'Reglamento actualizado',
+  sanction_created: 'Sanción registrada',
+  sanction_updated: 'Sanción corregida',
+  sanction_annulled: 'Sanción anulada',
+  sanction_restored: 'Sanción reactivada',
+  played_while_suspended: 'Jugó estando suspendido',
+}

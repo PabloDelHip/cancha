@@ -7,17 +7,15 @@ import TournamentStatsBoards from '@/components/tournaments/TournamentStatsBoard
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import { pointsRuleLabel } from '@/utils/labels'
-import { useFullCoverageOnly } from '@/composables/useFullCoverageOnly'
 
 const props = defineProps<{ id: string }>()
 const { pointsRule, tournament } = useTournamentStats(() => props.id)
-const { partial } = useFullCoverageOnly(() => props.id, 'tournament')
-const { structure, loading, error, reload } = useTournamentStructure(() => props.id, () => !partial.value)
+const { structure, loading, error, reload } = useTournamentStructure(() => props.id)
 const system = computed(() => tournament.value?.settings.system ?? 'league')
 </script>
 
 <template>
-  <div v-if="!partial" class="space-y-12">
+  <div class="space-y-12">
     <section aria-label="Competición" class="space-y-6">
       <LoadingState v-if="loading" label="Cargando competición…" />
       <ErrorState v-else-if="error" :message="error" @retry="reload" />

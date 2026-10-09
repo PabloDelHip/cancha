@@ -45,16 +45,15 @@ const router = useRouter()
 const rounds = computed(() => stats.roundViews.value)
 /**
  * Partidos a mano: el organizador arma sus jornadas como quiera y cuentan en la tabla.
- * - Liga clásica y seguimiento parcial: siempre.
+ * - Liga clásica: siempre.
  * - Liga + playoffs: en la fase regular mientras siga abierta (una eliminatoria AUTOMÁTICA la cierra:
  *   sus resultados definieron los clasificados; una armada a mano, no).
  * - Grupos: una vez armados los grupos; cada partido es entre equipos del mismo grupo.
  * - Eliminación directa: los cruces se arman en Competición.
  * El servidor aplica las mismas reglas.
  */
-const partialCoverage = computed(() => tournament.value?.dataCoverage === 'partial')
 const system = computed(() => tournament.value?.settings.system ?? 'league')
-const needsStructure = computed(() => !partialCoverage.value && (system.value === 'league_playoffs' || system.value === 'groups_knockout'))
+const needsStructure = computed(() => (system.value === 'league_playoffs' || system.value === 'groups_knockout'))
 const { structure } = useTournamentStructure(() => props.id, needsStructure)
 const regularOpen = computed(() => !structure.value?.phases.some((p) => p.index > 0 && p.generated && p.type === 'knockout' && !p.manual))
 const groups = computed(() => {
@@ -62,7 +61,7 @@ const groups = computed(() => {
   return p?.type === 'groups' && p.generated ? p.groups.map((g) => ({ key: g.key, teamIds: g.teamIds })) : []
 })
 const manual = computed(() => {
-  if (system.value === 'league' || partialCoverage.value) return true
+  if (system.value === 'league') return true
   if (system.value === 'league_playoffs') return regularOpen.value
   if (system.value === 'groups_knockout') return regularOpen.value && groups.value.length > 0
   return false
@@ -256,14 +255,11 @@ async function deleteRound(r: RoundView) {
         v-else
         illustrated
         title="Aún no hay calendario"
-        :description="partialCoverage ? 'Seguimiento parcial: programa a mano los partidos de los equipos que sigues, sea cual sea el formato del torneo.' : system === 'knockout' ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede armar el cuadro con cabezas de serie, o puedes armarlo tú y elegir cada cruce.` : system === 'groups_knockout' && !groups.length ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar los grupos y sus jornadas, o puedes elegir tú los grupos y programar los partidos a mano.` : `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar todas las jornadas, o puedes programarlas tú a mano: cuentan igual en la tabla.`"
+        :description="system === 'knockout' ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede armar el cuadro con cabezas de serie, o puedes armarlo tú y elegir cada cruce.` : system === 'groups_knockout' && !groups.length ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar los grupos y sus jornadas, o puedes elegir tú los grupos y programar los partidos a mano.` : `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar todas las jornadas, o puedes programarlas tú a mano: cuentan igual en la tabla.`"
         class="card"
       >
-        <template v-if="!readOnly && partialCoverage">
-          <AppButton @click="newMatch(1)"><Plus class="size-4" aria-hidden="true" /> Programar partido</AppButton>
-          <AppButton variant="ghost" @click="generating = true">Generar calendario completo</AppButton>
-        </template>
-        <template v-else-if="!readOnly">
+
+        <template v-if="!readOnly">
           <AppButton @click="generating = true"><Wand2 class="size-4" aria-hidden="true" /> Generar calendario</AppButton>
           <AppButton v-if="manual" variant="ghost" @click="newMatch(1)">Programar a mano</AppButton>
         </template>

@@ -13,7 +13,6 @@
  * - Honors: campeón de LIGA solo con esa posición final verificable = 1.
  */
 import type {
-  TrackedSummary,
   FormResult,
   ID,
   Match,
@@ -179,9 +178,8 @@ export function buildTeamProfile(input: TeamProfileInput): { profile: TeamProfil
     const all = input.tournamentMatches.get(t.id) ?? []
     const mine = all.filter((m) => m.homeTeamId === team.id || m.awayTeamId === team.id)
     const current = t.status !== 'finished' && input.enrolledTournamentIds.has(t.id)
-    // Seguimiento parcial (6F): sin posición, posición final ni título (como el servidor).
-    const global = t.dataCoverage !== 'partial'
-    const hasResults = global && all.some(isPlayed)
+
+    const hasResults = all.some(isPlayed)
     const squadStats = stats.filter((s) => matchById.get(s.matchId)?.tournamentId === t.id)
     const squad: SquadEntry[] = input.memberships
       .filter((m) => m.tournamentId === t.id)
@@ -211,7 +209,7 @@ export function buildTeamProfile(input: TeamProfileInput): { profile: TeamProfil
       current,
       record: recordOf(team.id, mine),
       standing: current && hasResults ? standingOf(team.id, standings.get(t.id)) : null,
-      finalStanding: global ? finalStandingOf(team.id, t, all, standings.get(t.id)) : null,
+      finalStanding: finalStandingOf(team.id, t, all, standings.get(t.id)),
       squad,
     }
   })
@@ -308,43 +306,4 @@ export function mockTeamMatches(teamId: ID, page: number, limit: number) {
   const input = inputFor(teamId)
   const all = input ? buildTeamProfile(input).finishedMatches : []
   return { items: all.slice((page - 1) * limit, page * limit), total: all.length }
-}
-
-/**
- * Modo demo de GET /tournaments/:id/tracked-summary (6G): mismas reglas que el backend (solo los
- * partidos de cada equipo seguido en ESE torneo; sin posiciones). null si el torneo no existe.
- */
-export function buildMockTrackedSummary(tournamentId: ID): TrackedSummary | null {
-  const db = getDb()
-  const t = db.tournaments.find((x) => x.id === tournamentId)
-  if (!t) return null
-  const tracked = t.dataCoverage === 'partial' ? (t.trackedTeamIds ?? []) : []
-  const teams = new Map(db.teams.map((x) => [x.id, x]))
-  const players = new Map(db.players.map((p) => [p.id, toPublicPlayer(p)]))
-  const tournaments = new Map([[t.id, t]])
-  const all = db.matches.filter((m) => m.tournamentId === tournamentId)
-  const trackedTeams = tracked
-    .filter((id) => teams.has(id))
-    .map((id) => {
-      const own = all.filter((m) => m.homeTeamId === id || m.awayTeamId === id).sort(byKickoff)
-      const played = own.filter(isPlayed)
-      const ids = new Set(played.map((m) => m.id))
-      const stats = db.playerMatchStats.filter((s) => s.teamId === id && ids.has(s.matchId))
-      const [scorer] = rankContributors(stats, players, 'goals', 1)
-      const [assist] = rankContributors(stats, players, 'assists', 1)
-      const last = played.at(-1)
-      const next = own.find((m) => m.status === 'scheduled' || m.status === 'live')
-      return {
-        team: teamRef(teams.get(id))!,
-        record: recordOf(id, own),
-        form: played.slice(-FORM_LENGTH).map((m) => resultFor(m, id)).filter((r): r is FormResult => r !== null),
-        lastMatch: last ? toTeamMatch(last, id, teams, tournaments) : null,
-        nextMatch: next ? toTeamMatch(next, id, teams, tournaments) : null,
-        topScorer: scorer ? { player: scorer.player, goals: scorer.goals } : null,
-        topAssist: assist ? { player: assist.player, assists: assist.assists } : null,
-        squadSize: new Set(db.memberships.filter((m) => m.tournamentId === tournamentId && m.teamId === id && m.status === 'active').map((m) => m.playerId)).size,
-      }
-    })
-    .sort((a, b) => a.team.name.localeCompare(b.team.name))
-  return { tournamentId, trackedTeams }
 }

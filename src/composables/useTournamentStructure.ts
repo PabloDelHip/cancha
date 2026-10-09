@@ -15,7 +15,7 @@ export function useTournamentStructure(tournamentId: MaybeRefOrGetter<ID>, enabl
 
   async function load() {
     const id = toValue(tournamentId)
-    // Seguimiento parcial: el servidor no publica la estructura (409); ni se pide.
+
     if (!id || !toValue(enabled)) return
     error.value = null
     try {
