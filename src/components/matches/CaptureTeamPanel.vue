@@ -28,6 +28,11 @@ function toggleAll() {
   const value = !allPlayed.value
   for (const row of props.rows) if (row.played !== value) togglePlayed(row)
 }
+/** Autogol: 0 → 1 → 2 → 3 → 0 (es raro tener más de uno). */
+function cycleOwnGoal(row: CaptureRow) {
+  row.ownGoals = (row.ownGoals + 1) % 4
+  touch(row)
+}
 function cycleYellow(row: CaptureRow) {
   row.yellowCards = (row.yellowCards + 1) % 3
   touch(row)
@@ -83,7 +88,7 @@ function toggleRed(row: CaptureRow) {
           class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 transition-colors"
           :class="row.played ? 'bg-white' : 'bg-zinc-50/80'"
         >
-          <label class="flex min-w-0 flex-1 basis-44 cursor-pointer items-center gap-3">
+          <label class="flex min-w-0 flex-1 basis-24 cursor-pointer items-center gap-3">
             <input
               type="checkbox"
               class="size-5 shrink-0 cursor-pointer rounded accent-pitch-700"
@@ -97,13 +102,22 @@ function toggleRed(row: CaptureRow) {
               <span class="text-[11px] text-zinc-400">{{ POSITION_SHORT[row.player.position] }}</span>
             </span>
           </label>
-          <div class="ml-auto flex items-center gap-1.5 sm:gap-2" :class="!row.played && 'opacity-50'">
+          <div class="ml-auto flex items-center gap-1.5" :class="!row.played && 'opacity-50'">
             <span class="text-[10px] font-bold text-zinc-400" aria-hidden="true">G</span>
             <NumberStepper v-model="row.goals" :label="`goles de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
             <span class="text-[10px] font-bold text-zinc-400" aria-hidden="true">A</span>
             <NumberStepper v-model="row.assists" :label="`asistencias de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
-            <span class="text-[10px] font-bold text-red-400" aria-hidden="true" title="Autogol">AG</span>
-            <NumberStepper v-model="row.ownGoals" :label="`autogoles de ${fullName(row.player)}`" :max="9" @update:model-value="touch(row)" />
+            <button
+              type="button"
+              class="relative grid size-8 place-items-center rounded-lg border text-[10px] font-bold transition"
+              :class="row.ownGoals ? 'border-red-300 bg-red-50 text-red-700' : 'border-zinc-200 text-zinc-300 hover:bg-zinc-100'"
+              :aria-label="`Autogoles de ${fullName(row.player)}: ${row.ownGoals}`"
+              title="Autogol (suma al rival). Toca para sumar; vuelve a 0 después de 3."
+              @click="cycleOwnGoal(row)"
+            >
+              AG
+              <span v-if="row.ownGoals > 1" class="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">{{ row.ownGoals }}</span>
+            </button>
             <button
               type="button"
               class="relative grid size-8 place-items-center rounded-lg border transition"

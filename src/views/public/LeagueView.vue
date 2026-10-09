@@ -95,7 +95,7 @@ const mostTitles = computed(() =>
   teams.value
     .filter((t) => t.titles > 0)
     .sort((a, b) => b.titles - a.titles || b.runnerUps - a.runnerUps || b.points - a.points)
-    .map((t) => teamRow(t, String(t.titles), `${t.runnerUps} ${t.runnerUps === 1 ? 'final perdida' : 'finales perdidas'} · ${t.tournaments} torneos`)),
+    .map((t) => teamRow(t, String(t.titles), [t.runnerUps ? `${t.runnerUps} ${t.runnerUps === 1 ? 'final perdida' : 'finales perdidas'}` : '', `${t.tournaments} torneos`].filter(Boolean).join(' · '))),
 )
 const attack = computed(() => [...teams.value].filter((t) => t.goalsFor).sort((a, b) => b.goalsFor - a.goalsFor).map((t) => teamRow(t, String(t.goalsFor), `${t.played} PJ · ${fmtAvg(t.goalsFor / t.played)} por partido`)))
 const defense = computed(() =>

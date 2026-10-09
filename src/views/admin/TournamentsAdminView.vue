@@ -43,13 +43,28 @@ async function enableOrganizer() {
   if (await optIn.enable(false)) editor.create()
 }
 
-const groups = computed(() =>
-  [
-    { key: 'active', title: 'En curso', items: tournaments.mine.filter((t) => t.status === 'active') },
-    { key: 'draft', title: 'En preparación', items: tournaments.mine.filter((t) => t.status === 'draft') },
-    { key: 'finished', title: 'Historial', items: tournaments.mine.filter((t) => t.status === 'finished') },
-  ].filter((g) => g.items.length),
-)
+/** Por liga (la de actividad más reciente primero); dentro, en curso → en preparación → historial. */
+const STATUS_ORDER = { active: 0, draft: 1, finished: 2 } as const
+const groups = computed(() => {
+  const byLeague = new Map<string, typeof tournaments.mine>()
+  for (const t of tournaments.mine) {
+    const key = t.leagueId ?? 'none'
+    byLeague.set(key, [...(byLeague.get(key) ?? []), t])
+  }
+  return [...byLeague.entries()]
+    .map(([key, items]) => ({
+      key,
+      leagueId: key === 'none' ? undefined : key,
+      title: key === 'none' ? 'Sin liga' : (leagueNames.value.get(key) ?? 'Liga'),
+      items: [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.startDate.localeCompare(a.startDate)),
+    }))
+    .sort((a, b) => (b.items[0]?.startDate ?? '').localeCompare(a.items[0]?.startDate ?? ''))
+})
+/** "Nuevo torneo" dentro de una liga: abre el alta con esa liga elegida. */
+function createIn(leagueId?: string) {
+  presetLeague.value = leagueId
+  editor.create()
+}
 
 /** Al crear, se entra directo al workspace del torneo: ahí la guía muestra el siguiente paso. */
 function onSubmit(input: TournamentInput) {
@@ -68,7 +83,7 @@ function onSubmit(input: TournamentInput) {
       :subtitle="tournaments.mine.length ? `${tournaments.mine.length} ${tournaments.mine.length === 1 ? 'torneo' : 'torneos'} a tu cargo` : home.canOrganize ? 'Crea y administra tus ligas.' : 'Opcional: tu cuenta puede administrar equipos y también organizar.'"
     >
       <template v-if="home.canOrganize" #actions>
-        <AppButton @click="editor.create()"><Plus class="size-4" aria-hidden="true" /> Nuevo torneo</AppButton>
+        <AppButton @click="createIn(undefined)"><Plus class="size-4" aria-hidden="true" /> Nuevo torneo</AppButton>
       </template>
     </PageHeader>
 
@@ -90,22 +105,24 @@ function onSubmit(input: TournamentInput) {
       description="Crea tu primer torneo. Después Cancha te guía: inscribir equipos, registrar jugadores, generar el calendario y capturar resultados."
       class="card"
     >
-      <AppButton @click="editor.create()"><Plus class="size-4" aria-hidden="true" /> Crear torneo</AppButton>
+      <AppButton @click="createIn(undefined)"><Plus class="size-4" aria-hidden="true" /> Crear torneo</AppButton>
     </EmptyState>
 
     <div v-else class="space-y-8">
       <section v-for="g in groups" :key="g.key" :aria-labelledby="`group-${g.key}`">
-        <h2 :id="`group-${g.key}`" class="eyebrow mb-3">{{ g.title }} · {{ g.items.length }}</h2>
+        <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 :id="`group-${g.key}`" class="display text-2xl text-zinc-950">{{ g.title }} <span class="text-base font-semibold text-zinc-400">· {{ g.items.length }}</span></h2>
+          <RouterLink v-if="g.leagueId" :to="{ name: 'league', params: { id: g.leagueId } }" class="text-sm font-semibold text-pitch-700 hover:text-pitch-900">Ver liga →</RouterLink>
+        </div>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <AdminTournamentCard v-for="t in g.items" :key="t.id" :tournament="t" :league-name="t.leagueId ? leagueNames.get(t.leagueId) : undefined" />
+          <AdminTournamentCard v-for="t in g.items" :key="t.id" :tournament="t" />
           <button
-            v-if="g.key === groups[0]?.key"
             type="button"
             class="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-300 text-sm font-semibold text-zinc-500 transition hover:border-pitch-400 hover:bg-pitch-50/50 hover:text-pitch-700"
-            @click="editor.create()"
+            @click="createIn(g.leagueId)"
           >
             <span class="grid size-10 place-items-center rounded-full bg-white shadow-sm"><Plus class="size-5" aria-hidden="true" /></span>
-            Nuevo torneo
+            Nuevo torneo en {{ g.title }}
           </button>
         </div>
       </section>

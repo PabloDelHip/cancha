@@ -15,6 +15,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import TeamForm from '@/components/teams/TeamForm.vue'
+import TeamCoverEditor from '@/components/teams/TeamCoverEditor.vue'
 import EnrollTeamDialog from '@/components/admin/EnrollTeamDialog.vue'
 
 /**
@@ -55,6 +56,11 @@ function hasMatches(team: Team) {
 function onSubmit(input: TeamInput) {
   const current = editor.current.value
   if (current) editor.save(() => teams.update(current.id, input), 'Ficha del equipo actualizada.')
+}
+/** La portada se guarda por su cuenta: se refleja en el diálogo y en la lista sin cerrar nada. */
+function onCoverChanged(updated: Team) {
+  editor.current.value = updated
+  teams.items = teams.items.map((t) => (t.id === updated.id ? updated : t))
 }
 
 async function unenroll(team: Team) {
@@ -153,6 +159,12 @@ async function unenroll(team: Team) {
       @close="editor.close()"
     >
       <TeamForm v-if="editor.current.value" form-id="team-form" :initial="editor.current.value" @submit="onSubmit" />
+      <!-- Equipo sin dueño registrado por el organizador (custodio): también maneja su portada. -->
+      <section v-if="editor.current.value" aria-labelledby="team-cover-title" class="mt-6 border-t border-zinc-200 pt-5">
+        <h3 id="team-cover-title" class="font-bold">Foto de portada</h3>
+        <p class="mb-3 text-sm text-zinc-500">La foto grande del perfil del equipo. Se guarda al momento, aparte de "Guardar cambios".</p>
+        <TeamCoverEditor :team="editor.current.value" @changed="onCoverChanged" />
+      </section>
       <template #footer>
         <AppButton variant="secondary" :disabled="editor.saving.value" @click="editor.close()">Cancelar</AppButton>
         <AppButton type="submit" form="team-form" :loading="editor.saving.value">Guardar cambios</AppButton>

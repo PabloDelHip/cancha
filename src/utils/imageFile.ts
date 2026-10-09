@@ -46,3 +46,26 @@ export function uploadErrorMessage(error: unknown): string {
       return getErrorMessage(error)
   }
 }
+
+/**
+ * Foto completa (portada) reducida a como mucho `max` px de lado (nunca amplía), lista para subir.
+ * Sin recortar: el encuadre se guarda aparte. WebP si se puede; si no, JPEG.
+ */
+export async function downscale(file: Blob, max: number): Promise<Blob> {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  const ctx = canvas.getContext('2d')!
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close()
+  const toBlob = (type: string) => new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.88))
+  const webp = await toBlob('image/webp')
+  if (webp && webp.type === 'image/webp') return webp
+  const jpeg = await toBlob('image/jpeg')
+  if (!jpeg) throw new Error('No se pudo procesar la imagen')
+  return jpeg
+}

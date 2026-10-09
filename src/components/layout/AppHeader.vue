@@ -44,7 +44,7 @@ const auth = useAuthStore()
           Iniciar sesión
         </RouterLink>
         <RouterLink
-          :to="{ name: 'register', query: { intent: 'organizer', redirect: '/admin/tournaments?new=1' } }"
+          :to="{ name: 'register', query: { intent: 'organizer', redirect: '/admin/leagues' } }"
           class="hidden h-9 items-center rounded-lg bg-lime-400 px-3 text-sm font-semibold text-pitch-950 transition-colors hover:bg-lime-300 sm:inline-flex"
         >
           Organiza tu torneo

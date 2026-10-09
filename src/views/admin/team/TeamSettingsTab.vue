@@ -10,6 +10,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import AppButton from '@/components/common/AppButton.vue'
 import TeamForm from '@/components/teams/TeamForm.vue'
+import TeamCoverEditor from '@/components/teams/TeamCoverEditor.vue'
 
 /**
  * Ficha global del equipo con el formulario de siempre (TeamForm):
@@ -41,7 +42,7 @@ async function save(input: Partial<TeamInput>) {
   }
 }
 
-/** El logo se sube a Cloudinary desde el propio formulario: aquí solo se refleja el cambio. */
+/** Logo y portada se suben a Cloudinary desde su propio control: aquí solo se refleja el cambio. */
 function onLogoChanged(updated: Team) {
   team.value = updated
   if (teams.get(updated.id)) teams.items = teams.items.map((t) => (t.id === updated.id ? updated : t))
@@ -86,6 +87,12 @@ async function remove() {
       <div class="mt-4 flex justify-end">
         <AppButton type="submit" form="team-settings-form" :loading="saving"><Save class="size-4" aria-hidden="true" /> Guardar cambios</AppButton>
       </div>
+    </section>
+
+    <section v-if="team" aria-labelledby="cover-title" class="card p-4 sm:p-5">
+      <h2 id="cover-title" class="text-lg font-bold">Foto de portada</h2>
+      <p class="mb-4 text-sm text-zinc-500">La foto grande del perfil del equipo. Súbela y arrástrala para elegir qué parte se ve.</p>
+      <TeamCoverEditor :team="team" @changed="onLogoChanged" />
     </section>
 
     <section v-if="isOwner" aria-labelledby="danger-title" class="rounded-2xl border border-red-200 bg-red-50/40 p-4 sm:p-5">

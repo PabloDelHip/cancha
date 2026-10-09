@@ -4,7 +4,7 @@ import { Goal, Shield } from 'lucide-vue-next'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
 import { useTournamentChampion } from '@/composables/useTournamentChampion'
-import ChampionBanner from '@/components/tournaments/ChampionBanner.vue'
+import TournamentAwards from '@/components/tournaments/TournamentAwards.vue'
 import BracketView from '@/components/tournaments/structure/BracketView.vue'
 import SectionHeader from '@/components/common/SectionHeader.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -23,7 +23,7 @@ const finished = computed(() => stats.tournament.value?.status === 'finished')
 const partial = stats.partial
 // Campeón oficial y eliminatoria: los calcula el servidor (nunca en seguimiento parcial).
 const { structure } = useTournamentStructure(() => props.id, () => !partial.value)
-const { champion, detail, knockout } = useTournamentChampion(structure)
+const { knockout } = useTournamentChampion(structure)
 /** Seguimiento parcial: en lugar de tabla y goleadores, los últimos partidos registrados. */
 const latestResults = computed(() => stats.matches.value.filter((m) => m.status === 'finished').slice(-6).reverse())
 </script>
@@ -39,7 +39,7 @@ const latestResults = computed(() => stats.matches.value.filter((m) => m.status 
     />
 
     <template v-else>
-      <ChampionBanner v-if="champion" :team="champion" :detail="detail" />
+      <TournamentAwards v-if="structure" :structure="structure" />
 
       <section v-if="knockout && structure" aria-label="Eliminatoria">
         <SectionHeader title="Eliminatoria" link-label="Ver competición" :to="{ name: 'tournament-standings', params: { id } }" />

@@ -5,7 +5,7 @@ import { MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDate, plural } from '@/utils/format'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 
-defineProps<{ tournament: Tournament; teamsCount: number }>()
+defineProps<{ tournament: Tournament; teamsCount: number; leagueName?: string }>()
 </script>
 
 <template>
@@ -21,6 +21,7 @@ defineProps<{ tournament: Tournament; teamsCount: number }>()
     </div>
     <h3 class="mt-4 text-lg leading-snug font-bold text-zinc-950 group-hover:text-pitch-700">{{ tournament.name }}</h3>
     <p class="mt-1 text-sm text-zinc-500">{{ MODALITY_LABELS[tournament.modality] }} · {{ tournament.category }}</p>
+    <p v-if="leagueName" class="mt-1.5 inline-flex max-w-full items-center rounded-full bg-pitch-50 px-2 py-0.5 text-xs font-semibold text-pitch-800"><span class="truncate">{{ leagueName }}</span></p>
     <dl class="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
       <div class="flex items-center gap-1.5">
         <dt class="sr-only">Equipos</dt>

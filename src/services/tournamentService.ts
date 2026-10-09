@@ -1,9 +1,11 @@
-import type { AdvancePhaseInput, ID, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, TrackedSummary } from '@/types'
+import type { AdvancePhaseInput, AdvancePreview, ID, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, TrackedSummary } from '@/types'
 import { api, fetchAll, USE_MOCKS } from './api'
 import {
   fromTournamentInput,
   toStanding,
+  toAdvancePreview,
   toStructure,
+  type ApiAdvancePreview,
   toTournament,
   toTrackedSummary,
   type ApiTrackedSummary,
@@ -51,6 +53,8 @@ export interface TournamentService {
   trackedSummary(id: ID): Promise<TrackedSummary>
   /** Genera la eliminatoria desde la tabla o los grupos terminados (o un cuadro vacío, a mano). */
   advance(id: ID, input: AdvancePhaseInput): Promise<TournamentStructure>
+  /** La eliminatoria que generaría `advance` con el mismo cuerpo, sin guardar nada. */
+  previewAdvance(id: ID, input: AdvancePhaseInput): Promise<AdvancePreview>
   /** Cuadro armado a mano: agregar o quitar un cruce (con sus partidos). */
   createTie(id: ID, phase: number, input: TieInput): Promise<TournamentStructure>
   deleteTie(id: ID, phase: number, round: number, slot: number): Promise<TournamentStructure>
@@ -115,6 +119,9 @@ const http: TournamentService = {
   },
   async advance(id, input) {
     return toStructure((await api.post<ApiStructure>(`/tournaments/${id}/phases/advance`, input)).data)
+  },
+  async previewAdvance(id, input) {
+    return toAdvancePreview((await api.post<ApiAdvancePreview>(`/tournaments/${id}/phases/advance/preview`, input)).data)
   },
   async createTie(id, phase, input) {
     return toStructure((await api.post<ApiStructure>(`/tournaments/${id}/phases/${phase}/ties`, input)).data)
@@ -250,6 +257,9 @@ const mock: TournamentService = {
     return summary ? delay(summary) : Promise.reject(new MockNotFoundError('Torneo', id))
   },
   advance() {
+    return Promise.reject(new MockHttpError(409, 'Los formatos con fases (grupos, eliminatorias, playoffs) requieren el servidor'))
+  },
+  previewAdvance() {
     return Promise.reject(new MockHttpError(409, 'Los formatos con fases (grupos, eliminatorias, playoffs) requieren el servidor'))
   },
   createTie() {

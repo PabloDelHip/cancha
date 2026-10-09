@@ -2,8 +2,7 @@
 import { computed } from 'vue'
 import type { TournamentStructure } from '@/types'
 import StandingsTable from '@/components/tournaments/StandingsTable.vue'
-import ChampionBanner from '@/components/tournaments/ChampionBanner.vue'
-import { useTournamentChampion } from '@/composables/useTournamentChampion'
+import TournamentAwards from '@/components/tournaments/TournamentAwards.vue'
 import GroupsView from './GroupsView.vue'
 import BracketView from './BracketView.vue'
 
@@ -14,15 +13,14 @@ import BracketView from './BracketView.vue'
 const props = defineProps<{ structure: TournamentStructure; editable?: boolean }>()
 const emit = defineEmits<{ addTie: [phase: number, round: number]; removeTie: [phase: number, round: number, slot: number] }>()
 
-/** Campeón oficial (una sola tarjeta, mismo diseño que el Resumen). */
-const { champion, detail } = useTournamentChampion(() => props.structure)
 const PHASE_TITLE = { league: 'Fase regular', groups: 'Fase de grupos', knockout: 'Eliminatorias' } as const
 const multi = computed(() => props.structure.settings.system !== 'league' && props.structure.settings.system !== 'knockout')
 </script>
 
 <template>
   <div class="space-y-8">
-    <ChampionBanner v-if="champion" :team="champion" :detail="detail" />
+    <!-- Torneo finalizado: campeón, goleador y mejor portero (una sola vez) -->
+    <TournamentAwards :structure="structure" />
 
     <section v-for="p in structure.phases" :key="p.index" :aria-label="PHASE_TITLE[p.type]">
       <h2 v-if="multi" class="display mb-3 text-2xl">{{ PHASE_TITLE[p.type] }}</h2>

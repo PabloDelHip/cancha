@@ -364,7 +364,7 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
       </section>
 
       <!-- Selector de equipo en móvil -->
-      <div role="tablist" aria-label="Equipo a capturar" class="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-zinc-200/70 p-1 lg:hidden">
+      <div role="tablist" aria-label="Equipo a capturar" class="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-zinc-200/70 p-1 2xl:hidden">
         <button
           v-for="side in (['home', 'away'] as const)"
           :key="side"
@@ -380,9 +380,9 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
         </button>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden lg:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" />
-        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden lg:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" />
+      <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" />
+        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" />
       </div>
 
       </fieldset>

@@ -17,7 +17,7 @@ const props = defineProps<{
   played: number
   scheduled: number
   goals: number
-  /** Primero de la tabla (solo liga con cobertura completa y partidos jugados). */
+  /** Líder de la tabla (solo liga en curso, cobertura completa y con partidos jugados). */
   leader?: { standing: Standing; team: Team } | null
   /** Liga a la que pertenece (enlace a su página e histórico). */
   league?: { id: string; name: string } | null
@@ -25,7 +25,6 @@ const props = defineProps<{
 
 const progress = computed(() => (props.scheduled ? Math.round((props.played / props.scheduled) * 100) : 0))
 const avg = computed(() => (props.played ? (props.goals / props.played).toFixed(1) : '0'))
-const finished = computed(() => props.tournament.status === 'finished')
 const figures = computed(() => [
   { label: 'Equipos', value: props.teams.length },
   { label: 'Partidos', value: `${props.played}/${props.scheduled}` },
@@ -72,7 +71,7 @@ const figures = computed(() => [
           <Crown class="size-6 shrink-0" aria-hidden="true" />
           <TeamLogo :team="leader.team" size="md" />
           <span class="min-w-0">
-            <span class="block text-[10px] font-bold tracking-wider uppercase opacity-70">{{ finished ? 'Campeón' : 'Líder' }}</span>
+            <span class="block text-[10px] font-bold tracking-wider uppercase opacity-70">Líder</span>
             <span class="block truncate font-display text-xl leading-none font-bold">{{ leader.team.name }}</span>
             <span class="text-xs font-semibold opacity-75">{{ leader.standing.points }} pts · {{ leader.standing.played }} PJ</span>
           </span>

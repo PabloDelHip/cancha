@@ -4,7 +4,7 @@ import { Check, Search } from 'lucide-vue-next'
 import type { KnockoutTiebreak, LeagueSummary, Team, Tournament, TournamentInput, TournamentSettings } from '@/types'
 import { leagueService } from '@/services'
 import { COMPETITION_SYSTEMS, DATA_COVERAGE, defaultSettings, KNOCKOUT_TIEBREAKS, MODALITY_LABELS, TIEBREAKERS } from '@/utils/labels'
-import { formatProblems, hasKnockout, hasRoundRobin, MAX_GROUPS, PLAYOFF_SIZES } from '@/utils/formats'
+import { bracketStartSummary, formatProblems, hasKnockout, hasRoundRobin, isPowerOfTwo, MAX_GROUPS, MAX_PLAYOFF_TEAMS } from '@/utils/formats'
 import { USE_MOCKS } from '@/services/api'
 import { useFormErrors } from '@/composables/useFormErrors'
 import FormField from '@/components/common/FormField.vue'
@@ -123,7 +123,10 @@ const summary = computed(() => {
     const q = s.groupCount! * s.qualifiersPerGroup!
     return `${s.groupCount} grupos; clasifican ${s.qualifiersPerGroup} por grupo → ${q} equipos: ${rounds(q)}.`
   }
-  if (s.system === 'league_playoffs' && !problems.value.length) return `Fase regular; los ${s.playoffTeams} mejores de la tabla → ${rounds(s.playoffTeams!)}.`
+  if (s.system === 'league_playoffs' && !problems.value.length) {
+    const n = s.playoffTeams!
+    return `Fase regular; los ${n} mejores de la tabla → ${isPowerOfTwo(n) ? '' : `${bracketStartSummary(n)} → `}${rounds(Math.max(2, 2 ** Math.floor(Math.log2(n))))}.`
+  }
   if (s.system === 'knockout') return 'Cuadro con cabezas de serie; si los equipos no son potencia de 2, las mejores pasan con BYE.'
   return null
 })
@@ -259,9 +262,7 @@ function onSubmit() {
         </fieldset>
 
         <FormField v-if="form.system === 'league_playoffs'" id="t-playoffs" label="Clasifican a playoffs" class="sm:max-w-xs">
-          <select id="t-playoffs" v-model.number="form.playoffTeams" class="input">
-            <option v-for="n in PLAYOFF_SIZES" :key="n" :value="n">{{ n }} equipos</option>
-          </select>
+          <input id="t-playoffs" v-model.number="form.playoffTeams" type="number" min="2" :max="MAX_PLAYOFF_TEAMS" inputmode="numeric" class="input text-center" />
         </FormField>
 
         <fieldset v-if="hasRoundRobin(form.system)">

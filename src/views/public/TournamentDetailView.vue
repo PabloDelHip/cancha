@@ -36,7 +36,8 @@ watch(
 )
 /** Líder (o campeón) de la tabla: solo en liga, con cobertura completa y partidos jugados. */
 const leader = computed(() => {
-  if (partial.value || tournament.value?.settings.system !== 'league' || !playedCount.value) return null
+  // Solo en curso: al finalizar, el campeón (con goleador y mejor portero) se muestra en las pestañas.
+  if (partial.value || tournament.value?.status === 'finished' || tournament.value?.settings.system !== 'league' || !playedCount.value) return null
   const standing = standings.value[0]
   const team = standing && teams.value.find((t) => t.id === standing.teamId)
   return standing && team ? { standing, team } : null

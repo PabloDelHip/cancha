@@ -94,6 +94,11 @@ export interface TeamColors {
   secondary: string
 }
 
+export interface CoverPosition {
+  x: number
+  y: number
+}
+
 export interface Team extends Timestamps {
   id: ID
   name: string
@@ -101,6 +106,10 @@ export interface Team extends Timestamps {
   logoUrl: string | null
   colors: TeamColors
   city: string | null
+  /** Foto de portada del perfil; sin ella se ve la portada con los colores del equipo. */
+  coverUrl?: string | null
+  /** Encuadre de la portada: punto de la foto (en %) que queda al centro. */
+  coverPosition?: CoverPosition
   /** Usuario que registró el equipo (auditoría). NO es su propietario: eso es TeamAdmin (6A). */
   createdBy?: ID | null
 }
@@ -627,7 +636,7 @@ export interface TeamHonor {
 }
 
 export interface TeamProfile {
-  team: TeamRef & { city: string | null }
+  team: TeamRef & { city: string | null; coverUrl?: string | null; coverPosition?: CoverPosition }
   record: TeamRecord & { competitions: number }
   /** Últimos resultados, del más antiguo al más reciente. */
   form: FormResult[]
@@ -744,6 +753,17 @@ export interface TournamentStructure {
   championTeamId: ID | null
   tiebreaks: { phase: number; scope: string; order: ID[] }[]
   teams: Record<ID, TeamRef>
+}
+
+/** Eliminatoria que se generaría con los clasificados (POST …/phases/advance/preview): nada se guarda. */
+export interface AdvancePreview {
+  seeds: KnockoutSeed[]
+  /** Reacomodo: después de la primera ronda los cruces los arma el organizador. */
+  reseed: boolean
+  rounds: { name: string; ties: { slot: number; home: SlotSource; away: SlotSource }[] }[]
+  /** Partidos que se crearían ya (los de quienes pasan directo esperan a su rival). */
+  matches: { homeTeamId: ID; awayTeamId: ID; date: ISODate; time: string; roundName: string | null }[]
+  teams: Record<string, TeamRef>
 }
 
 export interface AdvancePhaseInput {

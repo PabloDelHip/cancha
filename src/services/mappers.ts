@@ -14,6 +14,7 @@ import type {
   PlayerCandidate,
   TrackedSummary,
   BracketTieView,
+  AdvancePreview,
   KnockoutSeed,
   PhaseView,
   Qualification,
@@ -141,6 +142,8 @@ export interface ApiTeam extends ApiTimestamps {
   logoUrl: string | null
   colors: { primary: string; secondary: string }
   city: string | null
+  coverUrl?: string | null
+  coverPosition?: { x: number; y: number }
 }
 
 /** Representación pública: edad derivada, nunca la fecha de nacimiento. */
@@ -307,6 +310,8 @@ export function toTeam(t: ApiTeam): Team {
     logoUrl: t.logoUrl,
     colors: t.colors,
     city: t.city,
+    coverUrl: t.coverUrl ?? null,
+    coverPosition: t.coverPosition ?? { x: 50, y: 50 },
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -630,7 +635,7 @@ export interface ApiTeamMatch {
 type ApiStanding3 = { position: number; teams: number; points: number } | null
 
 export interface ApiTeamProfile {
-  team: TeamRef & { city: string | null }
+  team: TeamRef & { city: string | null; coverUrl?: string | null; coverPosition?: { x: number; y: number } }
   career: ApiTeamRecord & { competitions: number }
   form: FormResult[]
   currentParticipations: { tournament: ApiTournamentRef; standing: ApiStanding3 }[]
@@ -799,6 +804,14 @@ function toPhase(p: ApiPhase): PhaseView {
   if (p.type === 'GROUPS') return { ...p, type: 'groups', groups: p.groups.map((g) => ({ ...g, table: g.table.map(toStanding) })) }
   return { ...p, type: 'knockout', reseed: p.reseed ?? false, rounds: p.rounds.map((r) => ({ ...r, ties: r.ties.map(toTie) })) }
 }
+
+export interface ApiAdvancePreview extends Omit<AdvancePreview, 'rounds'> {
+  rounds: { name: string; ties: { slot: number; home: ApiSource; away: ApiSource }[] }[]
+}
+export const toAdvancePreview = (p: ApiAdvancePreview): AdvancePreview => ({
+  ...p,
+  rounds: p.rounds.map((r) => ({ ...r, ties: r.ties.map((t) => ({ slot: t.slot, home: toSource(t.home), away: toSource(t.away) })) })),
+})
 
 /** GET /tournaments/:id/structure → modelo del front (solo nomenclatura). */
 export function toStructure(s: ApiStructure): TournamentStructure {

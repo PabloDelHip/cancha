@@ -1,4 +1,4 @@
-import type { ID, Team, TeamInput, TeamMatch, TeamProfile, UploadProgress } from '@/types'
+import type { CoverPosition, ID, Team, TeamInput, TeamMatch, TeamProfile, UploadProgress } from '@/types'
 import { blobToDataUrl, putImage } from './imageUpload'
 import { api, fetchAll, USE_MOCKS } from './api'
 import type { AdminRef } from './playerService'
@@ -25,6 +25,12 @@ export interface TeamService {
   uploadLogo(id: ID, image: Blob, onProgress?: UploadProgress): Promise<Team>
   /** Quita el logo (y el servidor lo borra de Cloudinary). */
   removeLogo(id: ID): Promise<Team>
+  /** Sube (o reemplaza) la foto de portada, completa; empieza centrada. */
+  uploadCover(id: ID, image: Blob, onProgress?: UploadProgress): Promise<Team>
+  /** Guarda el encuadre de la portada (punto central en %). */
+  setCoverPosition(id: ID, position: CoverPosition): Promise<Team>
+  /** Quita la portada: vuelve el diseño con los colores del equipo. */
+  removeCover(id: ID): Promise<Team>
   /** Solo equipos sin historia (lo decide el servidor: 409 con el motivo). */
   remove(id: ID): Promise<void>
 }
@@ -57,6 +63,15 @@ const http: TeamService = {
   },
   async removeLogo(id) {
     return toTeam((await api.delete<ApiTeam>(`/teams/${id}/logo`)).data)
+  },
+  async uploadCover(id, image, onProgress) {
+    return toTeam(await putImage<ApiTeam>(`/teams/${id}/cover`, image, onProgress))
+  },
+  async setCoverPosition(id, position) {
+    return toTeam((await api.patch<ApiTeam>(`/teams/${id}`, { coverPosition: position })).data)
+  },
+  async removeCover(id) {
+    return toTeam((await api.delete<ApiTeam>(`/teams/${id}/cover`)).data)
   },
   async remove(id) {
     await api.delete(`/teams/${id}`)
@@ -113,7 +128,10 @@ const mock: TeamService = {
   removeLogo(id) {
     return mock.update(id, { logoUrl: null })
   },
-  // Solo se usa desde la administración de equipos, que en modo demo requiere el servidor.
+  // La portada y borrar equipos solo se usan en la administración, que en modo demo requiere el servidor.
+  uploadCover: () => Promise.reject(new MockHttpError(501, 'La portada requiere el servidor')),
+  setCoverPosition: () => Promise.reject(new MockHttpError(501, 'La portada requiere el servidor')),
+  removeCover: () => Promise.reject(new MockHttpError(501, 'La portada requiere el servidor')),
   remove: () => Promise.reject(new MockHttpError(501, 'Eliminar equipos requiere el servidor')),
 }
 

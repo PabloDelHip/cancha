@@ -4,6 +4,7 @@ import { Trophy } from 'lucide-vue-next'
 import type { TournamentStatus } from '@/types'
 import { useTournamentsStore } from '@/stores'
 import { useLeagueData } from '@/composables/useLeagueData'
+import { useLeagueNames } from '@/composables/useLeagueNames'
 import { TOURNAMENT_STATUS } from '@/utils/labels'
 import PageHeader from '@/components/common/PageHeader.vue'
 import TournamentCard from '@/components/tournaments/TournamentCard.vue'
@@ -13,6 +14,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 
 const { loading, error, reload } = useLeagueData()
 const tournaments = useTournamentsStore()
+const { leagueName } = useLeagueNames()
 
 const filter = ref<TournamentStatus | 'all'>('all')
 const filters: { value: TournamentStatus | 'all'; label: string }[] = [
@@ -48,7 +50,7 @@ const visible = computed(() =>
     <LoadingState v-if="loading" />
     <ErrorState v-else-if="error" :message="error" @retry="reload" />
     <div v-else-if="visible.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <TournamentCard v-for="t in visible" :key="t.id" :tournament="t" :teams-count="tournaments.teamIdsOf(t.id).length" />
+      <TournamentCard v-for="t in visible" :key="t.id" :tournament="t" :teams-count="tournaments.teamIdsOf(t.id).length" :league-name="leagueName(t.leagueId)" />
     </div>
     <EmptyState v-else :icon="Trophy" title="No hay torneos en esta categoría" description="Prueba con otro filtro." class="card" />
   </div>

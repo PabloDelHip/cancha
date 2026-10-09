@@ -10,7 +10,7 @@ import { formatDate } from '@/utils/format'
  * la siguiente. Se dibuja COMPLETO desde el inicio (1 vs 8, 4 vs 5, 2 vs 7, 3 vs 6…): las rondas
  * futuras muestran su lugar vacío ("Ganador Cuartos 1") hasta que se decide. En móvil se desliza
  * de lado. Cada llave enlaza a su partido; tiempos extra y penales, en su pie. El campeón se
- * muestra aparte (ChampionBanner), una sola vez.
+ * muestra aparte (TournamentAwards), una sola vez.
  */
 const props = defineProps<{
   phase: Extract<TournamentStructure['phases'][number], { type: 'knockout' }>

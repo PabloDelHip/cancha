@@ -27,9 +27,12 @@ export function useTournamentChampion(structure: MaybeRefOrGetter<TournamentStru
       const rival = s.teams[(won ? final.awayTeamId : final.homeTeamId) as ID]
       const [a, b] = won ? [final.aggregate.home, final.aggregate.away] : [final.aggregate.away, final.aggregate.home]
       const last = final.legs.at(-1)
-      const pen = last?.penalties ? ` · penales ${won ? last.penalties.home : last.penalties.away}-${won ? last.penalties.away : last.penalties.home}` : ''
-      const et = last?.extraTime && !last.penalties ? ' · tiempos extra' : ''
-      return `Ganó la final ${a}-${b} a ${rival?.name ?? 'su rival'}${et}${pen}`
+      const name = rival?.name ?? 'su rival'
+      if (last?.penalties && a === b) {
+        const [p1, p2] = won ? [last.penalties.home, last.penalties.away] : [last.penalties.away, last.penalties.home]
+        return `Ganó la final a ${name} en penales (${p1}-${p2}) tras empatar ${a}-${b}${last.extraTime ? ' en tiempos extra' : ''}`
+      }
+      return `Ganó la final ${a}-${b} a ${name}${last?.extraTime ? ' en tiempos extra' : ''}`
     }
     const league = s.phases.find((p) => p.type === 'league')
     const row = league?.type === 'league' ? league.table.find((r) => r.teamId === id) : undefined

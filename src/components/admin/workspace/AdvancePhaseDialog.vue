@@ -3,10 +3,10 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, Hand, Wand2 } from 'lucide-vue-next'
 import posthog from 'posthog-js'
 import { analyticsEnabled as posthogConfigured } from '@/services/analytics'
-import type { ID, TournamentStructure } from '@/types'
+import type { AdvancePhaseInput, AdvancePreview, ID, SlotSource, TournamentStructure } from '@/types'
 import { getErrorMessage, tournamentService } from '@/services'
-import { toISODate } from '@/utils/format'
-import { KNOCKOUT_ROUND_LABEL, manualBracketSizes } from '@/utils/formats'
+import { formatDate, toISODate } from '@/utils/format'
+import { KNOCKOUT_ROUND_LABEL, manualBracketSizes, nextPowerOfTwo } from '@/utils/formats'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
@@ -15,6 +15,9 @@ import FormField from '@/components/common/FormField.vue'
  * Generar la eliminatoria desde la tabla (liga + playoffs) o los grupos. El servidor decide quién
  * clasifica; si hay empates sin criterio deportivo en posiciones que deciden algo, el organizador
  * los ordena aquí de forma explícita (queda registrado). Nunca se desempata por nombre.
+ *
+ * Con los clasificados, primero se muestra la PROPUESTA (cruces, quién pasa directo y fechas) sin
+ * guardar nada; solo se crea si el organizador la acepta. Si no le sirve, la arma a mano.
  *
  * "A mano": cuadro vacío en el que el organizador elige cada cruce (Competición → Agregar cruce).
  * No exige la fase anterior terminada (pueden quedar partidos pendientes) ni la congela.
@@ -38,7 +41,7 @@ watch(
     error.value = null
     // Sin clasificados automáticos posibles (fase incompleta), se sugiere armarla a mano.
     mode.value = s.next?.ready || hardBlockersOf(s).length === 0 ? 'auto' : 'manual'
-    bracketSize.value = Math.min(sizes.value.at(-1) ?? 2, s.settings.playoffTeams ?? Infinity)
+    bracketSize.value = Math.min(sizes.value.at(-1) ?? 2, s.settings.playoffTeams ? nextPowerOfTwo(s.settings.playoffTeams) : Infinity)
     const out: typeof clusters.value = []
     for (const p of s.phases) {
       if (p.type === 'league') p.qualification?.unresolved.forEach((u) => out.push({ scope: 'LEAGUE', label: `Tabla, posiciones ${u.positions[0]}–${u.positions[1]}`, order: [...u.teamIds] }))
@@ -50,6 +53,48 @@ watch(
   },
   { immediate: true },
 )
+
+/** Propuesta del servidor; cualquier cambio en el formulario o en los desempates la invalida. */
+const preview = ref<AdvancePreview | null>(null)
+watch([mode, form, clusters, () => props.open], () => (preview.value = null), { deep: true })
+
+const autoInput = (): AdvancePhaseInput => ({
+  startDate: form.startDate,
+  daysBetweenRounds: Number(form.daysBetweenRounds),
+  firstKickoff: form.firstKickoff,
+  minutesBetweenMatches: Number(form.minutesBetweenMatches),
+  venue: form.venue.trim() || null,
+  tiebreaks: clusters.value.map((c) => ({ scope: c.scope, order: c.order })),
+})
+
+async function showPreview() {
+  saving.value = true
+  error.value = null
+  try {
+    preview.value = await tournamentService.previewAdvance(props.tournamentId, autoInput())
+  } catch (e) {
+    error.value = getErrorMessage(e)
+  } finally {
+    saving.value = false
+  }
+}
+
+/** Un lado de un cruce de la propuesta: equipo (con su procedencia), `null` = pasa directo, o ganador de otro cruce. */
+function sideLabel(p: AdvancePreview, src: SlotSource): string | null {
+  if (src.type === 'team') return p.teams[src.teamId]?.name ?? src.teamId
+  if (src.type === 'seed') {
+    const seed = p.seeds.find((x) => x.seed === src.seed)
+    return seed ? `${p.teams[seed.teamId]?.name ?? seed.teamId} (${seed.origin})` : null
+  }
+  const round = p.rounds[src.round]
+  const tie = round?.ties.find((t) => t.slot === src.slot)
+  if (!round || !tie) return '—'
+  // Un cruce con pase directo ya tiene ganador: se nombra al equipo.
+  const home = sideLabel(p, tie.home)
+  const away = sideLabel(p, tie.away)
+  if (home === null || away === null) return home ?? away
+  return `Ganador ${round.name} ${tie.slot + 1}`
+}
 
 /** Bloqueos que el organizador no puede resolver aquí (partidos pendientes). */
 function hardBlockersOf(s: TournamentStructure) {
@@ -71,14 +116,8 @@ async function submit() {
       emit('done', await tournamentService.advance(props.tournamentId, { manual: true, bracketSize: bracketSize.value, startDate: form.startDate, daysBetweenRounds: 7, firstKickoff: '18:00', minutesBetweenMatches: 90, venue: null, tiebreaks: [] }))
       return
     }
-    const result = await tournamentService.advance(props.tournamentId, {
-      startDate: form.startDate,
-      daysBetweenRounds: Number(form.daysBetweenRounds),
-      firstKickoff: form.firstKickoff,
-      minutesBetweenMatches: Number(form.minutesBetweenMatches),
-      venue: form.venue.trim() || null,
-      tiebreaks: clusters.value.map((c) => ({ scope: c.scope, order: c.order })),
-    })
+    if (!preview.value) return showPreview()
+    const result = await tournamentService.advance(props.tournamentId, autoInput())
     if (posthogConfigured) {
       posthog.capture('tournament_phase_advanced', {
         tournament_id: props.tournamentId,
@@ -96,13 +135,13 @@ async function submit() {
 </script>
 
 <template>
-  <BaseModal :open="open" title="Eliminatoria" description="Con los clasificados en orden, o armada a mano." size="lg" @close="emit('close')">
+  <BaseModal :open="open" title="Eliminatoria" description="Te proponemos los cruces con los clasificados; tú decides si los usas o la armas a mano." size="lg" @close="emit('close')">
     <div class="space-y-5">
       <fieldset>
         <legend class="mb-2 text-sm font-bold text-zinc-900">¿Cómo quieres armarla?</legend>
         <div class="grid grid-cols-2 gap-2">
           <label
-            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Con los clasificados', text: 'Cancha arma los cruces por posición' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú eliges cada cruce' }] as const"
+            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Con los clasificados', text: 'Cancha te propone los cruces por posición y tú decides' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú eliges cada cruce' }] as const"
             :key="o.value"
             class="flex cursor-pointer flex-col rounded-xl border p-3 text-sm transition has-[:checked]:border-pitch-900 has-[:checked]:bg-pitch-50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-pitch-500"
           >
@@ -156,13 +195,41 @@ async function submit() {
         <FormField id="adv-venue" label="Sede" hint="Opcional" class="col-span-2"><input id="adv-venue" v-model="form.venue" class="input" /></FormField>
       </fieldset>
 
+      <section v-if="preview" aria-labelledby="pv-title" class="space-y-3 rounded-xl border border-pitch-200 bg-pitch-50/50 p-3">
+        <div>
+          <h3 id="pv-title" class="text-sm font-bold text-zinc-900">Propuesta (aún no se ha creado nada)</h3>
+          <p class="text-xs text-zinc-500">Revísala. Si te sirve, úsala; si no, cambia fechas o desempates, o ármala a mano.</p>
+        </div>
+        <div v-for="(r, ri) in preview.rounds" :key="r.name">
+          <p class="text-xs font-semibold text-zinc-600">{{ r.name }}</p>
+          <ul v-if="r.ties.length" class="mt-1 space-y-0.5 text-sm">
+            <li v-for="t in r.ties" :key="t.slot">
+              <span v-if="sideLabel(preview, t.home) === null || sideLabel(preview, t.away) === null" class="text-zinc-500">
+                {{ sideLabel(preview, t.home) ?? sideLabel(preview, t.away) }} pasa directo a {{ preview.rounds[ri + 1]?.name ?? 'la siguiente ronda' }}
+              </span>
+              <template v-else>{{ r.ties.length > 1 ? `${t.slot + 1}. ` : '' }}{{ sideLabel(preview, t.home) }} vs {{ sideLabel(preview, t.away) }}</template>
+            </li>
+          </ul>
+          <p v-else class="mt-1 text-sm text-zinc-500">Los cruces los armas tú cuando se conozcan los ganadores (reacomodo).</p>
+        </div>
+        <div v-if="preview.matches.length">
+          <p class="text-xs font-semibold text-zinc-600">Partidos que se crearían ahora</p>
+          <ul class="mt-1 space-y-0.5 text-sm text-zinc-700">
+            <li v-for="(m, i) in preview.matches" :key="i">
+              {{ formatDate(m.date) }} · {{ m.time }} — {{ preview.teams[m.homeTeamId]?.name }} vs {{ preview.teams[m.awayTeamId]?.name }}
+            </li>
+          </ul>
+        </div>
+        <AppButton variant="secondary" size="sm" @click="mode = 'manual'"><Hand class="size-4" aria-hidden="true" /> Prefiero armarla a mano</AppButton>
+      </section>
+
       </template>
 
       <p v-if="error" class="rounded-xl bg-red-50 p-3 text-sm text-red-800" role="alert">{{ error }}</p>
     </div>
     <template #footer>
       <AppButton variant="secondary" @click="emit('close')">Cancelar</AppButton>
-      <AppButton :loading="saving" :disabled="mode === 'auto' && hardBlockers.length > 0" @click="submit">{{ mode === 'manual' ? 'Crear cuadro vacío' : 'Generar eliminatoria' }}</AppButton>
+      <AppButton :loading="saving" :disabled="mode === 'auto' && hardBlockers.length > 0" @click="submit">{{ mode === 'manual' ? 'Crear cuadro vacío' : preview ? 'Usar esta propuesta' : 'Ver propuesta' }}</AppButton>
     </template>
   </BaseModal>
 </template>
