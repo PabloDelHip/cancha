@@ -33,7 +33,7 @@ export interface TournamentService {
   removeLogo(id: ID): Promise<Tournament>
   create(input: TournamentInput): Promise<Tournament>
   /** `resetSchedule`: confirma cambiar el formato borrando un calendario generado y SIN jugar. */
-  update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean }): Promise<Tournament>
+  update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean; releaseAssignments?: boolean }): Promise<Tournament>
   /** Inscripciones de equipos (todas o de un torneo). */
   listTeams(tournamentId?: ID): Promise<TournamentTeam[]>
   addTeam(tournamentId: ID, teamId: ID): Promise<TournamentTeam>
@@ -88,7 +88,7 @@ const http: TournamentService = {
     return toTournament((await api.post<ApiTournament>('/tournaments', fromTournamentInput(input, { withStatus: true }))).data)
   },
   async update(id, input, options) {
-    const body = { ...fromTournamentInput(input), ...(options?.resetSchedule ? { resetSchedule: true } : {}) }
+    const body = { ...fromTournamentInput(input), ...(options?.resetSchedule ? { resetSchedule: true } : {}), ...(options?.releaseAssignments ? { releaseAssignments: true } : {}) }
     return toTournament((await api.patch<ApiTournament>(`/tournaments/${id}`, body)).data)
   },
   async listTeams(tournamentId) {

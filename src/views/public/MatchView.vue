@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CalendarDays, CalendarX, ChevronLeft, Clock, Goal, Handshake, MapPin, Star, Users } from 'lucide-vue-next'
+import { CalendarDays, CalendarX, ChevronLeft, Clock, Goal, Handshake, MapPin, Star, UserRound, Users } from 'lucide-vue-next'
 import type { ID, PlayerMatchStats, TeamRef } from '@/types'
 import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useLeagueData } from '@/composables/useLeagueData'
@@ -172,6 +172,7 @@ const winner = computed(() => {
             <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15" :class="match.status === 'postponed' && 'line-through'"><CalendarDays class="size-3.5" aria-hidden="true" /> {{ formatDate(match.date, 'long') }}</span>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15" :class="match.status === 'postponed' && 'line-through'"><Clock class="size-3.5" aria-hidden="true" /> {{ match.time }} h</span>
             <span v-if="match.venue" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15"><MapPin class="size-3.5" aria-hidden="true" /> {{ match.venue }}</span>
+            <span v-if="match.centralReferee" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15"><UserRound class="size-3.5" aria-hidden="true" /> Árbitro: {{ match.centralReferee }}</span>
           </p>
         </div>
       </section>

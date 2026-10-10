@@ -20,6 +20,7 @@ import OnboardingChecklist from '@/components/admin/OnboardingChecklist.vue'
 import TournamentSpotlight from '@/components/admin/TournamentSpotlight.vue'
 import ClubHome from '@/components/admin/home/ClubHome.vue'
 import MyRegistrations from '@/components/admin/home/MyRegistrations.vue'
+import PendingInvitations from '@/components/admin/collaborators/PendingInvitations.vue'
 
 const { loading, error, reload } = useAdminData()
 const auth = useAuthStore()
@@ -93,6 +94,7 @@ async function resetDemo() {
 
 <template>
   <div>
+    <PendingInvitations />
     <header class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p class="eyebrow mb-1 first-letter:uppercase">{{ today }}</p>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CalendarClock, CalendarRange, CheckCircle2, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
+import { CalendarClock, CalendarRange, CheckCircle2, History, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
 import type { Match, MatchInput, MatchStatus, Team } from '@/types'
 import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore, type RoundView } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -10,7 +10,7 @@ import { useTournamentStructure } from '@/composables/useTournamentStructure'
 import { useEditor } from '@/composables/useEditor'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
-import { getErrorMessage } from '@/services'
+import { getErrorMessage, USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { formatDate, plural } from '@/utils/format'
 import AppButton from '@/components/common/AppButton.vue'
@@ -20,6 +20,8 @@ import MatchForm from '@/components/matches/MatchForm.vue'
 import AdminMatchRow from '@/components/admin/AdminMatchRow.vue'
 import GenerateScheduleDialog from '@/components/admin/workspace/GenerateScheduleDialog.vue'
 import RoundDialog from '@/components/admin/workspace/RoundDialog.vue'
+import RefereeAssignmentDialog from '@/components/admin/referees/RefereeAssignmentDialog.vue'
+import MatchHistoryDialog from '@/components/admin/history/MatchHistoryDialog.vue'
 
 /**
  * Calendario del torneo: jornadas (organización deportiva) y sus partidos (programación
@@ -35,7 +37,9 @@ const roundsStore = useRoundsStore()
 const teams = useTeamsStore()
 const tournaments = useTournamentsStore()
 const stats = useTournamentStats(() => props.id)
-const { tournament, readOnly } = useTournamentWorkspace(() => props.id)
+const { tournament, readOnly, can } = useTournamentWorkspace(() => props.id)
+/** Programar (jornadas, partidos, calendario): con el torneo finalizado o sin permiso, solo lectura. */
+const scheduleLocked = computed(() => readOnly.value || !can('SCHEDULE'))
 const editor = useEditor<Match>({ openOnNew: false })
 const { confirm } = useConfirm()
 const toast = useToast()
@@ -143,7 +147,7 @@ const roundDialog = ref<{ open: boolean; round: RoundView | null }>({ open: fals
 const matchDefaults = ref<{ round: number; status?: MatchStatus }>({ round: 1 })
 
 onMounted(() => {
-  if (readOnly.value) return
+  if (scheduleLocked.value) return
   if (route.query.generate) generating.value = true
   else if (route.query.new) newMatch()
   else if (route.query.round === 'new') roundDialog.value = { open: true, round: null }
@@ -156,6 +160,11 @@ function newMatch(roundNumber?: number) {
   matchDefaults.value = { round: roundNumber ?? round.value?.number ?? roundsStore.nextNumber(props.id) }
   editor.create()
 }
+/** Historial abierto: de un partido o (sin matchId) de todo el torneo. */
+const historyOf = ref<{ matchId: string | null; title: string } | null>(null)
+/** Partido cuyo diálogo de árbitros está abierto. */
+const refereesOf = ref<Match | null>(null)
+
 function editMatch(m: Match, status?: MatchStatus) {
   matchDefaults.value = { round: m.round, status }
   editor.edit(m)
@@ -175,19 +184,9 @@ function onSubmitMatch(input: MatchInput) {
   )
 }
 
-async function postpone(m: Match) {
-  const ok = await confirm({
-    title: `¿Posponer ${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}?`,
-    message: 'Conserva su jornada y sus equipos. Cuando tengas nueva fecha, usa "Reprogramar".',
-    confirmLabel: 'Posponer',
-  })
-  if (!ok) return
-  try {
-    await matches.update(m.id, { status: 'postponed' })
-    toast.success('Partido pospuesto.')
-  } catch (e) {
-    toast.error(getErrorMessage(e))
-  }
+/** Posponer abre el mismo formulario con el estado ya elegido: ahí se escribe el motivo. */
+function postpone(m: Match) {
+  editMatch(m, 'postponed')
 }
 
 const canDeleteCurrent = computed(() => {
@@ -232,12 +231,15 @@ async function deleteRound(r: RoundView) {
           <template v-else>Organiza las jornadas y programa los partidos.</template>
         </p>
       </div>
-      <div v-if="!readOnly" class="flex flex-wrap gap-2">
+      <div v-if="!scheduleLocked" class="flex flex-wrap gap-2">
         <AppButton :variant="all.length ? 'secondary' : 'primary'" :disabled="tournamentTeams.length < 2" @click="generating = true">
           <Wand2 class="size-4" aria-hidden="true" /> Generar calendario
         </AppButton>
         <AppButton v-if="manual && (all.length || rounds.length)" @click="newMatch()"><Plus class="size-4" aria-hidden="true" /> Programar partido</AppButton>
       </div>
+      <AppButton v-if="!USE_MOCKS && (all.length || rounds.length)" variant="ghost" @click="historyOf = { matchId: null, title: 'Historial de partidos' }">
+        <History class="size-4" aria-hidden="true" /> Historial
+      </AppButton>
     </div>
 
     <!-- Sin calendario -->
@@ -249,7 +251,7 @@ async function deleteRound(r: RoundView) {
         :description="`Necesitas al menos dos equipos para armar el calendario. Ahora tienes ${tournamentTeams.length}.`"
         class="card"
       >
-        <AppButton v-if="!readOnly" :to="{ name: 'admin-tournament-teams', params: { id }, query: { new: '1' } }">Inscribir equipos</AppButton>
+        <AppButton v-if="!readOnly && can('TEAMS')" :to="{ name: 'admin-tournament-teams', params: { id }, query: { new: '1' } }">Inscribir equipos</AppButton>
       </EmptyState>
       <EmptyState
         v-else
@@ -259,7 +261,7 @@ async function deleteRound(r: RoundView) {
         class="card"
       >
 
-        <template v-if="!readOnly">
+        <template v-if="!scheduleLocked">
           <AppButton @click="generating = true"><Wand2 class="size-4" aria-hidden="true" /> Generar calendario</AppButton>
           <AppButton v-if="manual" variant="ghost" @click="newMatch(1)">Programar a mano</AppButton>
         </template>
@@ -316,7 +318,7 @@ async function deleteRound(r: RoundView) {
             <span v-if="r.number === stats.currentRound.value && !roundSummary(r).complete" class="absolute -top-1 -right-1 size-2.5 rounded-full border-2 border-white bg-lime-400" aria-label="(jornada actual)" />
           </button>
           <button
-            v-if="!readOnly && manual"
+            v-if="!scheduleLocked && manual"
             type="button"
             class="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg border border-dashed border-zinc-300 px-2.5 text-sm font-semibold text-zinc-500 hover:border-pitch-400 hover:text-pitch-700"
             @click="roundDialog = { open: true, round: null }"
@@ -334,7 +336,7 @@ async function deleteRound(r: RoundView) {
               <CheckCircle2 class="size-3.5" aria-hidden="true" /> Completa
             </span>
             <span v-else-if="roundSummary(round).total" class="text-xs text-zinc-500">{{ roundSummary(round).done }}/{{ roundSummary(round).total }} jugados</span>
-            <span v-if="!readOnly" class="ml-auto flex gap-1">
+            <span v-if="!scheduleLocked" class="ml-auto flex gap-1">
               <AppButton variant="ghost" size="sm" @click="roundDialog = { open: true, round }"><Pencil class="size-3.5" aria-hidden="true" /> Editar jornada</AppButton>
               <AppButton v-if="manual" variant="secondary" size="sm" @click="newMatch(round.number)"><Plus class="size-3.5" aria-hidden="true" /> Partido</AppButton>
             </span>
@@ -346,14 +348,19 @@ async function deleteRound(r: RoundView) {
               :key="m.id"
               :match="m"
               :read-only="readOnly"
+              :can-schedule="can('SCHEDULE')"
+              :can-assign="can('ASSIGNMENTS')"
+              :can-capture="can('RESULTS')"
               :allow-postpone="true"
               @edit="editMatch(m)"
               @postpone="postpone(m)"
               @reschedule="editMatch(m, 'scheduled')"
+              @referees="refereesOf = m"
+              @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
             />
           </ul>
           <EmptyState v-else :icon="CalendarClock" title="Jornada sin partidos" compact class="card">
-            <template v-if="!readOnly">
+            <template v-if="!scheduleLocked">
               <AppButton v-if="manual" size="sm" @click="newMatch(round.number)"><Plus class="size-3.5" aria-hidden="true" /> Agregar partido</AppButton>
               <AppButton v-if="round.record" variant="ghost" size="sm" @click="deleteRound(round)">
                 <Trash2 class="size-3.5" aria-hidden="true" /> Eliminar jornada
@@ -382,10 +389,15 @@ async function deleteRound(r: RoundView) {
                 :key="m.id"
                 :match="m"
                 :read-only="readOnly"
+                :can-schedule="can('SCHEDULE')"
+                :can-assign="can('ASSIGNMENTS')"
+                :can-capture="can('RESULTS')"
                 :allow-postpone="true"
                 @edit="editMatch(m)"
                 @postpone="postpone(m)"
                 @reschedule="editMatch(m, 'scheduled')"
+                @referees="refereesOf = m"
+                @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
               />
             </ul>
           </section>
@@ -399,6 +411,20 @@ async function deleteRound(r: RoundView) {
       :tournament-id="id"
       @close="generating = false"
       @generated="(n) => ((view = 'rounds'), (selected = n))"
+    />
+    <MatchHistoryDialog
+      :open="!!historyOf"
+      :match-id="historyOf?.matchId ?? null"
+      :tournament-id="id"
+      :title="historyOf?.title ?? 'Historial'"
+      @close="historyOf = null"
+    />
+    <RefereeAssignmentDialog
+      :open="!!refereesOf"
+      :match="refereesOf"
+      :read-only="readOnly || !can('ASSIGNMENTS')"
+      @close="refereesOf = null"
+      @changed="(r) => refereesOf && matches.patch(refereesOf.id, { referees: r.referees, centralReferee: r.centralReferee })"
     />
     <RoundDialog
       :open="roundDialog.open"

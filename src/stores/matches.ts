@@ -66,6 +66,11 @@ export const useMatchesStore = defineStore('matches', () => {
     return saved.match
   }
 
+  /** Cambios ya guardados por otro servicio (p. ej. árbitros asignados). */
+  function patch(id: ID, changes: Partial<Match>) {
+    items.value = items.value.map((m) => (m.id === id ? { ...m, ...changes } : m))
+  }
+
   async function remove(id: ID) {
     await matchService.remove(id)
     items.value = items.value.filter((m) => m.id !== id)
@@ -96,6 +101,7 @@ export const useMatchesStore = defineStore('matches', () => {
     update,
     saveResult,
     remove,
+    patch,
     generateSchedule,
   }
 })

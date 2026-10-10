@@ -161,8 +161,28 @@ export interface TournamentSettings {
 
 export type DataCoverage = 'full'
 
+/** RBAC: rol en un torneo (el propietario es implícito) y permisos que concede. */
+export type TournamentRole = 'OWNER' | 'ADMIN' | 'COORDINATOR' | 'SCORER'
+export type TournamentPermission =
+  | 'VIEW'
+  | 'SETTINGS'
+  | 'LIFECYCLE'
+  | 'DELETE'
+  | 'MEMBERS'
+  | 'TEAMS'
+  | 'SCHEDULE'
+  | 'ASSIGNMENTS'
+  | 'RESULTS'
+  | 'DISCIPLINE_MANAGE'
+  | 'DISCIPLINE_VIEW'
+  | 'LOGS_VIEW'
+  | 'REFEREE_CONTACT'
+
 export interface Tournament extends Timestamps {
   id: ID
+  /** Solo en el panel (/admin/tournaments): mi rol y lo que me permite. */
+  myRole?: TournamentRole | null
+  permissions?: TournamentPermission[]
   /** Liga a la que pertenece (todo torneo vive en una; el modo demo no tiene ligas). */
   leagueId?: ID | null
   name: string
@@ -227,7 +247,15 @@ export interface Match extends Timestamps {
   date: ISODate
   /** `HH:mm` */
   time: string
+  /** Texto de la sede. Con cancha asignada es "Sede · Cancha". */
   venue: string | null
+  /** Cancha de una sede del organizador (null = sin cancha). */
+  fieldId?: ID | null
+  venueId?: ID | null
+  /** Árbitros asignados (solo ids y roles; los nombres, en /referees). */
+  referees?: RefereeAssignment[]
+  /** Nombre del árbitro central en funciones (público). */
+  centralReferee?: string | null
   status: MatchStatus
   homeScore: number | null
   awayScore: number | null  /** Lugar en la estructura: fase, grupo y llave. null = liga clásica. */
@@ -354,8 +382,11 @@ export interface RosterAssignment {
 
 export type MatchInput = Pick<
   Match,
-  'tournamentId' | 'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time' | 'venue' | 'status'
->
+  'tournamentId' | 'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time' | 'venue' | 'status' | 'fieldId'
+> & {
+  /** Solo al editar: motivo de reprogramar, posponer o cancelar (obligatorio con el torneo en curso). */
+  reason?: string | null
+}
 
 export type PlayerMatchStatsInput = Omit<PlayerMatchStats, 'id' | 'matchId'>
 
@@ -1164,4 +1195,197 @@ export interface MatchEligibility {
   /** Pospuesto con su fecha original: no cuenta para las suspensiones hasta corregirla. */
   staleDate: boolean
   suspended: { ref: string; playerId: ID; teamId: ID; cause: SanctionCause; matches: number; remaining: number; reason: string | null }[]
+}
+
+// ─── Sedes y canchas (Módulo 2A) ────────────────────────────────────────────
+//
+// Del organizador: se reutilizan en todas sus ligas y torneos.
+
+export interface FieldAvailability {
+  /** Ventanas por día (0 = domingo). Vacío = sin restricción. `to` admite `24:00`. */
+  weekly: { day: number; from: string; to: string }[]
+  closedDates: ISODate[]
+}
+
+export interface VenueField {
+  id: ID
+  name: string
+  active: boolean
+  availability: FieldAvailability
+  /** Partidos que la usan (todos) y pendientes (programados, en juego o pospuestos). */
+  matches: number
+  pendingMatches: number
+}
+
+export interface Venue {
+  id: ID
+  name: string
+  address: string | null
+  /** Minutos de cambio entre partidos (se suman a la duración). */
+  bufferMinutes: number
+  active: boolean
+  fields: VenueField[]
+}
+
+export interface FieldConflict {
+  matchId: ID
+  tournamentId: ID
+  tournamentName: string
+  date: ISODate
+  time: string
+  endTime: string
+  homeTeam: string
+  awayTeam: string
+}
+
+export interface SlotCheck {
+  start: string
+  end: string
+  /** Hora en que la cancha queda libre (fin + margen). */
+  freeAt: string
+  crossesMidnight: boolean
+  conflicts: FieldConflict[]
+  warnings: string[]
+}
+
+// ─── Árbitros (Módulo 2B) ───────────────────────────────────────────────────
+
+export type RefereeRole = 'central' | 'assistant_1' | 'assistant_2' | 'fourth' | 'scorekeeper'
+
+export interface RefereeAssignment {
+  id: ID
+  refereeId: ID
+  role: RefereeRole
+  /** absent = no se presentó (se conserva); su sustituto lleva `substituteFor`. */
+  status: 'assigned' | 'absent'
+  substituteFor: ID | null
+  absenceNote: string | null
+  /** Solo en la vista del organizador. */
+  name?: string | null
+}
+
+/** Árbitro del organizador (vista privada: incluye contacto). */
+export interface Referee {
+  id: ID
+  firstName: string
+  lastName: string
+  name: string
+  phone: string | null
+  email: string | null
+  active: boolean
+  availability: FieldAvailability
+  matches: number
+  pendingMatches: number
+}
+
+export interface RefereeOption {
+  id: ID
+  name: string
+  conflicts: { matchId: ID; tournamentName: string; date: ISODate; time: string; endTime: string; homeTeam: string; awayTeam: string }[]
+  warnings: string[]
+}
+
+export interface MatchReferees {
+  centralReferee: string | null
+  referees: RefereeAssignment[]
+  warnings: string[]
+}
+
+export interface RefereeHistoryEntry {
+  assignmentId: ID
+  role: RefereeRole
+  status: 'assigned' | 'absent'
+  absenceNote: string | null
+  replacedBy: string | null
+  substituteFor: string | null
+  match: {
+    id: ID
+    tournamentId: ID
+    tournamentName: string | null
+    date: ISODate
+    time: string
+    status: MatchStatus
+    venue: string | null
+    homeTeam: string | null
+    awayTeam: string | null
+    homeScore: number | null
+    awayScore: number | null
+  }
+}
+
+// ─── Historial de partidos (Módulo 2C) ──────────────────────────────────────
+
+export type MatchLogAction =
+  | 'CREATED'
+  | 'RESCHEDULED'
+  | 'STATUS_CHANGED'
+  | 'FIELD_CHANGED'
+  | 'TEAMS_CHANGED'
+  | 'UPDATED'
+  | 'RESULT_CAPTURED'
+  | 'RESULT_CORRECTED'
+  | 'REFEREE_ASSIGNED'
+  | 'REFEREE_REMOVED'
+  | 'REFEREE_ABSENT'
+  | 'DELETED'
+  | 'SCHEDULE_REPLACED'
+
+export interface MatchLogReleased {
+  matchId: ID
+  fieldId: ID | null
+  venue: string | null
+  referees: { refereeId: ID; role: string }[]
+}
+
+/** Entrada tal como la guarda el servidor (los enums, en mayúsculas). */
+export interface MatchLogEntry {
+  id: ID
+  matchId: ID | null
+  action: MatchLogAction
+  source: 'USER' | 'SYSTEM'
+  cause: 'MANUAL' | 'SCHEDULE_REGENERATED' | 'FORMAT_CHANGED' | 'TIE_REMOVED' | 'BRACKET_SYNC' | null
+  actorId: ID
+  reason: string | null
+  changes: Record<string, { from: unknown; to: unknown }> | null
+  snapshot: Record<string, unknown> | null
+  deleted?: Record<string, unknown>[]
+  released: MatchLogReleased[] | null
+  createdAt: ISODateTime
+}
+
+export interface MatchLog {
+  entries: MatchLogEntry[]
+  refs: { teams: Record<ID, string>; referees: Record<ID, string>; users: Record<ID, string> }
+}
+
+// ─── Colaboradores e invitaciones (RBAC R2) ─────────────────────────────────
+
+export type CollaboratorRole = Exclude<TournamentRole, 'OWNER'>
+
+export interface Collaborators {
+  owner: { userId: ID; name: string | null; email?: string | null }
+  members: { userId: ID; name: string | null; email?: string | null; role: CollaboratorRole; since: ISODateTime }[]
+  limit: number
+}
+
+/** Invitación vista por el propietario. `token` solo viene al crear un enlace (se muestra una vez). */
+export interface OwnerInvitation {
+  id: ID
+  kind: 'LINK' | 'ACCOUNT'
+  role: CollaboratorRole
+  email: string | null
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REVOKED' | 'EXPIRED'
+  createdAt: ISODateTime
+  expiresAt: ISODateTime
+  token?: string
+}
+
+/** Invitación vista por quien la recibe (vista previa del enlace o en su panel). */
+export interface ReceivedInvitation {
+  id: ID
+  tournament: { id: ID; name: string; status: string } | null
+  role: CollaboratorRole
+  invitedBy: string | null
+  status: OwnerInvitation['status']
+  expiresAt: ISODateTime
 }

@@ -25,7 +25,7 @@ import SanctionDialog, { type SanctionDialogMode } from '@/components/admin/disc
  * calendario actuales; aquí solo se representan y se registran decisiones con justificación.
  */
 const props = defineProps<{ id: string }>()
-const { readOnly: finished } = useTournamentWorkspace(() => props.id)
+const { readOnly: finished, can } = useTournamentWorkspace(() => props.id)
 const rounds = useRoundsStore()
 const toast = useToast()
 
@@ -37,7 +37,8 @@ const error = ref('')
 const savingRules = ref(false)
 const filter = ref<SanctionStatus | 'all'>('active')
 const dialog = reactive<{ open: boolean; mode: SanctionDialogMode; sanction: Sanction | null }>({ open: false, mode: 'create', sanction: null })
-const readOnly = computed(() => finished.value || !!data.value?.readOnly)
+// Finalizado o sin permiso de gestión (RBAC): se consulta, no se modifica.
+const readOnly = computed(() => finished.value || !!data.value?.readOnly || !can('DISCIPLINE_MANAGE'))
 
 const rules = reactive({ enabled: false, yellowsForSuspension: '' as string | number, accumulationMatches: 1, directRedMatches: 1, secondYellowMatches: 1, resetAccumulationOnPhaseChange: false, eligibility: 'warn' as 'warn' | 'block' })
 function fillRules(o: DisciplineOverview) {
@@ -238,7 +239,7 @@ const ruleSummary = computed(() => {
                     <span v-if="s.adjusted" class="text-xs text-zinc-500"> · ajustada (reglamento: {{ s.ruleMatches }})</span>
                   </template>
                 </p>
-                <p v-if="s.status === 'pending'" class="text-xs text-amber-800">Sin partidos programados para cumplirla{{ readOnly ? ': queda pendiente y no pasa a otro torneo' : '' }}.</p>
+                <p v-if="s.status === 'pending'" class="text-xs text-amber-800">Sin partidos programados para cumplirla{{ finished ? ': queda pendiente y no pasa a otro torneo' : '' }}.</p>
                 <p v-if="s.upcomingMatchIds.length" class="text-xs text-zinc-500">No puede jugar: {{ s.upcomingMatchIds.map((m) => matchLabel(m, s.teamId)).join(' / ') }}</p>
                 <p v-if="s.staleMatchIds.length" class="text-xs text-amber-800">Sin contar (fecha sin actualizar): {{ s.staleMatchIds.map((m) => matchLabel(m, s.teamId)).join(' / ') }}</p>
                 <p v-if="s.incidentMatchIds.length" class="text-xs text-red-700">Jugó suspendido: {{ s.incidentMatchIds.map((m) => matchLabel(m, s.teamId)).join(' / ') }}</p>

@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
-import type { ID, Match, MatchInput, MatchStatus, Team } from '@/types'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { AlertTriangle, Ban } from 'lucide-vue-next'
+import type { ID, Match, MatchInput, MatchStatus, SlotCheck, Team } from '@/types'
+import { USE_MOCKS, venueService } from '@/services'
+import { useVenues } from '@/composables/useVenues'
 import { useTournamentsStore, type RoundView } from '@/stores'
 import { MATCH_STATUS } from '@/utils/labels'
 import { useFormErrors } from '@/composables/useFormErrors'
@@ -41,7 +44,40 @@ const form = reactive<MatchInput>({
   time: props.initial?.time ?? '19:00',
   venue: props.initial?.venue ?? props.defaultVenue ?? '',
   status: props.defaultStatus ?? props.initial?.status ?? 'scheduled',
+  fieldId: props.initial?.fieldId ?? null,
 })
+
+// ─── Cancha (sedes del organizador) ─────────────────────────────────────────
+const { venues, load: loadVenues } = useVenues()
+onMounted(() => loadVenues())
+/** Canchas asignables: activas de sedes activas, más la actual aunque ya no lo esté. */
+const fieldGroups = computed(() =>
+  venues.value
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      fields: v.fields.filter((f) => (v.active && f.active) || f.id === props.initial?.fieldId).map((f) => ({ id: f.id, name: f.name, inactive: !(v.active && f.active) })),
+    }))
+    .filter((v) => v.fields.length),
+)
+/** Revisión en vivo (el servidor vuelve a validar al guardar): conflictos bloquean, avisos no. */
+const check = ref<SlotCheck | null>(null)
+let checkSeq = 0
+watch(
+  () => [form.fieldId, form.date, form.time, form.status] as const,
+  async ([fieldId, date, time, status]) => {
+    const seq = ++checkSeq
+    check.value = null
+    if (!fieldId || !date || !/^\d{2}:\d{2}$/.test(time) || status === 'cancelled' || status === 'postponed') return
+    try {
+      const result = await venueService.check({ fieldId, tournamentId: props.tournamentId, date, time, matchId: props.initial?.id })
+      if (seq === checkSeq) check.value = result
+    } catch {
+      // Sin aviso previo: el servidor valida al guardar.
+    }
+  },
+  { immediate: true },
+)
 
 const hasResult = computed(() => props.initial?.homeScore != null || props.initial?.status === 'finished')
 /** Reprogramar un pospuesto sin cambiar su fecha: las suspensiones no sabrían cuándo se jugó. */
@@ -78,7 +114,20 @@ const busyInRound = computed(() => {
 })
 const nameOf = (id: ID) => props.teams.find((t) => t.id === id)?.name ?? 'El equipo'
 
-const { errors, set, clear, hasErrors, aria } = useFormErrors<'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time'>()
+const { errors, set, clear, hasErrors, aria } = useFormErrors<'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time' | 'reason'>()
+
+// ─── Motivo (historial) ─────────────────────────────────────────────────────
+// Reprogramar, posponer o cancelar un partido existente pide motivo; con el torneo en curso es
+// obligatorio (el servidor lo exige). Queda en el historial del partido.
+const reason = ref('')
+const asksReason = computed(() => {
+  const m = props.initial
+  if (!m) return false
+  const moved = form.date !== m.date || form.time !== m.time
+  const stopped = (form.status === 'postponed' || form.status === 'cancelled') && form.status !== m.status
+  return moved || stopped
+})
+const reasonRequired = computed(() => asksReason.value && tournaments.get(props.tournamentId)?.status === 'active')
 
 function onSubmit() {
   clear()
@@ -101,8 +150,15 @@ function onSubmit() {
   )
   set('date', !form.date && 'Indica la fecha.')
   set('time', !/^\d{2}:\d{2}$/.test(form.time) && 'Indica la hora.')
+  set('reason', reasonRequired.value && reason.value.trim().length < 3 && 'Indica el motivo (queda en el historial del partido).')
   if (hasErrors()) return
-  emit('submit', { ...form, venue: form.venue?.trim() || null })
+  emit('submit', {
+    ...form,
+    venue: form.fieldId ? null : form.venue?.trim() || null,
+    fieldId: form.fieldId || null,
+    // El motivo solo existe al editar (crear no lo admite).
+    ...(props.initial && asksReason.value && reason.value.trim() ? { reason: reason.value.trim() } : {}),
+  })
 }
 </script>
 
@@ -141,9 +197,32 @@ function onSubmit() {
       <FormField id="m-time" label="Hora" :error="errors.time" required>
         <input id="m-time" v-model="form.time" type="time" class="input" v-bind="aria('time', 'm-time')" />
       </FormField>
-      <FormField id="m-venue" label="Cancha / sede" hint="Opcional" class="col-span-2 sm:col-span-1">
+      <FormField v-if="fieldGroups.length" id="m-field" label="Cancha" hint="Opcional" class="col-span-2 sm:col-span-1">
+        <select id="m-field" v-model="form.fieldId" class="input">
+          <option :value="null">Sin cancha asignada</option>
+          <optgroup v-for="v in fieldGroups" :key="v.id" :label="v.name">
+            <option v-for="f in v.fields" :key="f.id" :value="f.id" :disabled="f.inactive && f.id !== initial?.fieldId">{{ f.name }}{{ f.inactive ? ' (desactivada)' : '' }}</option>
+          </optgroup>
+        </select>
+      </FormField>
+      <FormField v-if="!form.fieldId" id="m-venue" :label="fieldGroups.length ? 'Lugar (texto libre)' : 'Cancha / sede'" hint="Opcional" class="col-span-2 sm:col-span-1">
         <input id="m-venue" v-model="form.venue" class="input" />
       </FormField>
+      <div v-if="form.fieldId && check" class="col-span-2 space-y-1 text-xs sm:col-span-3" aria-live="polite">
+        <p class="text-zinc-500">
+          Ocupa la cancha de {{ check.start }} a {{ check.end }}{{ check.crossesMidnight ? ' (del día siguiente)' : '' }}; queda libre a las {{ check.freeAt }}.
+        </p>
+        <p v-for="c in check.conflicts" :key="c.matchId" class="flex items-start gap-1.5 font-semibold text-red-700">
+          <Ban class="mt-px size-3.5 shrink-0" aria-hidden="true" />
+          Choca con {{ c.homeTeam }} vs {{ c.awayTeam }} ({{ c.tournamentName }}) el {{ c.date }} de {{ c.time }} a {{ c.endTime }}.
+        </p>
+        <p v-for="w in check.warnings" :key="w" class="flex items-start gap-1.5 text-amber-800">
+          <AlertTriangle class="mt-px size-3.5 shrink-0" aria-hidden="true" /> {{ w }} (se puede guardar).
+        </p>
+      </div>
+      <p v-if="!USE_MOCKS && !fieldGroups.length" class="col-span-2 text-xs text-zinc-500 sm:col-span-3">
+        Registra tus sedes y canchas en <RouterLink :to="{ name: 'admin-venues' }" class="link">Sedes</RouterLink> para asignarlas y evitar choques de horario.
+      </p>
     </fieldset>
 
     <FormField v-if="initial && !hasResult" id="m-status" label="Estado" class="sm:col-span-2">
@@ -160,5 +239,16 @@ function onSubmit() {
     <p v-else-if="form.status === 'cancelled'" class="-mt-2 text-xs text-zinc-500 sm:col-span-2">
       Un partido cancelado no se jugará y no cuenta en la tabla.
     </p>
+    <FormField
+      v-if="asksReason"
+      id="m-reason"
+      label="Motivo"
+      :error="errors.reason"
+      :required="reasonRequired"
+      :hint="reasonRequired ? 'Queda en el historial del partido.' : 'Opcional mientras el torneo no inicia. Queda en el historial.'"
+      class="sm:col-span-2"
+    >
+      <input id="m-reason" v-model="reason" class="input" maxlength="300" placeholder="Ej. lluvia, cancha ocupada, petición de un equipo" v-bind="aria('reason', 'm-reason')" />
+    </FormField>
   </form>
 </template>

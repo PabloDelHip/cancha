@@ -14,7 +14,7 @@ const tournaments = useTournamentsStore()
 const home = useHomeStore()
 void home.ensure().catch(() => {})
 /** El menú muestra solo lo que la cuenta puede usar (nunca User.role). */
-const nav = computed(() => ADMIN_NAV.filter((item) => !item.organizerOnly || home.canOrganize))
+const nav = computed(() => ADMIN_NAV.filter((item) => !item.organizerOnly || home.canOrganize || (item.forCollaborators && tournaments.collaborating.length > 0)))
 /** Acceso directo al workspace de los torneos en curso y en preparación. */
 const workspaces = computed(() => tournaments.mine.filter((t) => t.status !== 'finished').slice(0, 6))
 const dot = { active: 'bg-lime-400', draft: 'bg-zinc-400', finished: 'bg-sky-400' } as const

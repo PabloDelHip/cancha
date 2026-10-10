@@ -24,3 +24,8 @@ export function isOpen(match: Match): boolean {
 export function hasResult(match: Match): boolean {
   return match.status === 'finished' || match.status === 'live' || match.homeScore !== null || match.awayScore !== null
 }
+
+/** Tiene cancha o árbitros en funciones: reemplazar el calendario libera esas asignaciones. */
+export function hasAssignments(match: Match): boolean {
+  return !!match.fieldId || !!match.referees?.some((r) => r.status === 'assigned')
+}

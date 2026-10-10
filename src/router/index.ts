@@ -28,6 +28,7 @@ const publicRoutes: RouteRecordRaw[] = [
   },
   { path: 'teams/:id', name: 'team', component: () => import('@/views/public/TeamView.vue'), props: true },
   // Enlace privado de inscripción (Etapa 7): se comparte por WhatsApp. Público; pide sesión al inscribir.
+  { path: 'invite/:token', name: 'invite', component: () => import('@/views/public/InviteView.vue'), props: true, meta: { title: 'Invitación a colaborar', focused: true } },
   { path: 'join/:token', name: 'join', component: () => import('@/views/public/JoinView.vue'), props: true, meta: { title: 'Inscribir equipo', focused: true } },
   { path: 'players', name: 'players', component: () => import('@/views/public/PlayersView.vue'), meta: { title: 'Jugadores' } },
   { path: 'players/:id', name: 'player', component: () => import('@/views/public/PlayerView.vue'), props: true },
@@ -57,6 +58,7 @@ const tournamentWorkspace: RouteRecordRaw[] = [
   { path: 'goleadores', name: 'admin-tournament-scorers', component: () => import('@/views/admin/tournament/ScorersTab.vue'), props: true },
   { path: 'disciplina', name: 'admin-tournament-discipline', component: () => import('@/views/admin/tournament/DisciplineTab.vue'), props: true },
   { path: 'inscripciones', name: 'admin-tournament-registration', component: () => import('@/views/admin/tournament/RegistrationTab.vue'), props: true },
+  { path: 'colaboradores', name: 'admin-tournament-collaborators', component: () => import('@/views/admin/tournament/CollaboratorsTab.vue'), props: true },
   { path: 'configuracion', name: 'admin-tournament-settings', component: () => import('@/views/admin/tournament/SettingsTab.vue'), props: true },
 ]
 
@@ -71,6 +73,8 @@ const teamWorkspace: RouteRecordRaw[] = [
 
 const adminRoutes: RouteRecordRaw[] = [
   { path: '', name: 'admin-dashboard', component: () => import('@/views/admin/DashboardView.vue'), meta: { title: 'Panel' } },
+  { path: 'referees', name: 'admin-referees', component: () => import('@/views/admin/RefereesAdminView.vue'), meta: { title: 'Árbitros · Panel' } },
+  { path: 'venues', name: 'admin-venues', component: () => import('@/views/admin/VenuesAdminView.vue'), meta: { title: 'Sedes · Panel' } },
   { path: 'leagues', name: 'admin-leagues', component: () => import('@/views/admin/LeaguesAdminView.vue'), meta: { title: 'Mis ligas · Panel' } },
   { path: 'tournaments', name: 'admin-tournaments', component: () => import('@/views/admin/TournamentsAdminView.vue'), meta: { title: 'Mis torneos · Panel' } },
   {

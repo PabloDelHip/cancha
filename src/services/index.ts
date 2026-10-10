@@ -12,3 +12,7 @@ export { registrationService, REGISTRATION_REQUIRES_SERVER } from './registratio
 export { possibleDuplicates } from './playerDuplicates'
 export { meService } from './meService'
 export { disciplineService, DISCIPLINE_REQUIRES_SERVER } from './disciplineService'
+export { venueService, VENUES_REQUIRE_SERVER } from './venueService'
+export { refereeService, REFEREES_REQUIRE_SERVER } from './refereeService'
+export { matchLogService, MATCH_LOG_REQUIRES_SERVER } from './matchLogService'
+export { collaboratorService, COLLABORATORS_REQUIRE_SERVER } from './collaboratorService'

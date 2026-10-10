@@ -39,7 +39,10 @@ const home = computed(() => teams.get(match.value?.homeTeamId))
 const away = computed(() => teams.get(match.value?.awayTeamId))
 const tournament = computed(() => (match.value ? tournaments.get(match.value.tournamentId) : undefined))
 /** Torneo finalizado: el resultado se consulta pero ya no se modifica. */
-const readOnly = computed(() => tournament.value?.status === 'finished')
+const finished = computed(() => tournament.value?.status === 'finished')
+/** RBAC: sin permiso de resultados se consulta, no se captura (el servidor lo vuelve a validar). */
+const canCapture = computed(() => !!match.value && tournaments.can(match.value.tournamentId, 'RESULTS'))
+const readOnly = computed(() => finished.value || !canCapture.value)
 const backTo = computed(() =>
   match.value
     ? { name: 'admin-tournament-schedule', params: { id: match.value.tournamentId }, query: { round: String(match.value.round) } }
@@ -336,7 +339,8 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
 
       <div v-if="readOnly" class="mb-4 flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status">
         <Archive class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-        <p><strong>Torneo finalizado.</strong> Este resultado es parte del historial y ya no se puede modificar.</p>
+        <p v-if="finished"><strong>Torneo finalizado.</strong> Este resultado es parte del historial y ya no se puede modificar.</p>
+        <p v-else><strong>Solo lectura.</strong> Tu rol en este torneo no permite capturar resultados.</p>
       </div>
       <div v-else-if="justSaved && !dirty" class="mb-4 flex flex-col gap-3 rounded-2xl border border-pitch-200 bg-pitch-50 px-4 py-3 text-sm sm:flex-row sm:items-center" role="status">
         <p class="flex flex-1 items-center gap-2 font-semibold text-pitch-900">

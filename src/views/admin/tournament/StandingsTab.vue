@@ -20,7 +20,7 @@ import ErrorState from '@/components/common/ErrorState.vue'
 const props = defineProps<{ id: string }>()
 const stats = useTournamentStats(() => props.id)
 const { structure, loading, error, reload } = useTournamentStructure(() => props.id)
-const { readOnly } = useTournamentWorkspace(() => props.id)
+const { readOnly, can } = useTournamentWorkspace(() => props.id)
 const matches = useMatchesStore()
 const rounds = useRoundsStore()
 const toast = useToast()
@@ -63,7 +63,7 @@ async function removeTie(phase: number, round: number, slot: number) {
 }
 
 const system = computed(() => stats.tournament.value?.settings.system ?? 'league')
-const canAdvance = computed(() => !readOnly.value && stats.tournament.value?.status === 'active' && !!structure.value?.next)
+const canAdvance = computed(() => !readOnly.value && can('SCHEDULE') && stats.tournament.value?.status === 'active' && !!structure.value?.next)
 
 async function onAdvanced(next: TournamentStructure) {
   advancing.value = false
@@ -91,7 +91,7 @@ async function onAdvanced(next: TournamentStructure) {
     <CompetitionView
       v-else-if="structure"
       :structure="structure"
-      :editable="!readOnly"
+      :editable="!readOnly && can('SCHEDULE')"
       @add-tie="(phase, round) => (tieTarget = { phase, round })"
       @remove-tie="removeTie"
     />

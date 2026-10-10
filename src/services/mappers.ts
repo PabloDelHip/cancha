@@ -67,6 +67,10 @@ import type {
   TournamentStatus,
   TournamentTeam,
   SendOff,
+  TournamentPermission,
+  TournamentRole,
+  RefereeAssignment,
+  RefereeRole,
 } from '@/types'
 import { defaultSettings } from '@/utils/labels'
 
@@ -105,6 +109,8 @@ export interface ApiTournamentSettings {
 }
 
 export interface ApiTournament extends ApiTimestamps {
+  myRole?: TournamentRole | null
+  permissions?: TournamentPermission[]
   id: string
   leagueId?: string | null
   name: string
@@ -187,6 +193,10 @@ export interface ApiMatch extends ApiTimestamps {
   date: string
   time: string
   venue: string | null
+  fieldId?: string | null
+  venueId?: string | null
+  referees?: ApiRefereeAssignment[]
+  centralReferee?: string | null
   status: ApiMatchStatus
   homeScore: number | null
   awayScore: number | null
@@ -241,6 +251,7 @@ function defined<T extends object>(value: T): Partial<T> {
 export function toTournament(t: ApiTournament): Tournament {
   return {
     id: t.id,
+    ...(t.myRole !== undefined ? { myRole: t.myRole, permissions: t.permissions ?? [] } : {}),
     leagueId: t.leagueId ?? null,
     name: t.name,
     modality: MODALITY_IN[t.format],
@@ -372,6 +383,10 @@ export function toMatch(m: ApiMatch): Match {
     date: m.date,
     time: m.time,
     venue: m.venue,
+    fieldId: m.fieldId ?? null,
+    venueId: m.venueId ?? null,
+    referees: (m.referees ?? []).map(toRefereeAssignment),
+    centralReferee: m.centralReferee ?? null,
     status: M_STATUS_IN[m.status],
     homeScore: m.homeScore,
     awayScore: m.awayScore,
@@ -918,4 +933,20 @@ export function toPlayerCandidate(c: ApiPlayerCandidate): PlayerCandidate {
     appearances: c.appearances,
     match: c.match === 'EXACT' ? 'exact' : 'similar',
   }
+}
+
+// ─── Árbitros (Módulo 2B) ───────────────────────────────────────────────────
+
+export interface ApiRefereeAssignment {
+  id: string
+  refereeId: string
+  role: string
+  status: string
+  substituteFor: string | null
+  absenceNote: string | null
+  name?: string | null
+}
+
+export function toRefereeAssignment(a: ApiRefereeAssignment): RefereeAssignment {
+  return { ...a, role: a.role.toLowerCase() as RefereeRole, status: a.status.toLowerCase() as RefereeAssignment['status'] }
 }

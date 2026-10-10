@@ -27,6 +27,8 @@ export interface MatchService {
 
 export type GenerateScheduleInput = ScheduleOptions & {
   replaceExisting: boolean
+  /** Confirma liberar las canchas de los partidos que se reemplazan. */
+  releaseAssignments?: boolean
   /** Eliminación directa: orden de cabezas de serie. */
   seeding?: ID[]
   /** Armar a mano: solo la estructura (grupos o cuadro vacío), sin partidos. */

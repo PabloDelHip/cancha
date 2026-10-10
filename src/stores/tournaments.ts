@@ -1,7 +1,7 @@
 import { publicTournament } from '@/types/tournamentInformation'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ID, Tournament, TournamentInput, TournamentTeam } from '@/types'
+import type { ID, Tournament, TournamentInput, TournamentPermission, TournamentRole, TournamentTeam } from '@/types'
 import { leagueService, tournamentService } from '@/services'
 import { createLoader, createOwnership } from './loader'
 import { useTeamsStore } from './teams'
@@ -16,9 +16,21 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     enrollments.value = tournamentTeams
   })
 
-  const ownership = createOwnership(async () =>
-    (await tournamentService.listMine()).map((t) => ({ id: t.id, canEdit: true })),
-  )
+  /** Mi rol y permisos por torneo (RBAC). Sin entrada y siendo mío (recién creado, demo): propietario. */
+  const access = ref(new Map<ID, { role: TournamentRole; permissions: TournamentPermission[] }>())
+  const ownership = createOwnership(async () => {
+    const list = await tournamentService.listMine()
+    access.value = new Map(list.filter((t) => t.myRole).map((t) => [t.id, { role: t.myRole!, permissions: t.permissions ?? [] }]))
+    return list.map((t) => ({ id: t.id, canEdit: true }))
+  })
+  function roleOf(id: ID): TournamentRole | null {
+    return access.value.get(id)?.role ?? (ownership.isMine(id) ? 'OWNER' : null)
+  }
+  /** La interfaz muestra solo lo permitido; el servidor lo vuelve a validar siempre. */
+  function can(id: ID, permission: TournamentPermission) {
+    const a = access.value.get(id)
+    return a ? a.permissions.includes(permission) : ownership.isMine(id)
+  }
 
   const byId = computed(() => new Map(items.value.map((t) => [t.id, t])))
   /** Activos primero, luego borradores, luego finalizados; dentro, por fecha desc. */
@@ -29,6 +41,9 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   const active = computed(() => sorted.value.filter((t) => t.status === 'active'))
   /** Torneos del organizador autenticado (panel /admin). */
   const mine = computed(() => sorted.value.filter((t) => ownership.ownedIds.value.has(t.id)))
+  /** Panel: los que organizo y aquellos donde colaboro. */
+  const organized = computed(() => mine.value.filter((t) => roleOf(t.id) === 'OWNER'))
+  const collaborating = computed(() => mine.value.filter((t) => roleOf(t.id) !== 'OWNER'))
 
   function get(id: ID) {
     return byId.value.get(id)
@@ -56,7 +71,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     ownership.markMine(created.id)
     return created
   }
-  async function update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean }) {
+  async function update(id: ID, input: Partial<TournamentInput>, options?: { resetSchedule?: boolean; releaseAssignments?: boolean }) {
     const updated = await tournamentService.update(id, await withLeague(input), options)
     items.value = items.value.map((t) => (t.id === id ? publicTournament(updated) : t))
     return updated
@@ -96,6 +111,10 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     sorted,
     active,
     mine,
+    organized,
+    collaborating,
+    roleOf,
+    can,
     ensureMine: ownership.ensureMine,
     isMine: ownership.isMine,
     resetMine: ownership.resetMine,

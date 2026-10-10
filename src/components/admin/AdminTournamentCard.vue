@@ -4,13 +4,15 @@ import { CalendarDays, ExternalLink, LayoutDashboard, Settings, Shield } from 'l
 import type { Tournament } from '@/types'
 import { useMatchesStore, useTournamentsStore } from '@/stores'
 import { isPendingCapture } from '@/utils/matches'
-import { MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
+import { MODALITY_LABELS, ROLE_LABEL, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDate, plural } from '@/utils/format'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 
 const props = defineProps<{ tournament: Tournament; leagueName?: string }>()
 
 const tournaments = useTournamentsStore()
+const role = computed(() => tournaments.roleOf(props.tournament.id))
+const canSchedule = computed(() => (['SCHEDULE', 'ASSIGNMENTS', 'RESULTS'] as const).some((p) => tournaments.can(props.tournament.id, p)))
 const matches = useMatchesStore()
 
 const list = computed(() => matches.ofTournament(props.tournament.id).filter((m) => m.status !== 'cancelled'))
@@ -29,6 +31,7 @@ const accent = computed(
     <span class="absolute inset-x-0 top-0 h-1" :class="accent" aria-hidden="true" />
     <div class="flex items-start justify-between gap-3 p-5 pb-0">
       <StatusBadge v-bind="TOURNAMENT_STATUS[tournament.status]" :pulse="tournament.status === 'active'" />
+      <StatusBadge v-if="role && role !== 'OWNER'" :label="ROLE_LABEL[role]" tone="blue" />
       <span v-if="pending" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
         {{ pending }} por capturar
       </span>
@@ -72,10 +75,11 @@ const accent = computed(
       <RouterLink :to="{ name: 'admin-tournament', params: { id: tournament.id } }" class="btn btn-ghost btn-sm text-pitch-700">
         <LayoutDashboard class="size-3.5" aria-hidden="true" /> Administrar
       </RouterLink>
-      <RouterLink :to="{ name: 'admin-tournament-schedule', params: { id: tournament.id } }" class="btn btn-ghost btn-sm">
+      <RouterLink v-if="canSchedule" :to="{ name: 'admin-tournament-schedule', params: { id: tournament.id } }" class="btn btn-ghost btn-sm">
         <CalendarDays class="size-3.5" aria-hidden="true" /> Calendario
       </RouterLink>
       <RouterLink
+        v-if="tournaments.can(tournament.id, 'SETTINGS')"
         :to="{ name: 'admin-tournament-settings', params: { id: tournament.id } }"
         class="btn btn-ghost btn-sm btn-icon"
         :aria-label="`Configurar ${tournament.name}`"

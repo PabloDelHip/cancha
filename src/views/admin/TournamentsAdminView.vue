@@ -18,6 +18,7 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import TournamentForm from '@/components/tournaments/TournamentForm.vue'
 import AdminTournamentCard from '@/components/admin/AdminTournamentCard.vue'
+import PendingInvitations from '@/components/admin/collaborators/PendingInvitations.vue'
 
 const { loading, error, reload } = useAdminData()
 const tournaments = useTournamentsStore()
@@ -53,8 +54,8 @@ async function enableOrganizer() {
 /** Por liga (la de actividad más reciente primero); dentro, en curso → en preparación → historial. */
 const STATUS_ORDER = { active: 0, draft: 1, finished: 2 } as const
 const groups = computed(() => {
-  const byLeague = new Map<string, typeof tournaments.mine>()
-  for (const t of tournaments.mine) {
+  const byLeague = new Map<string, typeof tournaments.organized>()
+  for (const t of tournaments.organized) {
     const key = t.leagueId ?? 'none'
     byLeague.set(key, [...(byLeague.get(key) ?? []), t])
   }
@@ -86,10 +87,11 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
 
 <template>
   <div>
+    <PendingInvitations />
     <PageHeader
       :eyebrow="home.canOrganize ? 'Panel del organizador' : 'Organizar torneos'"
       title="Mis torneos"
-      :subtitle="tournaments.mine.length ? `${tournaments.mine.length} ${tournaments.mine.length === 1 ? 'torneo' : 'torneos'} a tu cargo` : home.canOrganize ? 'Crea y administra tus ligas.' : 'Opcional: tu cuenta puede administrar equipos y también organizar.'"
+      :subtitle="tournaments.mine.length ? `${tournaments.mine.length} ${tournaments.mine.length === 1 ? 'torneo' : 'torneos'} a tu cargo${tournaments.collaborating.length ? ` (${tournaments.collaborating.length} como colaborador)` : ''}` : home.canOrganize ? 'Crea y administra tus ligas.' : 'Opcional: tu cuenta puede administrar equipos y también organizar.'"
     >
       <template v-if="home.canOrganize" #actions>
         <AppButton @click="createIn(undefined)"><Plus class="size-4" aria-hidden="true" /> Nuevo torneo</AppButton>
@@ -98,8 +100,16 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
 
     <LoadingState v-if="loading" />
     <ErrorState v-else-if="error" :message="error" @retry="reload" />
+    <!-- Colaboro: torneos de otros organizadores donde tengo un rol (no se crean torneos en sus ligas). -->
+    <section v-if="!loading && !error && tournaments.collaborating.length" aria-labelledby="group-collab" class="mb-8">
+      <h2 id="group-collab" class="display mb-3 text-2xl text-zinc-950">Colaboro <span class="text-base font-semibold text-zinc-400">· {{ tournaments.collaborating.length }}</span></h2>
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <AdminTournamentCard v-for="t in tournaments.collaborating" :key="t.id" :tournament="t" />
+      </div>
+    </section>
+    <h2 v-if="!loading && !error && tournaments.collaborating.length && tournaments.organized.length" class="display mb-3 text-2xl text-zinc-950">Organizo</h2>
     <EmptyState
-      v-else-if="!home.canOrganize"
+      v-if="!loading && !error && !home.canOrganize && !tournaments.collaborating.length"
       illustrated
       title="¿Organizas un torneo?"
       description="Activa la opción de organizar para crear ligas, generar calendarios y capturar resultados. Es opcional: tus equipos e inscripciones siguen igual y puedes hacer las dos cosas con la misma cuenta."
@@ -108,7 +118,7 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
       <AppButton :loading="optIn.enabling.value" @click="enableOrganizer"><Plus class="size-4" aria-hidden="true" /> Quiero organizar un torneo</AppButton>
     </EmptyState>
     <EmptyState
-      v-else-if="!tournaments.mine.length"
+      v-if="!loading && !error && home.canOrganize && !tournaments.organized.length"
       illustrated
       title="Aún no tienes torneos"
       description="Crea tu primer torneo. Después Cancha te guía: inscribir equipos, registrar jugadores, generar el calendario y capturar resultados."
@@ -117,7 +127,7 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
       <AppButton @click="createIn(undefined)"><Plus class="size-4" aria-hidden="true" /> Crear torneo</AppButton>
     </EmptyState>
 
-    <div v-else class="space-y-8">
+    <div v-if="!loading && !error && tournaments.organized.length" class="space-y-8">
       <section v-for="g in groups" :key="g.key" :aria-labelledby="`group-${g.key}`">
         <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <h2 :id="`group-${g.key}`" class="display text-2xl text-zinc-950">{{ g.title }} <span class="text-base font-semibold text-zinc-400">· {{ g.items.length }}</span></h2>

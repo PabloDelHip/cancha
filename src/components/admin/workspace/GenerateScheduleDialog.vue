@@ -13,6 +13,7 @@ import { hasResult } from '@/utils/matches'
 import { formatDate, plural, toISODate } from '@/utils/format'
 import { dealGroups, firstRoundPairs, formatProblems, GROUP_KEYS, hasRoundRobin, manualBracketSizes, KNOCKOUT_ROUND_LABEL } from '@/utils/formats'
 import { SYSTEM_LABELS } from '@/utils/labels'
+import { hasAssignments } from '@/utils/matches'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
@@ -157,6 +158,8 @@ const manualHint = computed(() => {
 })
 
 const blocked = computed(() => teamIds.value.length < 2 || played.value.length > 0 || problems.value.length > 0)
+/** Partidos que se reemplazarían con cancha o árbitros asignados: confirmar libera esas asignaciones. */
+const withAssignments = computed(() => replaceable.value.filter(hasAssignments).length)
 const replaceOk = computed(() => replaceable.value.length === 0 || confirmReplace.value)
 const canSubmit = computed(() =>
   mode.value === 'manual'
@@ -171,6 +174,7 @@ async function buildManually() {
       ...options,
       venue: options.venue.trim() || null,
       replaceExisting: replaceable.value.length > 0 && confirmReplace.value,
+      releaseAssignments: withAssignments.value > 0 && confirmReplace.value,
       manual: true,
       ...(system.value === 'knockout' ? { bracketSize: bracketSize.value } : {}),
       ...(system.value === 'groups_knockout' ? { groups: manualGroups.value.map((g) => g.teamIds) } : {}),
@@ -194,6 +198,7 @@ async function generate() {
       ...options,
       venue: options.venue.trim() || null,
       replaceExisting: replaceable.value.length > 0 && confirmReplace.value,
+      releaseAssignments: withAssignments.value > 0 && confirmReplace.value,
       ...(system.value === 'knockout' ? { seeding: seeding.value } : {}),
     })
     if (posthogConfigured) {
@@ -399,6 +404,7 @@ async function generate() {
           <p>
             Ya hay <strong>{{ plural(replaceable.length, 'partido programado', 'partidos programados') }}</strong> sin resultado.
             Se eliminarán y se reemplazarán {{ mode === 'manual' ? 'por la estructura vacía' : 'por el calendario nuevo' }}.
+            <template v-if="withAssignments"> {{ withAssignments === 1 ? '1 tiene cancha o árbitros asignados: se liberarán' : `${withAssignments} tienen cancha o árbitros asignados: se liberarán` }}.</template>
           </p>
           <label class="flex cursor-pointer items-start gap-2 font-semibold">
             <input v-model="confirmReplace" type="checkbox" class="mt-0.5 size-4 accent-amber-600" />

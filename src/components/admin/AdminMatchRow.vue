@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CalendarClock, CalendarOff, ClipboardEdit, Eye, Pencil } from 'lucide-vue-next'
+import { CalendarClock, CalendarOff, ClipboardEdit, Eye, History, MapPin, Pencil, UserRound } from 'lucide-vue-next'
 import type { Match } from '@/types'
 import { useTeamsStore } from '@/stores'
+import { USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { MATCH_STATUS } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
@@ -10,16 +11,20 @@ import TeamLogo from '@/components/teams/TeamLogo.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppButton from '@/components/common/AppButton.vue'
 
-const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean }>(), {
+/** `can*`: permisos del usuario en el torneo (RBAC); el servidor los vuelve a validar. */
+const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean }>(), {
   readOnly: false,
+  canSchedule: true,
+  canAssign: true,
+  canCapture: true,
   allowPostpone: false,
 })
-defineEmits<{ edit: []; postpone: []; reschedule: [] }>()
+defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: [] }>()
 
 const teams = useTeamsStore()
 const home = computed(() => teams.get(props.match.homeTeamId))
 const away = computed(() => teams.get(props.match.awayTeamId))
-const pending = computed(() => !props.readOnly && isPendingCapture(props.match))
+const pending = computed(() => !props.readOnly && props.canCapture && isPendingCapture(props.match))
 const hasScore = computed(() => props.match.homeScore !== null && props.match.awayScore !== null)
 const inactive = computed(() => props.match.status === 'cancelled' || props.match.status === 'postponed')
 const winner = computed(() => {
@@ -36,9 +41,17 @@ const winner = computed(() => {
   >
     <!-- Fecha (y estado en móvil) -->
     <div class="col-span-2 flex items-center justify-between md:col-span-1 md:block">
-      <p class="text-xs text-zinc-500" :class="inactive && 'line-through decoration-zinc-400'">
-        {{ formatMatchDay(match.date) }} <span class="tabular font-semibold text-zinc-800 md:block md:text-sm">{{ match.time }}</span>
-      </p>
+      <div>
+        <p class="text-xs text-zinc-500" :class="inactive && 'line-through decoration-zinc-400'">
+          {{ formatMatchDay(match.date) }} <span class="tabular font-semibold text-zinc-800 md:block md:text-sm">{{ match.time }}</span>
+        </p>
+        <p v-if="match.fieldId && match.venue" class="flex items-center gap-1 truncate text-[11px] text-zinc-500" :title="match.venue">
+          <MapPin class="size-3 shrink-0" aria-hidden="true" /> <span class="truncate">{{ match.venue }}</span>
+        </p>
+        <p v-if="match.centralReferee" class="flex items-center gap-1 truncate text-[11px] text-zinc-500" :title="`Árbitro central: ${match.centralReferee}`">
+          <UserRound class="size-3 shrink-0" aria-hidden="true" /> <span class="truncate">{{ match.centralReferee }}</span>
+        </p>
+      </div>
       <span class="md:hidden">
         <StatusBadge v-if="pending && match.status === 'scheduled'" label="Por capturar" tone="amber" />
         <StatusBadge v-else v-bind="MATCH_STATUS[match.status]" :pulse="match.status === 'live'" />
@@ -78,6 +91,7 @@ const winner = computed(() => {
     <div class="col-span-2 flex justify-end gap-1 md:col-span-1">
       <template v-if="!readOnly">
         <AppButton
+          v-if="canSchedule"
           variant="ghost"
           size="sm"
           icon
@@ -88,7 +102,29 @@ const winner = computed(() => {
           <Pencil class="size-3.5" aria-hidden="true" />
         </AppButton>
         <AppButton
-          v-if="allowPostpone && match.status === 'scheduled'"
+          v-if="!USE_MOCKS"
+          variant="ghost"
+          size="sm"
+          icon
+          :aria-label="`Historial de ${home?.name} contra ${away?.name}`"
+          title="Historial"
+          @click="$emit('history')"
+        >
+          <History class="size-3.5" aria-hidden="true" />
+        </AppButton>
+        <AppButton
+          v-if="!USE_MOCKS && canAssign && match.status !== 'cancelled'"
+          variant="ghost"
+          size="sm"
+          icon
+          :aria-label="`Árbitros de ${home?.name} contra ${away?.name}`"
+          title="Árbitros"
+          @click="$emit('referees')"
+        >
+          <UserRound class="size-3.5" aria-hidden="true" />
+        </AppButton>
+        <AppButton
+          v-if="canSchedule && allowPostpone && match.status === 'scheduled'"
           variant="ghost"
           size="sm"
           icon
@@ -98,11 +134,11 @@ const winner = computed(() => {
         >
           <CalendarOff class="size-3.5" aria-hidden="true" />
         </AppButton>
-        <AppButton v-if="match.status === 'postponed'" variant="secondary" size="sm" @click="$emit('reschedule')">
+        <AppButton v-if="canSchedule && match.status === 'postponed'" variant="secondary" size="sm" @click="$emit('reschedule')">
           <CalendarClock class="size-3.5" aria-hidden="true" /> Reprogramar
         </AppButton>
         <AppButton
-          v-else-if="match.status !== 'cancelled'"
+          v-else-if="canCapture && match.status !== 'cancelled' && match.status !== 'postponed'"
           :to="{ name: 'admin-match-capture', params: { id: match.id } }"
           :variant="pending ? 'accent' : 'secondary'"
           size="sm"

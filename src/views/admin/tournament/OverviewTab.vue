@@ -13,7 +13,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 const props = defineProps<{ id: string }>()
 const stats = useTournamentStats(() => props.id)
 const rounds = useRoundsStore()
-const { readOnly } = useTournamentWorkspace(() => props.id)
+const { readOnly, can } = useTournamentWorkspace(() => props.id)
 
 const params = computed(() => ({ id: props.id }))
 const total = computed(() => stats.matches.value.length)
@@ -30,12 +30,21 @@ const kpis = computed(() => [
   { label: 'Pendientes', value: stats.openCount.value, icon: ClipboardEdit },
 ])
 
+// Atajos según el rol (RBAC): solo lo que el usuario puede hacer.
 const quickActions = computed(() => [
-  { label: 'Inscribir equipo', icon: Shield, to: { name: 'admin-tournament-teams', params: params.value, query: { new: '1' } } },
-  { label: 'Agregar jugador', icon: UserPlus, to: { name: 'admin-tournament-players', params: params.value, query: { new: '1' } } },
-  { label: 'Nueva jornada', icon: CalendarPlus, to: { name: 'admin-tournament-schedule', params: params.value, query: { round: 'new' } } },
-  { label: 'Programar partido', icon: CalendarClock, to: { name: 'admin-tournament-schedule', params: params.value, query: { new: '1' } } },
-  ...(nextToCapture.value
+  ...(can('TEAMS')
+    ? [
+        { label: 'Inscribir equipo', icon: Shield, to: { name: 'admin-tournament-teams', params: params.value, query: { new: '1' } } },
+        { label: 'Agregar jugador', icon: UserPlus, to: { name: 'admin-tournament-players', params: params.value, query: { new: '1' } } },
+      ]
+    : []),
+  ...(can('SCHEDULE')
+    ? [
+        { label: 'Nueva jornada', icon: CalendarPlus, to: { name: 'admin-tournament-schedule', params: params.value, query: { round: 'new' } } },
+        { label: 'Programar partido', icon: CalendarClock, to: { name: 'admin-tournament-schedule', params: params.value, query: { new: '1' } } },
+      ]
+    : []),
+  ...(nextToCapture.value && can('RESULTS')
     ? [{ label: 'Capturar resultado', icon: ClipboardEdit, to: { name: 'admin-match-capture', params: { id: nextToCapture.value.id } } }]
     : []),
 ])
@@ -43,7 +52,7 @@ const quickActions = computed(() => [
 
 <template>
   <div class="space-y-6">
-    <TournamentGuide :tournament-id="id" />
+    <TournamentGuide v-if="can('SETTINGS')" :tournament-id="id" />
 
     <dl class="tabular grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
       <div v-for="k in kpis" :key="k.label" class="card px-3 py-3 sm:px-4">
@@ -72,7 +81,7 @@ const quickActions = computed(() => [
           <RouterLink :to="{ name: 'admin-tournament-schedule', params }" class="link text-sm">Calendario</RouterLink>
         </div>
         <ul v-if="upcoming.length" class="card divide-y divide-zinc-100 overflow-hidden">
-          <CompactMatchItem v-for="m in upcoming" :key="m.id" :match="m" :read-only="readOnly" />
+          <CompactMatchItem v-for="m in upcoming" :key="m.id" :match="m" :read-only="readOnly || !can('RESULTS')" />
         </ul>
         <EmptyState
           v-else
@@ -89,7 +98,7 @@ const quickActions = computed(() => [
           <RouterLink :to="{ name: 'admin-tournament-schedule', params, query: { view: 'finished' } }" class="link text-sm">Todos</RouterLink>
         </div>
         <ul v-if="recent.length" class="card divide-y divide-zinc-100 overflow-hidden">
-          <CompactMatchItem v-for="m in recent" :key="m.id" :match="m" :read-only="readOnly" />
+          <CompactMatchItem v-for="m in recent" :key="m.id" :match="m" :read-only="readOnly || !can('RESULTS')" />
         </ul>
         <EmptyState v-else :icon="Goal" title="Todavía no hay resultados" compact class="card" />
       </section>

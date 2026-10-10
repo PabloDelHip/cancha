@@ -1,4 +1,4 @@
-import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus } from '@/types'
+import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus, RefereeRole, CollaboratorRole, TournamentRole } from '@/types'
 import type { CompetitionSystem, KnockoutTiebreak, MatchStatus, PlayerPosition, PointsRule, TournamentModality, TournamentSettings, TournamentStatus } from '@/types'
 
 export type Tone = 'neutral' | 'green' | 'lime' | 'amber' | 'red' | 'blue'
@@ -139,3 +139,23 @@ export const DISCIPLINE_ACTION: Record<DisciplineAction, string> = {
   sanction_restored: 'Sanción reactivada',
   played_while_suspended: 'Jugó estando suspendido',
 }
+
+// ─── Árbitros ───────────────────────────────────────────────────────────────
+
+export const REFEREE_ROLES: { value: RefereeRole; label: string }[] = [
+  { value: 'central', label: 'Central' },
+  { value: 'assistant_1', label: 'Asistente 1' },
+  { value: 'assistant_2', label: 'Asistente 2' },
+  { value: 'fourth', label: 'Cuarto árbitro' },
+  { value: 'scorekeeper', label: 'Anotador' },
+]
+export const REFEREE_ROLE: Record<RefereeRole, string> = Object.fromEntries(REFEREE_ROLES.map((r) => [r.value, r.label])) as Record<RefereeRole, string>
+
+// ─── Colaboradores ──────────────────────────────────────────────────────────
+
+export const COLLABORATOR_ROLES: { value: CollaboratorRole; label: string; description: string }[] = [
+  { value: 'ADMIN', label: 'Administrador', description: 'Todo menos eliminar el torneo y gestionar colaboradores.' },
+  { value: 'COORDINATOR', label: 'Coordinador', description: 'Calendario, partidos, cruces, canchas y árbitros.' },
+  { value: 'SCORER', label: 'Anotador', description: 'Captura de resultados y estadísticas.' },
+]
+export const ROLE_LABEL: Record<TournamentRole, string> = { OWNER: 'Propietario', ADMIN: 'Administrador', COORDINATOR: 'Coordinador', SCORER: 'Anotador' }

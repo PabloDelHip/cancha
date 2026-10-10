@@ -10,6 +10,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { getErrorMessage, getErrorStatus, tournamentService } from '@/services'
 import { useRoundsStore } from '@/stores'
 import { TOURNAMENT_STATUS } from '@/utils/labels'
+import { hasAssignments } from '@/utils/matches'
 import AppButton from '@/components/common/AppButton.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
@@ -63,15 +64,16 @@ async function onSubmit(input: TournamentInput) {
   } catch (e) {
     // Cambiar el formato con un calendario generado (sin jugar) exige confirmar que se borra.
     if (getErrorStatus(e) === 409 && /resetSchedule/.test(getErrorMessage(e))) {
+      const withAssignments = matches.ofTournament(props.id).filter(hasAssignments).length
       const ok = await confirm({
         title: '¿Cambiar el formato y borrar el calendario?',
-        message: 'El torneo tiene un calendario generado sin partidos jugados. Se borrarán sus partidos y jornadas y tendrás que generarlo de nuevo con el formato nuevo.',
+        message: `El torneo tiene un calendario generado sin partidos jugados. Se borrarán sus partidos y jornadas${withAssignments ? ` (y se liberarán la cancha y los árbitros de ${withAssignments} ${withAssignments === 1 ? 'partido' : 'partidos'})` : ''} y tendrás que generarlo de nuevo con el formato nuevo.`,
         confirmLabel: 'Cambiar formato',
         tone: 'danger',
       })
       if (ok) {
         try {
-          editableTournament.value = await tournaments.update(props.id, input, { resetSchedule: true })
+          editableTournament.value = await tournaments.update(props.id, input, { resetSchedule: true, releaseAssignments: withAssignments > 0 })
           await Promise.all([matches.ensure(true), rounds.ensure(true)])
           formKey.value++
           toast.success('Formato cambiado. Genera el calendario de nuevo.')

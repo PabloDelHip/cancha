@@ -38,7 +38,8 @@ export const useHomeStore = defineStore('home', () => {
   })
 
   /** Organiza si el servidor lo dice o si ya tiene torneos cargados (p. ej. recién creado uno). */
-  const canOrganize = computed(() => !!data.value?.organizer.canOrganize || useTournamentsStore().mine.length > 0)
+  // Organizar = capacidad activada o torneos PROPIOS (colaborar en torneos ajenos no cuenta).
+  const canOrganize = computed(() => !!data.value?.organizer.canOrganize || useTournamentsStore().organized.length > 0)
   const drafts = computed(() => data.value?.registrations.drafts ?? [])
   const pendingRequests = computed(() => data.value?.registrations.pendingRequests ?? [])
   const teamCount = computed(() => data.value?.teams.total ?? 0)

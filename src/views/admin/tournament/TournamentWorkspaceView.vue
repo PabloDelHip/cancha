@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import type { TournamentPermission } from '@/types'
 import { useMatchesStore } from '@/stores'
 import { Archive, ChevronLeft, ExternalLink, Lock, Play, Trophy } from 'lucide-vue-next'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useTournamentLifecycle } from '@/composables/useTournamentLifecycle'
 import { usePageTitle } from '@/composables/usePageTitle'
-import { MODALITY_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
+import { MODALITY_LABELS, ROLE_LABEL, TOURNAMENT_STATUS } from '@/utils/labels'
 import { formatDateRange } from '@/utils/format'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import TabNav from '@/components/common/TabNav.vue'
@@ -23,28 +25,46 @@ import FinishTournamentDialog from '@/components/admin/workspace/FinishTournamen
 const props = defineProps<{ id: string }>()
 
 const { loading, error, reload } = useAdminData()
-const { tournament, isMine, readOnly } = useTournamentWorkspace(() => props.id)
+const { tournament, isMine, readOnly, role, can } = useTournamentWorkspace(() => props.id)
+const route = useRoute()
 const { start } = useTournamentLifecycle()
 const matches = useMatchesStore()
 /** "Iniciar" en la cabecera solo cuando ya hay calendario; antes, la guía marca el paso siguiente. */
-const canStart = computed(() => tournament.value?.status === 'draft' && matches.ofTournament(props.id).length > 0)
+const canStart = computed(() => can('LIFECYCLE') && tournament.value?.status === 'draft' && matches.ofTournament(props.id).length > 0)
 usePageTitle(() => (tournament.value ? `${tournament.value.name} · Panel` : undefined))
+
+/** Pestañas y el permiso que exige cada una (el servidor vuelve a validar cada acción). */
+const TABS: { name: string; label: string; permission: TournamentPermission | TournamentPermission[]; exact?: boolean }[] = [
+  { name: 'admin-tournament', label: 'Resumen', permission: 'VIEW' },
+  { name: 'admin-tournament-teams', label: 'Equipos', permission: 'TEAMS', exact: false },
+  { name: 'admin-tournament-players', label: 'Jugadores', permission: 'TEAMS' },
+  { name: 'admin-tournament-schedule', label: 'Calendario', permission: ['SCHEDULE', 'ASSIGNMENTS', 'RESULTS'] },
+  { name: 'admin-tournament-standings', label: 'Tabla', permission: 'VIEW' },
+  { name: 'admin-tournament-scorers', label: 'Goleadores', permission: 'VIEW' },
+  { name: 'admin-tournament-discipline', label: 'Disciplina', permission: 'DISCIPLINE_VIEW' },
+  { name: 'admin-tournament-registration', label: 'Inscripciones', permission: 'TEAMS' },
+  { name: 'admin-tournament-collaborators', label: 'Colaboradores', permission: 'MEMBERS' },
+  { name: 'admin-tournament-settings', label: 'Configuración', permission: 'SETTINGS' },
+]
+const PERMISSION_BY_ROUTE = new Map(TABS.map((t) => [t.name, t.permission]))
+PERMISSION_BY_ROUTE.set('admin-tournament-team', 'TEAMS')
+function allowed(name: string) {
+  const p = PERMISSION_BY_ROUTE.get(name)
+  if (!p) return true
+  return (Array.isArray(p) ? p : [p]).some((x) => can(x))
+}
 
 const tabs = computed(() => {
   const params = { id: props.id }
-  const all = [
-    { label: 'Resumen', to: { name: 'admin-tournament', params } },
-    { label: 'Equipos', to: { name: 'admin-tournament-teams', params }, exact: false },
-    { label: 'Jugadores', to: { name: 'admin-tournament-players', params } },
-    { label: 'Calendario', to: { name: 'admin-tournament-schedule', params } },
-    { label: tournament.value?.settings.system && tournament.value.settings.system !== 'league' ? 'Competición' : 'Tabla', to: { name: 'admin-tournament-standings', params } },
-    { label: 'Goleadores', to: { name: 'admin-tournament-scorers', params } },
-    { label: 'Disciplina', to: { name: 'admin-tournament-discipline', params } },
-    { label: 'Inscripciones', to: { name: 'admin-tournament-registration', params } },
-    { label: 'Configuración', to: { name: 'admin-tournament-settings', params } },
-  ]
-  return all.map(({ label, to, exact }) => ({ label, to, exact }))
+  return TABS.filter((t) => allowed(t.name)).map((t) => ({
+    label: t.name === 'admin-tournament-standings' && tournament.value?.settings.system && tournament.value.settings.system !== 'league' ? 'Competición' : t.label,
+    to: { name: t.name, params },
+    exact: t.exact,
+  }))
 })
+/** Pestaña abierta por URL sin permiso: aviso en lugar de una pantalla que el servidor rechazaría. */
+const forbidden = computed(() => !allowed(String(route.name ?? '')))
+
 </script>
 
 <template>
@@ -80,7 +100,8 @@ const tabs = computed(() => {
           </div>
           <h1 class="display text-3xl leading-none text-zinc-950 sm:text-4xl">{{ tournament.name }}</h1>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
+        <div class="flex shrink-0 flex-wrap items-center gap-2">
+          <StatusBadge v-if="role && role !== 'OWNER'" :label="`Colaboras como ${ROLE_LABEL[role]}`" tone="blue" />
           <AppButton v-if="canStart" @click="start(tournament.id)">
             <Play class="size-4" aria-hidden="true" /> Iniciar torneo
           </AppButton>
@@ -99,7 +120,14 @@ const tabs = computed(() => {
       </div>
 
       <TabNav :tabs="tabs" label="Secciones del torneo" class="mb-6" />
-      <RouterView />
+      <EmptyState
+        v-if="forbidden"
+        :icon="Lock"
+        title="Tu rol no permite esta sección"
+        description="Pídele al propietario del torneo que cambie tu rol si la necesitas."
+        class="card"
+      />
+      <RouterView v-else />
       <FinishTournamentDialog />
     </template>
   </div>
