@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
-import { Archive, ArrowLeft, Ban, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
+import { AlertTriangle, Archive, ArrowLeft, Ban, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
 import type { ID, MatchEligibility, MatchStatus, PlayerMatchStatsInput } from '@/types'
 import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
-import { disciplineService, getErrorMessage, USE_MOCKS } from '@/services'
+import { disciplineService, getErrorMessage, sheetService, USE_MOCKS } from '@/services'
 import { formatDate } from '@/utils/format'
 import { MATCH_STATUS } from '@/utils/labels'
 import { isPendingCapture } from '@/utils/matches'
@@ -42,7 +42,9 @@ const tournament = computed(() => (match.value ? tournaments.get(match.value.tou
 const finished = computed(() => tournament.value?.status === 'finished')
 /** RBAC: sin permiso de resultados se consulta, no se captura (el servidor lo vuelve a validar). */
 const canCapture = computed(() => !!match.value && tournaments.can(match.value.tournamentId, 'RESULTS'))
-const readOnly = computed(() => finished.value || !canCapture.value)
+/** Ficha técnica cerrada (2D): resultado y estadísticas congelados hasta reabrirla. */
+const sheetClosed = computed(() => !!match.value?.sheetClosed)
+const readOnly = computed(() => finished.value || !canCapture.value || sheetClosed.value)
 const backTo = computed(() =>
   match.value
     ? { name: 'admin-tournament-schedule', params: { id: match.value.tournamentId }, query: { round: String(match.value.round) } }
@@ -147,7 +149,8 @@ function buildRows(teamId: ID): CaptureRow[] {
       shirtNumber,
       // En un partido sin captura previa se asume que jugó toda la plantilla (menos los suspendidos):
       // es más rápido desmarcar ausentes.
-      played: Boolean(s) || (isNew && !suspended),
+      // Con alineación en la ficha, solo quienes participaron (un suplente que no entró no jugó).
+      played: Boolean(s) || (isNew && (lineupParticipants.value.get(teamId)?.has(player.id) ?? !suspended)),
       goals: s?.goals ?? 0,
       assists: s?.assists ?? 0,
       ownGoals: s?.ownGoals ?? 0,
@@ -175,10 +178,23 @@ async function loadEligibility() {
   }
 }
 
+/** Participantes según la alineación de la ficha (por equipo), si se capturó. */
+const lineupParticipants = ref(new Map<ID, Set<ID>>())
+async function loadLineups() {
+  lineupParticipants.value = new Map()
+  if (USE_MOCKS || readOnly.value) return
+  try {
+    const sheet = await sheetService.get(props.id)
+    lineupParticipants.value = new Map(sheet.teams.filter((t) => t.lineup?.players.length).map((t) => [t.team.id, new Set(t.lineup!.players.filter((p) => p.participated).map((p) => p.playerId))]))
+  } catch {
+    // Sin alineación: se asume la plantilla, como antes; el servidor valida al guardar.
+  }
+}
+
 async function init() {
   const id = props.id
   if (!match.value) return
-  await loadEligibility()
+  await Promise.all([loadEligibility(), loadLineups()])
   // Otro partido mientras se cargaba ("Siguiente partido"): ese init arma sus filas.
   const m = match.value
   if (id !== props.id || !m) return
@@ -277,10 +293,15 @@ async function confirmLeave() {
 onBeforeRouteLeave(confirmLeave)
 onBeforeRouteUpdate(confirmLeave)
 
-const statusOptions: { value: CaptureStatus; label: string }[] = [
-  { value: 'live', label: 'En juego' },
-  { value: 'finished', label: 'Finalizado' },
-]
+/** Suspendido (2C-2): aquí solo se da por terminado con el resultado final; reanudar es en Incidencias. */
+const statusOptions = computed<{ value: CaptureStatus; label: string }[]>(() =>
+  match.value?.status === 'suspended'
+    ? [{ value: 'finished', label: 'Finalizado' }]
+    : [
+        { value: 'live', label: 'En juego' },
+        { value: 'finished', label: 'Finalizado' },
+      ],
+)
 </script>
 
 <template>
@@ -340,6 +361,10 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
       <div v-if="readOnly" class="mb-4 flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900" role="status">
         <Archive class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
         <p v-if="finished"><strong>Torneo finalizado.</strong> Este resultado es parte del historial y ya no se puede modificar.</p>
+        <p v-else-if="sheetClosed">
+          <strong>Ficha técnica cerrada.</strong> El resultado y las estadísticas están congelados; para corregirlos hay que reabrir la ficha con un motivo.
+          <RouterLink :to="{ name: 'admin-match-sheet', params: { id: match.id } }" class="link ml-1">Ver ficha</RouterLink>
+        </p>
         <p v-else><strong>Solo lectura.</strong> Tu rol en este torneo no permite capturar resultados.</p>
       </div>
       <div v-else-if="justSaved && !dirty" class="mb-4 flex flex-col gap-3 rounded-2xl border border-pitch-200 bg-pitch-50 px-4 py-3 text-sm sm:flex-row sm:items-center" role="status">
@@ -422,6 +447,19 @@ const statusOptions: { value: CaptureStatus; label: string }[] = [
         <p>
           <strong>{{ match.status === 'postponed' ? 'Partido pospuesto.' : 'Conserva la fecha con la que se pospuso.' }}</strong>
           Antes de capturarlo, ponle en el calendario la fecha en que se jugó: mientras conserve la original no cuenta para cumplir suspensiones.
+          <RouterLink :to="backTo" class="link ml-1">Ir al calendario</RouterLink>
+        </p>
+      </div>
+
+      <div
+        v-if="!readOnly && match.status === 'suspended'"
+        class="mb-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        role="status"
+      >
+        <AlertTriangle class="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <p>
+          <strong>Partido suspendido, pendiente de decisión.</strong>
+          Guardar aquí lo da por terminado con este resultado. Para reanudarlo, reprogramarlo o cancelarlo, usa Incidencias en el calendario.
           <RouterLink :to="backTo" class="link ml-1">Ir al calendario</RouterLink>
         </p>
       </div>

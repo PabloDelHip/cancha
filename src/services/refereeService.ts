@@ -24,6 +24,8 @@ export interface RefereeService {
   assign(matchId: ID, refereeId: ID, role: RefereeRole): Promise<MatchReferees>
   unassign(matchId: ID, assignmentId: ID): Promise<MatchReferees>
   absence(matchId: ID, assignmentId: ID, input: { substituteId: ID | null; note: string | null }): Promise<MatchReferees>
+  /** Corrección justificada de una ausencia o sustitución (anulación VOID, 2C-2). */
+  correct(matchId: ID, assignmentId: ID, input: { reason: string; substituteId: ID | null }): Promise<MatchReferees>
 }
 
 type ApiMatchReferees = Omit<MatchReferees, 'referees'> & { referees: ApiRefereeAssignment[] }
@@ -69,6 +71,9 @@ const http: RefereeService = {
   async absence(matchId, assignmentId, input) {
     return toMatchReferees((await api.post<ApiMatchReferees>(`/matches/${matchId}/referees/${assignmentId}/absence`, input)).data)
   },
+  async correct(matchId, assignmentId, input) {
+    return toMatchReferees((await api.post<ApiMatchReferees>(`/matches/${matchId}/referees/${assignmentId}/correct`, input)).data)
+  },
 }
 
 export const REFEREES_REQUIRE_SERVER = 'Los árbitros requieren el servidor (modo demo sin backend)'
@@ -85,6 +90,7 @@ const mock: RefereeService = {
   assign: unsupported,
   unassign: unsupported,
   absence: unsupported,
+  correct: unsupported,
 }
 
 export const refereeService: RefereeService = USE_MOCKS ? mock : http

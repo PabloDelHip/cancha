@@ -133,6 +133,11 @@ export function getErrorStatus(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined
 }
 
+/** Cuerpo de una respuesta de error (p. ej. la vista previa nueva de un 409 RESCHEDULE_STALE). */
+export function getErrorBody<T>(error: unknown): T | undefined {
+  return error instanceof AxiosError ? (error.response?.data as T | undefined) : undefined
+}
+
 /** Mensaje legible para mostrar en la UI a partir de cualquier error. */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof AxiosError) {

@@ -67,6 +67,12 @@ export const useMatchesStore = defineStore('matches', () => {
   }
 
   /** Cambios ya guardados por otro servicio (p. ej. árbitros asignados). */
+  /** Vuelve a leer un partido del servidor (p. ej. tras una incidencia que cambió su estado). */
+  async function refresh(id: ID) {
+    const fresh = await matchService.get(id)
+    items.value = items.value.map((m) => (m.id === id ? fresh : m))
+    return fresh
+  }
   function patch(id: ID, changes: Partial<Match>) {
     items.value = items.value.map((m) => (m.id === id ? { ...m, ...changes } : m))
   }
@@ -84,6 +90,7 @@ export const useMatchesStore = defineStore('matches', () => {
   }
 
   return {
+    refresh,
     items,
     stats,
     loaded,

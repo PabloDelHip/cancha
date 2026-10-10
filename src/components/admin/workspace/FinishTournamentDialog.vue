@@ -29,7 +29,7 @@ const counts = computed(() => {
   return {
     total: list.length,
     finished: list.filter((m) => m.status === 'finished').length,
-    open: list.filter((m) => m.status === 'scheduled' || m.status === 'live').length,
+    open: list.filter((m) => m.status === 'scheduled' || m.status === 'live' || m.status === 'suspended').length,
     postponed: list.filter((m) => m.status === 'postponed').length,
     cancelled: list.filter((m) => m.status === 'cancelled').length,
   }

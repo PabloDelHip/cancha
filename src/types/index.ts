@@ -177,6 +177,12 @@ export type TournamentPermission =
   | 'DISCIPLINE_VIEW'
   | 'LOGS_VIEW'
   | 'REFEREE_CONTACT'
+  | 'INCIDENTS'
+  | 'REFEREE_CORRECTIONS'
+  | 'SHEET_CLOSE'
+  | 'SHEET_REOPEN'
+  | 'EVIDENCE_UPLOAD'
+  | 'EVIDENCE_REMOVE'
 
 export interface Tournament extends Timestamps {
   id: ID
@@ -235,7 +241,8 @@ export interface Round {
  * - scheduled: programado. live: en juego. finished: con resultado (única que cuenta en la tabla).
  * - postponed: pospuesto; conserva su identidad y se reprograma. cancelled: no se jugará.
  */
-export type MatchStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled'
+/** suspended = no pudo continuar; pendiente de decisión (2C-2). */
+export type MatchStatus = 'scheduled' | 'live' | 'finished' | 'postponed' | 'cancelled' | 'suspended'
 
 export interface Match extends Timestamps {
   id: ID
@@ -264,6 +271,8 @@ export interface Match extends Timestamps {
   penalties?: { home: number; away: number } | null
   /** Se jugaron tiempos extra (el marcador ya los incluye). */
   extraTime?: boolean
+  /** Ficha técnica cerrada (2D): información deportiva congelada. */
+  sheetClosed?: { at: ISODateTime } | null
 }
 
 /**
@@ -386,6 +395,8 @@ export type MatchInput = Pick<
 > & {
   /** Solo al editar: motivo de reprogramar, posponer o cancelar (obligatorio con el torneo en curso). */
   reason?: string | null
+  /** Reprogramación confirmada: libera exactamente lo que mostró la vista previa (2C-2). */
+  release?: { field: boolean; assignmentIds: ID[] }
 }
 
 export type PlayerMatchStatsInput = Omit<PlayerMatchStats, 'id' | 'matchId'>
@@ -1256,10 +1267,17 @@ export interface RefereeAssignment {
   id: ID
   refereeId: ID
   role: RefereeRole
-  /** absent = no se presentó (se conserva); su sustituto lleva `substituteFor`. */
-  status: 'assigned' | 'absent'
+  /**
+   * absent = no se presentó (se conserva); su sustituto lleva `substituteFor`. void = anulada por
+   * una corrección (se registró por error); released = liberada al reprogramar. Nada se borra.
+   */
+  status: RefereeAssignmentStatus
   substituteFor: ID | null
   absenceNote: string | null
+  /** Corrección que la anuló (solo en la vista del organizador). */
+  voided?: Correction | null
+  /** Ausencias anuladas: sí se presentó. */
+  absenceVoided?: (Correction & { absentAt: ISODateTime | null; absenceNote: string | null })[]
   /** Solo en la vista del organizador. */
   name?: string | null
 }
@@ -1291,10 +1309,20 @@ export interface MatchReferees {
   warnings: string[]
 }
 
+export type RefereeAssignmentStatus = 'assigned' | 'absent' | 'void' | 'released'
+
+/** Quién corrigió un registro, cuándo y por qué. */
+export interface Correction {
+  at: ISODateTime
+  by: ID
+  role: TournamentRole | null
+  reason: string
+}
+
 export interface RefereeHistoryEntry {
   assignmentId: ID
   role: RefereeRole
-  status: 'assigned' | 'absent'
+  status: RefereeAssignmentStatus
   absenceNote: string | null
   replacedBy: string | null
   substituteFor: string | null
@@ -1327,6 +1355,17 @@ export type MatchLogAction =
   | 'REFEREE_ASSIGNED'
   | 'REFEREE_REMOVED'
   | 'REFEREE_ABSENT'
+  | 'REFEREE_CORRECTED'
+  | 'INCIDENT_REPORTED'
+  | 'INCIDENT_RESOLVED'
+  | 'INCIDENT_VOIDED'
+  | 'SUSPENSION_RESOLVED'
+  | 'SHEET_LINEUP_SAVED'
+  | 'SHEET_OBSERVATIONS_SAVED'
+  | 'SHEET_CLOSED'
+  | 'SHEET_REOPENED'
+  | 'EVIDENCE_ADDED'
+  | 'EVIDENCE_REMOVED'
   | 'DELETED'
   | 'SCHEDULE_REPLACED'
 
@@ -1345,6 +1384,8 @@ export interface MatchLogEntry {
   source: 'USER' | 'SYSTEM'
   cause: 'MANUAL' | 'SCHEDULE_REGENERATED' | 'FORMAT_CHANGED' | 'TIE_REMOVED' | 'BRACKET_SYNC' | null
   actorId: ID
+  /** Rol del responsable en el torneo en ese momento (R1). */
+  actorRole?: TournamentRole | null
   reason: string | null
   changes: Record<string, { from: unknown; to: unknown }> | null
   snapshot: Record<string, unknown> | null
@@ -1397,4 +1438,187 @@ export interface RefereeContact {
   phone: string | null
   email: string | null
   active: boolean
+}
+
+// ─── Incidencias y reprogramación segura (2C-2) ─────────────────────────────
+
+export type IncidentType = 'DELAY' | 'SUSPENSION' | 'FACILITIES' | 'SECURITY' | 'OTHER'
+export type SuspensionDecision = 'RESUMED' | 'RESCHEDULED' | 'POSTPONED' | 'CANCELLED' | 'FINISHED'
+
+interface IncidentClose {
+  at: ISODateTime
+  by: ID
+  role: TournamentRole | null
+  note: string | null
+}
+
+export interface MatchIncident {
+  id: ID
+  matchId: ID
+  type: IncidentType
+  description: string
+  occurredAt: ISODateTime
+  status: 'OPEN' | 'RESOLVED' | 'VOID'
+  reportedBy: ID
+  reportedRole: TournamentRole | null
+  resolution: (IncidentClose & { decision: SuspensionDecision | null }) | null
+  voided: IncidentClose | null
+  createdAt: ISODateTime
+}
+
+export interface MatchIncidents {
+  incidents: MatchIncident[]
+  /** Nombres de quienes registraron, resolvieron o anularon. */
+  users: Record<ID, string>
+}
+
+export interface ResourceConflict {
+  matchId: ID
+  tournamentName: string
+  date: ISODate
+  time: string
+  endTime: string
+  homeTeam: string
+  awayTeam: string
+}
+
+/** Qué se conserva y qué se libera si el partido pasa a otro horario. */
+export interface ReschedulePreview {
+  date: ISODate
+  time: string
+  reserves: boolean
+  field: { fieldId: ID; label: string; action: 'KEEP' | 'RELEASE'; conflicts: ResourceConflict[]; warnings: string[] } | null
+  referees: { assignmentId: ID; refereeId: ID; name: string | null; role: string; action: 'KEEP' | 'RELEASE'; conflicts: ResourceConflict[]; warnings: string[] }[]
+  release: { field: boolean; assignmentIds: ID[] }
+  needsConfirmation: boolean
+}
+
+// ─── Agenda global (2C-3) ───────────────────────────────────────────────────
+
+/** Torneo de la agenda con mi rol y permisos (los decide el servidor). */
+export interface AgendaTournament {
+  id: ID
+  name: string
+  status: TournamentStatus
+  myRole: TournamentRole | null
+  permissions: TournamentPermission[]
+}
+
+export interface AgendaItem {
+  match: Match
+  tournament: { id: ID; name: string; status: TournamentStatus }
+  homeTeam: string | null
+  awayTeam: string | null
+  roundName: string | null
+}
+
+export interface AgendaPage {
+  items: AgendaItem[]
+  meta: { page: number; limit: number; total: number; totalPages: number }
+  tournaments: AgendaTournament[]
+}
+
+export interface AgendaQuery {
+  from?: ISODate
+  to?: ISODate
+  tournamentId?: ID
+  status?: MatchStatus[]
+  venueId?: ID
+  fieldId?: ID
+  refereeId?: ID
+  includeFinished?: boolean
+  page?: number
+  limit?: number
+}
+
+export interface AgendaOptions {
+  tournaments: AgendaTournament[]
+  venues: { id: ID; name: string; fields: { id: ID; name: string }[] }[]
+  referees: { id: ID; name: string }[]
+}
+
+// ─── Ficha técnica digital (2D) ─────────────────────────────────────────────
+
+export type EvidenceKind = 'REFEREE_REPORT' | 'LINEUP' | 'INCIDENT' | 'SCOREBOARD' | 'OTHER'
+
+export interface MatchEvidence {
+  id: ID
+  kind: EvidenceKind
+  description: string | null
+  incidentId: ID | null
+  format: string
+  bytes: number
+  status: 'ACTIVE' | 'REMOVED'
+  uploadedBy: ID
+  uploadedRole: TournamentRole | null
+  createdAt: ISODateTime
+  removed: { at: ISODateTime; by: ID; role: TournamentRole | null; reason: string } | null
+}
+
+export interface SheetLineupPlayer {
+  playerId: ID
+  name: string | null
+  position: string | null
+  jerseyNumber: number | null
+  starter: boolean
+  captain: boolean
+  participated: boolean
+  enteredAt: number | null
+  leftAt: number | null
+}
+
+export interface SheetSubstitution {
+  outPlayerId: ID
+  inPlayerId: ID
+  minute: number
+  outName?: string | null
+  inName?: string | null
+}
+
+export interface SheetTeamSide {
+  side: 'home' | 'away'
+  team: { id: ID; name: string | null; shortName: string | null; logoUrl: string | null }
+  lineup: { updatedAt: ISODateTime | null; players: SheetLineupPlayer[]; substitutions: SheetSubstitution[] } | null
+  stats: { playerId: ID; name: string | null; jerseyNumber: number | null; played: boolean; goals: number; assists: number; ownGoals: number; yellowCards: number; redCards: number; sendOff?: string | null }[]
+  consistency: { consistent: boolean; missing: (string | null)[]; extra: (string | null)[] } | null
+}
+
+/** Documento de la ficha (versionado: base de un PDF futuro). Estados y enums tal como los da el API. */
+export interface MatchSheet {
+  schemaVersion: number
+  generatedAt: ISODateTime
+  tournament: { id: ID; name: string; status: 'DRAFT' | 'ACTIVE' | 'FINISHED' }
+  myRole: TournamentRole | null
+  permissions: TournamentPermission[]
+  match: {
+    id: ID
+    status: 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED' | 'SUSPENDED'
+    date: ISODate
+    time: string
+    round: number
+    roundName: string | null
+    stage: MatchStage | null
+    venue: string | null
+    fieldId: ID | null
+    homeScore: number | null
+    awayScore: number | null
+    penalties: { home: number; away: number } | null
+    extraTime: boolean
+  }
+  closure: { closed: false } | { closed: true; at: ISODateTime; by: string | null; role: TournamentRole | null; homeScore: number | null; awayScore: number | null }
+  referees: { id: ID; refereeId: ID; name: string | null; role: string; status: string; substituteFor: ID | null; absenceNote: string | null }[]
+  centralReferee: string | null
+  teams: [SheetTeamSide, SheetTeamSide]
+  incidents: MatchIncidents
+  observations: string | null
+  evidence: MatchEvidence[]
+  history: MatchLog
+  /** Solo al guardar una alineación: avisos (p. ej. suspendidos con reglamento que solo avisa). */
+  warnings?: string[]
+}
+
+export interface SheetTeamInput {
+  players: { playerId: ID; jerseyNumber?: number | null; starter: boolean; captain?: boolean }[]
+  substitutions: { outPlayerId: ID; inPlayerId: ID; minute: number }[]
+  reason?: string | null
 }

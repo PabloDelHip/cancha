@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CalendarClock, CalendarRange, CheckCircle2, History, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
-import type { Match, MatchInput, MatchStatus, Team } from '@/types'
+import type { Match, MatchStatus, Team } from '@/types'
 import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore, type RoundView } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useTournamentStats } from '@/composables/useTournamentStats'
@@ -14,14 +14,14 @@ import { getErrorMessage, USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { formatDate, plural } from '@/utils/format'
 import AppButton from '@/components/common/AppButton.vue'
-import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
-import MatchForm from '@/components/matches/MatchForm.vue'
 import AdminMatchRow from '@/components/admin/AdminMatchRow.vue'
 import GenerateScheduleDialog from '@/components/admin/workspace/GenerateScheduleDialog.vue'
 import RoundDialog from '@/components/admin/workspace/RoundDialog.vue'
 import RefereeAssignmentDialog from '@/components/admin/referees/RefereeAssignmentDialog.vue'
 import MatchHistoryDialog from '@/components/admin/history/MatchHistoryDialog.vue'
+import IncidentsDialog from '@/components/admin/incidents/IncidentsDialog.vue'
+import MatchEditorDialog from '@/components/admin/workspace/MatchEditorDialog.vue'
 
 /**
  * Calendario del torneo: jornadas (organización deportiva) y sus partidos (programación
@@ -30,7 +30,7 @@ import MatchHistoryDialog from '@/components/admin/history/MatchHistoryDialog.vu
  */
 const props = defineProps<{ id: string }>()
 
-type View = 'rounds' | 'upcoming' | 'finished' | 'postponed' | 'pending'
+type View = 'rounds' | 'upcoming' | 'finished' | 'postponed' | 'suspended' | 'pending'
 
 const matches = useMatchesStore()
 const roundsStore = useRoundsStore()
@@ -80,7 +80,7 @@ const tournamentTeams = computed(() =>
 )
 
 // ─── Vista y jornada seleccionada (viajan en la URL) ──────────────────────
-const VIEWS: View[] = ['rounds', 'upcoming', 'finished', 'postponed', 'pending']
+const VIEWS: View[] = ['rounds', 'upcoming', 'finished', 'postponed', 'suspended', 'pending']
 const view = ref<View>(VIEWS.includes(route.query.view as View) ? (route.query.view as View) : 'rounds')
 const selected = ref<number | null>(Number(route.query.round) || null)
 watch(
@@ -101,6 +101,7 @@ const counts = computed(() => ({
   upcoming: all.value.filter((m) => m.status === 'scheduled' || m.status === 'live').length,
   finished: all.value.filter((m) => m.status === 'finished').length,
   postponed: all.value.filter((m) => m.status === 'postponed').length,
+  suspended: all.value.filter((m) => m.status === 'suspended').length,
   pending: all.value.filter((m) => isPendingCapture(m)).length,
 }))
 const viewOptions = computed(() =>
@@ -109,6 +110,7 @@ const viewOptions = computed(() =>
     { value: 'upcoming' as const, label: 'Próximos', count: counts.value.upcoming },
     { value: 'finished' as const, label: 'Finalizados', count: counts.value.finished },
     { value: 'postponed' as const, label: 'Pospuestos', count: counts.value.postponed },
+    { value: 'suspended' as const, label: 'Suspendidos', count: counts.value.suspended },
     { value: 'pending' as const, label: 'Por capturar', count: counts.value.pending },
   ].filter((o) => o.value === 'rounds' || o.value === 'upcoming' || o.value === 'finished' || o.count),
 )
@@ -119,6 +121,7 @@ const filteredGroups = computed(() => {
     upcoming: (m) => m.status === 'scheduled' || m.status === 'live',
     finished: (m) => m.status === 'finished',
     postponed: (m) => m.status === 'postponed',
+    suspended: (m) => m.status === 'suspended',
     pending: (m) => isPendingCapture(m),
   }
   if (view.value === 'rounds') return []
@@ -164,24 +167,25 @@ function newMatch(roundNumber?: number) {
 const historyOf = ref<{ matchId: string | null; title: string } | null>(null)
 /** Partido cuyo diálogo de árbitros está abierto. */
 const refereesOf = ref<Match | null>(null)
+/** Partido cuyo diálogo de incidencias está abierto (se lee del store: refleja su estado actual). */
+const incidentsOfId = ref<string | null>(null)
+const incidentsOf = computed(() => (incidentsOfId.value ? (matches.get(incidentsOfId.value) ?? null) : null))
+/** Decisión sobre un suspendido que no es reanudar: el formulario del partido con ese estado. */
+function decide(status: MatchStatus) {
+  const m = incidentsOf.value
+  incidentsOfId.value = null
+  if (m) editMatch(m, status)
+}
 
 function editMatch(m: Match, status?: MatchStatus) {
   matchDefaults.value = { round: m.round, status }
   editor.edit(m)
 }
 
-function onSubmitMatch(input: MatchInput) {
-  const current = editor.current.value
-  editor.save(
-    async () => {
-      const saved = current ? await matches.update(current.id, input) : await matches.create(input)
-      // El servidor crea el registro de la jornada al programar/mover: se refrescan las jornadas.
-      await roundsStore.ensure(true)
-      view.value = 'rounds'
-      selected.value = saved.round
-    },
-    current ? (current.round !== input.round ? `Partido movido a ${roundsStore.labelOf(props.id, input.round)}.` : 'Partido actualizado.') : 'Partido programado.',
-  )
+/** Guardado desde el formulario (la reprogramación segura vive en MatchEditorDialog). */
+function onSaved(saved: Match) {
+  view.value = 'rounds'
+  selected.value = saved.round
 }
 
 /** Posponer abre el mismo formulario con el estado ya elegido: ahí se escribe el motivo. */
@@ -356,6 +360,7 @@ async function deleteRound(r: RoundView) {
               @postpone="postpone(m)"
               @reschedule="editMatch(m, 'scheduled')"
               @referees="refereesOf = m"
+              @incidents="incidentsOfId = m.id"
               @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
             />
           </ul>
@@ -397,6 +402,7 @@ async function deleteRound(r: RoundView) {
                 @postpone="postpone(m)"
                 @reschedule="editMatch(m, 'scheduled')"
                 @referees="refereesOf = m"
+                @incidents="incidentsOfId = m.id"
                 @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
               />
             </ul>
@@ -423,8 +429,19 @@ async function deleteRound(r: RoundView) {
       :open="!!refereesOf"
       :match="refereesOf"
       :read-only="readOnly || !can('ASSIGNMENTS')"
+      :can-correct="can('REFEREE_CORRECTIONS')"
       @close="refereesOf = null"
       @changed="(r) => refereesOf && matches.patch(refereesOf.id, { referees: r.referees, centralReferee: r.centralReferee })"
+    />
+    <IncidentsDialog
+      :open="!!incidentsOf"
+      :match="incidentsOf"
+      :can-manage="can('INCIDENTS')"
+      :can-schedule="can('SCHEDULE')"
+      :can-capture="can('RESULTS')"
+      :read-only="readOnly"
+      @close="incidentsOfId = null"
+      @decide="decide"
     />
     <RoundDialog
       :open="roundDialog.open"
@@ -435,34 +452,17 @@ async function deleteRound(r: RoundView) {
       @saved="(n) => ((view = 'rounds'), (selected = n))"
     />
 
-    <BaseModal
+    <MatchEditorDialog
       :open="editor.open.value"
-      :title="editor.current.value ? (matchDefaults.status === 'scheduled' && editor.current.value.status === 'postponed' ? 'Reprogramar partido' : 'Editar partido') : 'Programar partido'"
-      size="lg"
+      :tournament-id="id"
+      :match="editor.current.value"
+      :default-round="matchDefaults.round"
+      :default-status="matchDefaults.status"
+      :groups="groups"
+      :can-delete="canDeleteCurrent"
       @close="editor.close()"
-    >
-      <MatchForm
-        v-if="editor.open.value"
-        form-id="match-form"
-        :initial="editor.current.value"
-        :tournament-id="id"
-        :teams="tournamentTeams"
-        :rounds="rounds"
-        :default-round="matchDefaults.round"
-        :default-status="matchDefaults.status"
-        :default-venue="tournament?.venue"
-        :groups="groups.length ? groups : undefined"
-        @submit="onSubmitMatch"
-      />
-      <template #footer>
-        <AppButton v-if="canDeleteCurrent" variant="ghost" class="mr-auto text-red-700" :disabled="editor.saving.value" @click="deleteCurrent">
-          <Trash2 class="size-4" aria-hidden="true" /> Eliminar
-        </AppButton>
-        <AppButton variant="secondary" :disabled="editor.saving.value" @click="editor.close()">Cancelar</AppButton>
-        <AppButton type="submit" form="match-form" :loading="editor.saving.value">
-          {{ editor.current.value ? 'Guardar cambios' : 'Programar partido' }}
-        </AppButton>
-      </template>
-    </BaseModal>
+      @saved="onSaved"
+      @remove="deleteCurrent"
+    />
   </div>
 </template>

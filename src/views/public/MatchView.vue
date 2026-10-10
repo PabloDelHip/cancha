@@ -135,7 +135,7 @@ const winner = computed(() => {
               <p v-if="hasScore" class="font-display text-6xl leading-none font-extrabold sm:text-8xl">
                 {{ match.homeScore }}<span class="mx-1.5 text-white/40 sm:mx-3">–</span>{{ match.awayScore }}
               </p>
-              <p v-else-if="match.status === 'postponed'" class="font-display text-3xl text-amber-300">Pospuesto</p>
+              <p v-else-if="match.status === 'postponed' || match.status === 'suspended'" class="font-display text-3xl text-amber-300">{{ match.status === 'suspended' ? 'Suspendido' : 'Pospuesto' }}</p>
               <p v-else class="font-display text-5xl font-bold text-white/90">{{ match.status === 'cancelled' ? '—' : match.time }}</p>
               <p v-if="match.extraTime" class="mt-1 text-xs font-semibold text-lime-300">Tras tiempos extra</p>
               <p v-if="match.penalties" class="mt-1 rounded-full bg-black/30 px-3 py-0.5 text-xs font-bold text-amber-300">
@@ -284,6 +284,13 @@ const winner = computed(() => {
           :icon="CalendarX"
           title="Partido pospuesto"
           description="El organizador anunciará la nueva fecha. Mientras tanto no cuenta en la tabla."
+          class="card"
+        />
+        <EmptyState
+          v-else-if="match.status === 'suspended'"
+          :icon="CalendarX"
+          title="Partido suspendido"
+          description="No pudo continuar. El organizador decidirá si se reanuda, se reprograma o se cancela; mientras tanto no cuenta en la tabla."
           class="card"
         />
         <EmptyState v-else-if="match.status === 'cancelled'" :icon="CalendarX" title="Partido cancelado" description="No se jugará y no cuenta en la tabla." class="card" />

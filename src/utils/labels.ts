@@ -1,4 +1,4 @@
-import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus, RefereeRole, CollaboratorRole, TournamentRole } from '@/types'
+import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus, RefereeRole, CollaboratorRole, TournamentRole, IncidentType, SuspensionDecision, EvidenceKind } from '@/types'
 import type { CompetitionSystem, KnockoutTiebreak, MatchStatus, PlayerPosition, PointsRule, TournamentModality, TournamentSettings, TournamentStatus } from '@/types'
 
 export type Tone = 'neutral' | 'green' | 'lime' | 'amber' | 'red' | 'blue'
@@ -43,6 +43,24 @@ export const MATCH_STATUS: Record<MatchStatus, { label: string; tone: Tone }> = 
   finished: { label: 'Finalizado', tone: 'green' },
   postponed: { label: 'Pospuesto', tone: 'amber' },
   cancelled: { label: 'Cancelado', tone: 'neutral' },
+  suspended: { label: 'Suspendido', tone: 'amber' },
+}
+
+/** Incidencias de partido (2C-2). */
+export const INCIDENT_TYPES: { value: IncidentType; label: string; description: string }[] = [
+  { value: 'DELAY', label: 'Retraso', description: 'El partido empezó o se reanudó tarde' },
+  { value: 'FACILITIES', label: 'Instalaciones', description: 'Cancha, iluminación, vestidores, porterías…' },
+  { value: 'SECURITY', label: 'Seguridad', description: 'Riñas, invasión de cancha, amenazas…' },
+  { value: 'OTHER', label: 'Otra', description: 'Cualquier otra incidencia' },
+  { value: 'SUSPENSION', label: 'Suspensión', description: 'El partido no puede continuar: queda pendiente de decisión' },
+]
+export const INCIDENT_TYPE: Record<IncidentType, string> = Object.fromEntries(INCIDENT_TYPES.map((t) => [t.value, t.label])) as Record<IncidentType, string>
+export const SUSPENSION_DECISION: Record<SuspensionDecision, string> = {
+  RESUMED: 'Se reanudó',
+  RESCHEDULED: 'Se reprogramó',
+  POSTPONED: 'Se pospuso',
+  CANCELLED: 'Se canceló',
+  FINISHED: 'Se dio por terminado con resultado',
 }
 
 export const COMPETITION_SYSTEMS: { value: CompetitionSystem; label: string; description: string }[] = [
@@ -159,3 +177,13 @@ export const COLLABORATOR_ROLES: { value: CollaboratorRole; label: string; descr
   { value: 'SCORER', label: 'Anotador', description: 'Captura de resultados y estadísticas.' },
 ]
 export const ROLE_LABEL: Record<TournamentRole, string> = { OWNER: 'Propietario', ADMIN: 'Administrador', COORDINATOR: 'Coordinador', SCORER: 'Anotador' }
+
+/** Fotografías de evidencia de un partido (2D). */
+export const EVIDENCE_KINDS: { value: EvidenceKind; label: string }[] = [
+  { value: 'REFEREE_REPORT', label: 'Cédula arbitral' },
+  { value: 'LINEUP', label: 'Alineaciones' },
+  { value: 'INCIDENT', label: 'Evidencia de incidencia' },
+  { value: 'SCOREBOARD', label: 'Marcador' },
+  { value: 'OTHER', label: 'Otra documentación' },
+]
+export const EVIDENCE_KIND: Record<EvidenceKind, string> = Object.fromEntries(EVIDENCE_KINDS.map((k) => [k.value, k.label])) as Record<EvidenceKind, string>

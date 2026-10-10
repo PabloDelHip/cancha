@@ -79,7 +79,7 @@ import { defaultSettings } from '@/utils/labels'
 type ApiPosition = 'GOALKEEPER' | 'DEFENDER' | 'MIDFIELDER' | 'FORWARD'
 type ApiFormat = 'FOOTBALL_7' | 'FOOTBALL_11'
 type ApiTournamentStatus = 'DRAFT' | 'ACTIVE' | 'FINISHED'
-type ApiMatchStatus = 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED'
+type ApiMatchStatus = 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED' | 'SUSPENDED'
 
 interface ApiTimestamps {
   createdAt: string
@@ -203,6 +203,7 @@ export interface ApiMatch extends ApiTimestamps {
   stage?: MatchStage | null
   penalties?: { home: number; away: number } | null
   extraTime?: boolean
+  sheetClosed?: { at: string } | null
 }
 
 export interface ApiPlayerMatchStats {
@@ -231,6 +232,7 @@ const M_STATUS: Record<MatchStatus, ApiMatchStatus> = {
   finished: 'FINISHED',
   postponed: 'POSTPONED',
   cancelled: 'CANCELLED',
+  suspended: 'SUSPENDED',
 }
 
 function invert<K extends string, V extends string>(map: Record<K, V>): Record<V, K> {
@@ -393,6 +395,7 @@ export function toMatch(m: ApiMatch): Match {
     stage: m.stage ?? null,
     penalties: m.penalties ?? null,
     extraTime: m.extraTime ?? false,
+    sheetClosed: m.sheetClosed ?? null,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   }
@@ -945,6 +948,8 @@ export interface ApiRefereeAssignment {
   substituteFor: string | null
   absenceNote: string | null
   name?: string | null
+  voided?: RefereeAssignment['voided']
+  absenceVoided?: RefereeAssignment['absenceVoided']
 }
 
 export function toRefereeAssignment(a: ApiRefereeAssignment): RefereeAssignment {

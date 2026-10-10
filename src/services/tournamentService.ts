@@ -18,6 +18,7 @@ import { informationProblems } from '@/utils/tournamentInformation'
 import { putImage, blobToDataUrl } from './imageUpload'
 import { defaultSettings } from '@/utils/labels'
 import { computeStandings } from '@/utils/stats'
+import { isOpen } from '@/utils/matches'
 import { delay, getDb, MockNotFoundError, mutate, now, plain } from '@/mocks/db'
 import { createId } from '@/utils/id'
 import { getMockUserId, MockHttpError, requireMockUser } from '@/mocks/session'
@@ -66,6 +67,8 @@ export interface TournamentSummary {
   scheduled: number
   live: number
   postponed: number
+  /** Suspendidos pendientes de decisión (2C-2; servidores anteriores no lo envían). */
+  suspended?: number
   finished: number
   cancelled: number
   pending: number
@@ -226,8 +229,8 @@ const mock: TournamentService = {
     const summary = (): TournamentSummary => {
       const list = getDb().matches.filter((m) => m.tournamentId === id)
       const by = (s: string) => list.filter((m) => m.status === s).length
-      const counts = { scheduled: by('scheduled'), live: by('live'), postponed: by('postponed'), finished: by('finished'), cancelled: by('cancelled') }
-      return { total: list.length, ...counts, pending: counts.scheduled + counts.live + counts.postponed }
+      const counts = { scheduled: by('scheduled'), live: by('live'), postponed: by('postponed'), suspended: by('suspended'), finished: by('finished'), cancelled: by('cancelled') }
+      return { total: list.length, ...counts, pending: counts.scheduled + counts.live + counts.postponed + counts.suspended }
     }
     const check = () => {
       assertTournamentOwner(id)
@@ -262,7 +265,7 @@ const mock: TournamentService = {
     const matches = db.matches.filter((m) => m.tournamentId === id)
     const teamIds = db.tournamentTeams.filter((tt) => tt.tournamentId === id).map((tt) => tt.teamId)
     const table = computeStandings(teamIds, matches, (t) => db.teams.find((x) => x.id === t)?.name ?? '', 5, tournament.settings.points)
-    const pending = matches.filter((m) => m.status === 'scheduled' || m.status === 'live' || m.status === 'postponed').length
+    const pending = matches.filter(isOpen).length
     const complete = matches.length > 0 && pending === 0
     const [first, second] = table
     const tiedTop = !!first && !!second && first.points === second.points && first.goalDifference === second.goalDifference && first.goalsFor === second.goalsFor

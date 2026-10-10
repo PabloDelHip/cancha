@@ -1,4 +1,4 @@
-import type { ID, Match, MatchInput, MatchResultInput, PlayerMatchStats, Round } from '@/types'
+import type { ID, Match, MatchInput, MatchResultInput, PlayerMatchStats, ReschedulePreview, Round } from '@/types'
 import { api, fetchAll, USE_MOCKS } from './api'
 import { fromMatchInput, fromMatchStatus, toMatch, toPlayerMatchStats, toRound, type ApiMatch, type ApiPlayerMatchStats, type ApiRound } from './mappers'
 import { generateRoundRobin, planMatches, type ScheduleOptions } from '@/utils/schedule'
@@ -12,6 +12,8 @@ export interface MatchService {
   get(id: ID): Promise<Match>
   create(input: MatchInput): Promise<Match>
   update(id: ID, input: Partial<MatchInput>): Promise<Match>
+  /** Qué cancha y árbitros se conservan o se liberan si el partido pasa a ese horario (2C-2). */
+  reschedulePreview(id: ID, input: Pick<MatchInput, 'date' | 'time' | 'fieldId' | 'status'>): Promise<ReschedulePreview>
   /** Estadísticas individuales (todas o de un partido). */
   listStats(matchId?: ID): Promise<PlayerMatchStats[]>
   /** Captura marcador + estadísticas. Reemplaza las estadísticas previas del partido. */
@@ -51,6 +53,9 @@ const http: MatchService = {
   },
   async update(id, input) {
     return toMatch((await api.patch<ApiMatch>(`/matches/${id}`, fromMatchInput(input))).data)
+  },
+  async reschedulePreview(id, input) {
+    return (await api.post<ReschedulePreview>(`/matches/${id}/reschedule-preview`, { date: input.date, time: input.time, fieldId: input.fieldId ?? null, status: fromMatchStatus(input.status) })).data
   },
   async listStats(matchId) {
     const rows = matchId
@@ -129,6 +134,10 @@ const mock: MatchService = {
       Object.assign(match, plain(input), { updatedAt: now() })
       return delay(match)
     }))
+  },
+  // Modo demo: sin canchas ni árbitros, no hay nada que liberar.
+  reschedulePreview(_id, input) {
+    return delay({ date: input.date, time: input.time, reserves: true, field: null, referees: [], release: { field: false, assignmentIds: [] }, needsConfirmation: false })
   },
   listStats(matchId) {
     const all = getDb().playerMatchStats

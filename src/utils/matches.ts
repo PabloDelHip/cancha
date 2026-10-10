@@ -17,12 +17,12 @@ export function isUpcoming(match: Match, now = new Date()): boolean {
 
 /** Todavía por jugarse (o jugándose): cuenta como pendiente al cerrar un torneo. */
 export function isOpen(match: Match): boolean {
-  return match.status === 'scheduled' || match.status === 'live' || match.status === 'postponed'
+  return match.status === 'scheduled' || match.status === 'live' || match.status === 'postponed' || match.status === 'suspended'
 }
 
 /** Ya tiene marcador o estadísticas: no puede borrarse al regenerar el calendario. */
 export function hasResult(match: Match): boolean {
-  return match.status === 'finished' || match.status === 'live' || match.homeScore !== null || match.awayScore !== null
+  return match.status === 'finished' || match.status === 'live' || match.status === 'suspended' || match.homeScore !== null || match.awayScore !== null
 }
 
 /** Tiene cancha o árbitros en funciones: reemplazar el calendario libera esas asignaciones. */

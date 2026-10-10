@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CalendarClock, CalendarOff, ClipboardEdit, Eye, History, MapPin, Pencil, UserRound } from 'lucide-vue-next'
+import { AlertTriangle, CalendarClock, CalendarOff, ClipboardEdit, Eye, FileText, History, Lock, MapPin, Pencil, Siren, UserRound } from 'lucide-vue-next'
 import type { Match } from '@/types'
 import { useTeamsStore } from '@/stores'
 import { USE_MOCKS } from '@/services'
@@ -12,14 +12,16 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppButton from '@/components/common/AppButton.vue'
 
 /** `can*`: permisos del usuario en el torneo (RBAC); el servidor los vuelve a validar. */
-const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean }>(), {
+/** `context`: torneo y jornada, cuando la fila se muestra fuera de su torneo (Agenda). */
+const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean; context?: string }>(), {
   readOnly: false,
   canSchedule: true,
   canAssign: true,
   canCapture: true,
   allowPostpone: false,
+  context: undefined,
 })
-defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: [] }>()
+defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: []; incidents: [] }>()
 
 const teams = useTeamsStore()
 const home = computed(() => teams.get(props.match.homeTeamId))
@@ -39,6 +41,7 @@ const winner = computed(() => {
     class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 md:grid-cols-[5.5rem_minmax(0,1fr)_7rem_auto]"
     :class="pending ? 'border-l-4 border-amber-400 bg-amber-50/50 pl-3' : match.status === 'cancelled' && 'opacity-60'"
   >
+    <p v-if="context" class="col-span-2 -mb-1 truncate text-xs font-semibold text-pitch-800 md:col-span-4">{{ context }}</p>
     <!-- Fecha (y estado en móvil) -->
     <div class="col-span-2 flex items-center justify-between md:col-span-1 md:block">
       <div>
@@ -102,6 +105,18 @@ const winner = computed(() => {
           <Pencil class="size-3.5" aria-hidden="true" />
         </AppButton>
         <AppButton
+          v-if="!USE_MOCKS && match.status !== 'cancelled'"
+          variant="ghost"
+          size="sm"
+          icon
+          :to="{ name: 'admin-match-sheet', params: { id: match.id } }"
+          :aria-label="`Ficha técnica de ${home?.name} contra ${away?.name}${match.sheetClosed ? ' (cerrada)' : ''}`"
+          :title="match.sheetClosed ? 'Ficha técnica (cerrada)' : 'Ficha técnica'"
+        >
+          <Lock v-if="match.sheetClosed" class="size-3.5 text-pitch-700" aria-hidden="true" />
+          <FileText v-else class="size-3.5" aria-hidden="true" />
+        </AppButton>
+        <AppButton
           v-if="!USE_MOCKS"
           variant="ghost"
           size="sm"
@@ -111,6 +126,17 @@ const winner = computed(() => {
           @click="$emit('history')"
         >
           <History class="size-3.5" aria-hidden="true" />
+        </AppButton>
+        <AppButton
+          v-if="!USE_MOCKS && match.status !== 'suspended'"
+          variant="ghost"
+          size="sm"
+          icon
+          :aria-label="`Incidencias de ${home?.name} contra ${away?.name}`"
+          title="Incidencias"
+          @click="$emit('incidents')"
+        >
+          <AlertTriangle class="size-3.5" aria-hidden="true" />
         </AppButton>
         <AppButton
           v-if="!USE_MOCKS && canAssign && match.status !== 'cancelled'"
@@ -134,7 +160,11 @@ const winner = computed(() => {
         >
           <CalendarOff class="size-3.5" aria-hidden="true" />
         </AppButton>
-        <AppButton v-if="canSchedule && match.status === 'postponed'" variant="secondary" size="sm" @click="$emit('reschedule')">
+        <!-- Suspendido: pendiente de decisión (reanudar, reprogramar, cancelar…) en Incidencias. -->
+        <AppButton v-if="match.status === 'suspended' && !USE_MOCKS" variant="accent" size="sm" title="Partido suspendido: decide qué pasa con él" @click="$emit('incidents')">
+          <Siren class="size-3.5" aria-hidden="true" /> Decidir
+        </AppButton>
+        <AppButton v-else-if="canSchedule && match.status === 'postponed'" variant="secondary" size="sm" @click="$emit('reschedule')">
           <CalendarClock class="size-3.5" aria-hidden="true" /> Reprogramar
         </AppButton>
         <AppButton
@@ -147,7 +177,10 @@ const winner = computed(() => {
           {{ match.status === 'finished' ? 'Resultado' : 'Capturar' }}
         </AppButton>
       </template>
-      <AppButton v-else variant="ghost" size="sm" :to="{ name: 'match', params: { id: match.id } }">
+      <AppButton v-if="readOnly && !USE_MOCKS && match.status !== 'cancelled'" variant="ghost" size="sm" :to="{ name: 'admin-match-sheet', params: { id: match.id } }">
+        <FileText class="size-3.5" aria-hidden="true" /> Ficha
+      </AppButton>
+      <AppButton v-if="readOnly" variant="ghost" size="sm" :to="{ name: 'match', params: { id: match.id } }">
         <Eye class="size-3.5" aria-hidden="true" /> Ver
       </AppButton>
     </div>

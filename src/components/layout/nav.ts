@@ -1,4 +1,4 @@
-import { Building2, Home, LayoutDashboard, Medal, Shield, Trophy, UserRound, Users } from 'lucide-vue-next'
+import { Building2, CalendarDays, Home, LayoutDashboard, Medal, Shield, Trophy, UserRound, Users } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 
@@ -25,6 +25,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Resumen', to: { name: 'admin-dashboard' }, icon: LayoutDashboard, exact: true },
   { label: 'Mis ligas', to: { name: 'admin-leagues' }, icon: Medal, organizerOnly: true },
   { label: 'Mis torneos', to: { name: 'admin-tournaments' }, icon: Trophy, organizerOnly: true, forCollaborators: true },
+  { label: 'Agenda', to: { name: 'admin-agenda' }, icon: CalendarDays, organizerOnly: true, forCollaborators: true },
   { label: 'Sedes', to: { name: 'admin-venues' }, icon: Building2, organizerOnly: true },
   { label: 'Árbitros', to: { name: 'admin-referees' }, icon: UserRound, organizerOnly: true },
   { label: 'Mis equipos', to: { name: 'admin-teams' }, icon: Shield },

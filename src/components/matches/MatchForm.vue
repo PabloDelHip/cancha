@@ -88,6 +88,9 @@ watch(
 )
 
 const hasResult = computed(() => props.initial?.homeScore != null || props.initial?.status === 'finished')
+const suspended = computed(() => props.initial?.status === 'suspended')
+/** Suspendido con marcador parcial: se reprograma (continuación) pero no se pospone ni cancela. */
+const hasPartial = computed(() => suspended.value && props.initial?.homeScore != null)
 /** Reprogramar un pospuesto sin cambiar su fecha: las suspensiones no sabrían cuándo se jugó. */
 const keepsPostponedDate = computed(
   () => props.initial?.status === 'postponed' && form.status !== 'postponed' && form.status !== 'cancelled' && form.date === props.initial.date && form.time === props.initial.time,
@@ -103,10 +106,13 @@ const roundOptions = computed(() => {
  * solo con el torneo iniciado (en borrador se programa, no se juega: lo impone el servidor).
  */
 const tournaments = useTournamentsStore()
-const statusOptions = computed(() =>
-  (['scheduled', 'live', 'postponed', 'cancelled'] as const).filter(
-    (s) => s !== 'live' || tournaments.get(props.tournamentId)?.status !== 'draft' || form.status === 'live',
-  ),
+const statusOptions = computed<MatchStatus[]>(() =>
+  // Suspendido (2C-2): solo decisiones de calendario; reanudar o terminar está en Incidencias.
+  suspended.value
+    ? ['suspended', 'scheduled', ...(hasPartial.value ? [] : (['postponed', 'cancelled'] as const))]
+    : (['scheduled', 'live', 'postponed', 'cancelled'] as const).filter(
+        (s) => s !== 'live' || tournaments.get(props.tournamentId)?.status !== 'draft' || form.status === 'live',
+      ),
 )
 
 /** Equipos que ya juegan otro partido en la jornada elegida. */
@@ -122,7 +128,7 @@ const busyInRound = computed(() => {
 })
 const nameOf = (id: ID) => props.teams.find((t) => t.id === id)?.name ?? 'El equipo'
 
-const { errors, set, clear, hasErrors, aria } = useFormErrors<'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time' | 'reason'>()
+const { errors, set, clear, hasErrors, aria } = useFormErrors<'round' | 'homeTeamId' | 'awayTeamId' | 'date' | 'time' | 'reason' | 'status'>()
 
 // ─── Motivo (historial) ─────────────────────────────────────────────────────
 // Reprogramar, posponer o cancelar un partido existente pide motivo; con el torneo en curso es
@@ -133,7 +139,7 @@ const asksReason = computed(() => {
   if (!m) return false
   const moved = form.date !== m.date || form.time !== m.time
   const stopped = (form.status === 'postponed' || form.status === 'cancelled') && form.status !== m.status
-  return moved || stopped
+  return moved || stopped || (m.status === 'suspended' && form.status !== 'suspended')
 })
 const reasonRequired = computed(() => asksReason.value && tournaments.get(props.tournamentId)?.status === 'active')
 
@@ -158,6 +164,7 @@ function onSubmit() {
   )
   set('date', !form.date && 'Indica la fecha.')
   set('time', !/^\d{2}:\d{2}$/.test(form.time) && 'Indica la hora.')
+  set('status', suspended.value && form.status === 'suspended' && 'Elige qué pasa con el partido suspendido.')
   set('reason', reasonRequired.value && reason.value.trim().length < 3 && 'Indica el motivo (queda en el historial del partido).')
   if (hasErrors()) return
   emit('submit', {
@@ -233,11 +240,14 @@ function onSubmit() {
       </p>
     </fieldset>
 
-    <FormField v-if="initial && !hasResult" id="m-status" label="Estado" class="sm:col-span-2">
-      <select id="m-status" v-model="form.status" class="input">
-        <option v-for="s in statusOptions" :key="s" :value="s">{{ MATCH_STATUS[s].label }}</option>
+    <FormField v-if="initial && (!hasResult || suspended)" id="m-status" label="Estado" :error="errors.status" class="sm:col-span-2">
+      <select id="m-status" v-model="form.status" class="input" v-bind="aria('status', 'm-status')">
+        <option v-for="s in statusOptions" :key="s" :value="s" :disabled="s === 'suspended'">{{ s === 'suspended' ? 'Suspendido (elige una decisión)' : MATCH_STATUS[s].label }}</option>
       </select>
     </FormField>
+    <p v-if="suspended && form.status === 'scheduled'" class="-mt-2 text-xs text-amber-700 sm:col-span-2">
+      {{ hasPartial ? `Se reanudará desde el marcador ${initial?.homeScore}–${initial?.awayScore}: nada se borra.` : 'El partido vuelve a programarse en la nueva fecha.' }}
+    </p>
     <p v-if="form.status === 'postponed'" class="-mt-2 text-xs text-amber-700 sm:col-span-2">
       Un partido pospuesto conserva su jornada y sus equipos. Cuando tengas nueva fecha, cámbiala y vuelve a "Programado".
     </p>

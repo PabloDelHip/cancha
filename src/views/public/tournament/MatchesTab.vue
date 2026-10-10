@@ -27,7 +27,7 @@ const round = computed(() => rounds.value.find((r) => r.round === selected.value
 
 const filtered = computed(() => {
   const test = (m: Match) =>
-    mode.value === 'upcoming' ? m.status === 'scheduled' || m.status === 'live' || m.status === 'postponed' : m.status === 'finished'
+    mode.value === 'upcoming' ? m.status === 'scheduled' || m.status === 'live' || m.status === 'postponed' || m.status === 'suspended' : m.status === 'finished'
   const groups = rounds.value.map((r) => ({ ...r, matches: r.matches.filter(test) })).filter((r) => r.matches.length)
   return mode.value === 'finished' ? groups.reverse() : groups
 })

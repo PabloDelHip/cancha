@@ -1,5 +1,5 @@
-import type { MatchLog, MatchLogEntry, MatchStatus, RefereeRole } from '@/types'
-import { MATCH_STATUS, REFEREE_ROLE } from './labels'
+import type { EvidenceKind, IncidentType, MatchLog, MatchLogEntry, MatchStatus, RefereeRole, SuspensionDecision } from '@/types'
+import { EVIDENCE_KIND, INCIDENT_TYPE, MATCH_STATUS, REFEREE_ROLE, SUSPENSION_DECISION } from './labels'
 import { formatDate } from './format'
 
 /**
@@ -50,11 +50,47 @@ export function describeEntry(e: MatchLogEntry, refs: MatchLog['refs']) {
       const sub = c.substitute?.to as { refereeId: string } | undefined
       return `${ref(from?.refereeId)} no se presentó (${role(from?.role)})${sub ? `; lo sustituye ${ref(sub.refereeId)}` : ''}`
     },
+    REFEREE_CORRECTED: () => {
+      const absence = c.absence?.from as { refereeId: string; role: string } | undefined
+      const voided = c.voided?.from as { refereeId: string; role: string } | undefined
+      const sub = c.substitute?.to as { refereeId: string } | undefined
+      const parts = [
+        absence ? `se anuló la ausencia de ${ref(absence.refereeId)} (${role(absence.role)})` : null,
+        voided ? `se anuló la sustitución de ${ref(voided.refereeId)}` : null,
+        sub ? `sustituto correcto: ${ref(sub.refereeId)}` : null,
+      ].filter(Boolean)
+      return `Corrección arbitral: ${parts.join('; ')}`
+    },
+    INCIDENT_REPORTED: () => {
+      const inc = c.incident?.to as { type: IncidentType; description: string } | undefined
+      return `${inc?.type === 'SUSPENSION' ? 'Partido suspendido' : `Incidencia: ${INCIDENT_TYPE[inc?.type ?? 'OTHER']}`}${inc?.description ? ` · ${inc.description}` : ''}`
+    },
+    INCIDENT_RESOLVED: () => `Incidencia resuelta (${INCIDENT_TYPE[(c.incident?.to as { type: IncidentType } | undefined)?.type ?? 'OTHER']})`,
+    INCIDENT_VOIDED: () => {
+      const type = (c.incident?.to as { type: IncidentType } | undefined)?.type ?? 'OTHER'
+      return type === 'SUSPENSION' ? 'Suspensión anulada (registrada por error)' : `Incidencia anulada (${INCIDENT_TYPE[type]})`
+    },
+    SUSPENSION_RESOLVED: () => `Suspensión: ${SUSPENSION_DECISION[c.decision?.to as SuspensionDecision] ?? 'decisión tomada'}`,
+    SHEET_LINEUP_SAVED: () => {
+      const to = c.lineup?.to as { teamId: string; players: unknown[]; substitutions: unknown[] } | undefined
+      const corrected = c.lineup?.from ? 'corregida' : 'registrada'
+      return `Alineación ${corrected}${to ? ` de ${team(to.teamId)}: ${to.players.length} jugadores, ${to.substitutions.length} sustituciones` : ''}`
+    },
+    SHEET_OBSERVATIONS_SAVED: () => (c.observations?.to ? 'Observaciones del partido actualizadas' : 'Observaciones del partido borradas'),
+    SHEET_CLOSED: () => {
+      const score = c.score?.to as { home: number; away: number } | undefined
+      return `Ficha técnica cerrada${score ? ` con ${score.home}–${score.away}` : ''}`
+    },
+    SHEET_REOPENED: () => 'Ficha técnica reabierta',
+    EVIDENCE_ADDED: () => `Fotografía agregada: ${EVIDENCE_KIND[(c.evidence?.to as { kind: EvidenceKind } | undefined)?.kind ?? 'OTHER']}`,
+    EVIDENCE_REMOVED: () => `Fotografía retirada: ${EVIDENCE_KIND[(c.evidence?.to as { kind: EvidenceKind } | undefined)?.kind ?? 'OTHER']}`,
     DELETED: () => `Partido eliminado: ${e.cause ? CAUSE[e.cause] : ''}`,
     SCHEDULE_REPLACED: () => `Calendario reemplazado (${e.cause ? CAUSE[e.cause] : ''}): ${e.deleted?.length ?? 0} partidos eliminados`,
   }
 
   const details: string[] = []
+  if ((e.action === 'SUSPENSION_RESOLVED' || e.action === 'INCIDENT_VOIDED') && c.status) details.push(`Estado: ${status(c.status.from)} → ${status(c.status.to)}`)
+  if (e.action === 'SUSPENSION_RESOLVED' && (c.date || c.time)) details.push(`Nueva fecha: ${when('to')}`)
   if (e.action === 'RESCHEDULED' && c.status) details.push(`Estado: ${status(c.status.from)} → ${status(c.status.to)}`)
   if (e.action !== 'FIELD_CHANGED' && c.venue) details.push(`Cancha: ${(c.venue.from as string) ?? 'sin cancha'} → ${(c.venue.to as string) ?? 'sin cancha'}`)
   if (c.round) details.push(`Jornada ${c.round.from} → ${c.round.to}`)

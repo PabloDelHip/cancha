@@ -73,6 +73,7 @@ const teamWorkspace: RouteRecordRaw[] = [
 
 const adminRoutes: RouteRecordRaw[] = [
   { path: '', name: 'admin-dashboard', component: () => import('@/views/admin/DashboardView.vue'), meta: { title: 'Panel' } },
+  { path: 'agenda', name: 'admin-agenda', component: () => import('@/views/admin/AgendaView.vue'), meta: { title: 'Agenda · Panel' } },
   { path: 'referees', name: 'admin-referees', component: () => import('@/views/admin/RefereesAdminView.vue'), meta: { title: 'Árbitros · Panel' } },
   { path: 'venues', name: 'admin-venues', component: () => import('@/views/admin/VenuesAdminView.vue'), meta: { title: 'Sedes · Panel' } },
   { path: 'leagues', name: 'admin-leagues', component: () => import('@/views/admin/LeaguesAdminView.vue'), meta: { title: 'Mis ligas · Panel' } },
@@ -83,6 +84,7 @@ const adminRoutes: RouteRecordRaw[] = [
     props: true,
     children: tournamentWorkspace,
   },
+  { path: 'matches/:id/ficha', name: 'admin-match-sheet', component: () => import('@/views/admin/MatchSheetView.vue'), props: true, meta: { title: 'Ficha técnica' } },
   { path: 'matches/:id', name: 'admin-match-capture', component: () => import('@/views/admin/MatchCaptureView.vue'), props: true, meta: { title: 'Capturar partido' } },
   {
     path: 'teams',
