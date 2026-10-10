@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { AlertTriangle, Ban } from 'lucide-vue-next'
-import type { ID, Match, MatchInput, MatchStatus, SlotCheck, Team } from '@/types'
+import type { ID, Match, MatchInput, MatchStatus, SlotCheck, Team, Venue } from '@/types'
 import { USE_MOCKS, venueService } from '@/services'
-import { useVenues } from '@/composables/useVenues'
 import { useTournamentsStore, type RoundView } from '@/stores'
 import { MATCH_STATUS } from '@/utils/labels'
 import { useFormErrors } from '@/composables/useFormErrors'
@@ -48,8 +47,17 @@ const form = reactive<MatchInput>({
 })
 
 // ─── Cancha (sedes del organizador) ─────────────────────────────────────────
-const { venues, load: loadVenues } = useVenues()
-onMounted(() => loadVenues())
+// Sedes del PROPIETARIO del torneo (también para sus colaboradores); el servidor las resuelve.
+const venues = ref<Venue[]>([])
+onMounted(async () => {
+  if (USE_MOCKS) return
+  try {
+    venues.value = await venueService.forTournament(props.tournamentId)
+  } catch {
+    venues.value = []
+  }
+})
+const isOwner = computed(() => tournaments.roleOf(props.tournamentId) === 'OWNER')
 /** Canchas asignables: activas de sedes activas, más la actual aunque ya no lo esté. */
 const fieldGroups = computed(() =>
   venues.value
@@ -220,7 +228,7 @@ function onSubmit() {
           <AlertTriangle class="mt-px size-3.5 shrink-0" aria-hidden="true" /> {{ w }} (se puede guardar).
         </p>
       </div>
-      <p v-if="!USE_MOCKS && !fieldGroups.length" class="col-span-2 text-xs text-zinc-500 sm:col-span-3">
+      <p v-if="!USE_MOCKS && !fieldGroups.length && isOwner" class="col-span-2 text-xs text-zinc-500 sm:col-span-3">
         Registra tus sedes y canchas en <RouterLink :to="{ name: 'admin-venues' }" class="link">Sedes</RouterLink> para asignarlas y evitar choques de horario.
       </p>
     </fieldset>

@@ -45,7 +45,7 @@ async function addManager() {
     toast.success('Delegado agregado. Ya puede administrar el equipo y su plantilla.')
   } catch (e) {
     // 404: no hay cuenta con ese correo. Mensaje neutro, sin datos de ninguna cuenta.
-    emailError.value = await actionFailed(e, 'No encontramos una cuenta de Cancha con ese correo. Pídele que se registre primero.')
+    emailError.value = await actionFailed(e, 'No encontramos una cuenta de Kisokar con ese correo. Pídele que se registre primero.')
   } finally {
     saving.value = false
   }
@@ -107,7 +107,7 @@ async function removeManager(a: TeamAdminEntry) {
 
     <section v-if="isOwner" aria-labelledby="add-manager-title" class="card p-4">
       <h2 id="add-manager-title" class="font-semibold text-zinc-900">Agregar delegado</h2>
-      <p class="mb-3 text-sm text-zinc-500">La persona debe tener una cuenta en Cancha.</p>
+      <p class="mb-3 text-sm text-zinc-500">La persona debe tener una cuenta en Kisokar.</p>
       <form class="flex flex-col gap-3 sm:flex-row sm:items-start" novalidate @submit.prevent="addManager">
         <FormField id="manager-email" label="Correo de la persona" :error="emailError" class="flex-1">
           <input id="manager-email" v-model="email" type="email" class="input" autocomplete="off" placeholder="correo@ejemplo.com" :aria-invalid="!!emailError" />

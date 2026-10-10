@@ -57,7 +57,7 @@ const cups = computed(() => props.honors.filter((h) => h.decidedBy === 'final').
       <div v-else-if="!runnerUps.length" class="mt-4 flex items-start gap-3 rounded-2xl bg-white/5 p-4 text-sm text-pitch-100 ring-1 ring-white/10">
         <Trophy class="mt-0.5 size-5 shrink-0 text-pitch-400" aria-hidden="true" />
         <p>
-          Aún sin títulos registrados en Cancha.
+          Aún sin títulos registrados en Kisokar.
           <span class="block text-xs text-pitch-300">Aparecen al terminar un torneo: primer lugar de una liga completa, o la final ganada.</span>
         </p>
       </div>

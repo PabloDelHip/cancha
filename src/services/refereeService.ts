@@ -1,4 +1,4 @@
-import type { FieldAvailability, ID, MatchReferees, Referee, RefereeHistoryEntry, RefereeOption, RefereeRole } from '@/types'
+import type { FieldAvailability, ID, MatchReferees, Referee, RefereeContact, RefereeHistoryEntry, RefereeOption, RefereeRole } from '@/types'
 import { api, USE_MOCKS } from './api'
 import { toRefereeAssignment, type ApiRefereeAssignment } from './mappers'
 import { MockHttpError } from '@/mocks/session'
@@ -13,6 +13,8 @@ export interface RefereeInput {
 }
 export interface RefereeService {
   list(): Promise<Referee[]>
+  /** Árbitros del propietario con contacto (ADMIN/COORDINATOR del torneo). */
+  contacts(tournamentId: ID): Promise<RefereeContact[]>
   create(input: RefereeInput): Promise<Referee>
   update(id: ID, input: Partial<RefereeInput & { active: boolean }>): Promise<Referee>
   remove(id: ID): Promise<{ archived: boolean }>
@@ -30,6 +32,9 @@ const toMatchReferees = (r: ApiMatchReferees): MatchReferees => ({ ...r, referee
 const http: RefereeService = {
   async list() {
     return (await api.get<Referee[]>('/referees')).data
+  },
+  async contacts(tournamentId) {
+    return (await api.get<RefereeContact[]>(`/tournaments/${tournamentId}/referees`)).data
   },
   async create(input) {
     return (await api.post<Referee>('/referees', input)).data
@@ -70,6 +75,7 @@ export const REFEREES_REQUIRE_SERVER = 'Los árbitros requieren el servidor (mod
 const unsupported = () => Promise.reject(new MockHttpError(501, REFEREES_REQUIRE_SERVER))
 const mock: RefereeService = {
   list: unsupported,
+  contacts: unsupported,
   create: unsupported,
   update: unsupported,
   remove: unsupported,

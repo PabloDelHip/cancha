@@ -11,7 +11,7 @@ const auth = useAuthStore()
 <template>
   <header class="sticky top-0 z-40 bg-pitch-950 text-white">
     <div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6">
-      <RouterLink to="/" aria-label="Cancha, ir al inicio" class="rounded-lg">
+      <RouterLink to="/" aria-label="Kisokar, ir al inicio" class="rounded-lg">
         <BrandLogo />
       </RouterLink>
       <nav aria-label="Principal" class="hidden md:block">

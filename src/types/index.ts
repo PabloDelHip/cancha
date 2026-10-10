@@ -1389,3 +1389,12 @@ export interface ReceivedInvitation {
   status: OwnerInvitation['status']
   expiresAt: ISODateTime
 }
+
+/** Contacto de un árbitro del propietario, visible para ADMIN/COORDINATOR del torneo (RBAC R3). */
+export interface RefereeContact {
+  id: ID
+  name: string
+  phone: string | null
+  email: string | null
+  active: boolean
+}

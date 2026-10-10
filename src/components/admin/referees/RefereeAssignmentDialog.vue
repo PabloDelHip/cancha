@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { AlertTriangle, Ban, UserMinus, UserX } from 'lucide-vue-next'
-import type { Match, MatchReferees, RefereeAssignment, RefereeOption, RefereeRole } from '@/types'
+import type { Match, MatchReferees, RefereeAssignment, RefereeContact, RefereeOption, RefereeRole } from '@/types'
 import { getErrorMessage, refereeService } from '@/services'
-import { useTeamsStore } from '@/stores'
+import { useTeamsStore, useTournamentsStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import { formatDate } from '@/utils/format'
 import { REFEREE_ROLE, REFEREE_ROLES } from '@/utils/labels'
@@ -23,6 +23,9 @@ const teams = useTeamsStore()
 const toast = useToast()
 
 const state = ref<MatchReferees | null>(null)
+/** Teléfono y correo de los árbitros del propietario: solo ADMIN/COORDINATOR (RBAC R3). */
+const contacts = ref(new Map<string, RefereeContact>())
+const tournamentsStore = useTournamentsStore()
 const options = ref<RefereeOption[]>([])
 const loading = ref(false)
 const busy = ref(false)
@@ -33,9 +36,15 @@ async function load() {
   if (!props.match) return
   loading.value = true
   try {
-    const [s, o] = await Promise.all([refereeService.ofMatch(props.match.id), props.readOnly ? Promise.resolve([]) : refereeService.options(props.match.id)])
+    const canContact = tournamentsStore.can(props.match.tournamentId, 'REFEREE_CONTACT')
+    const [s, o, c] = await Promise.all([
+      refereeService.ofMatch(props.match.id),
+      props.readOnly ? Promise.resolve([]) : refereeService.options(props.match.id),
+      canContact ? refereeService.contacts(props.match.tournamentId).catch(() => []) : Promise.resolve([]),
+    ])
     state.value = s
     options.value = o
+    contacts.value = new Map(c.map((x) => [x.id, x]))
     form.role = freeRoles.value[0]?.value ?? ''
     form.refereeId = ''
   } catch (e) {
@@ -102,6 +111,7 @@ function markAbsent() {
               <span class="w-28 shrink-0 text-xs font-semibold text-zinc-500 uppercase">{{ REFEREE_ROLE[a.role] }}</span>
               <span class="font-semibold text-zinc-900">{{ a.name ?? 'Árbitro' }}</span>
               <span v-if="a.substituteFor" class="text-xs text-zinc-500">(sustituto)</span>
+              <a v-if="contacts.get(a.refereeId)?.phone" :href="`tel:${contacts.get(a.refereeId)!.phone}`" class="link text-xs">{{ contacts.get(a.refereeId)!.phone }}</a>
               <span v-if="!readOnly" class="ml-auto flex gap-1">
                 <AppButton variant="ghost" size="sm" :disabled="busy" @click="Object.assign(absence, { id: a.id, substituteId: '', note: '' })">
                   <UserX class="size-4" aria-hidden="true" /> No se presentó

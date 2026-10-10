@@ -11,7 +11,7 @@ withDefaults(defineProps<{ tone?: 'light' | 'dark'; tagline?: string }>(), { ton
     </svg>
     <span class="leading-none">
       <span class="block font-display text-2xl font-extrabold tracking-tight uppercase" :class="tone === 'light' ? 'text-white' : 'text-zinc-950'">
-        Cancha
+        Kisokar
       </span>
       <span v-if="tagline" class="block text-[10px] font-semibold tracking-widest uppercase" :class="tone === 'light' ? 'text-lime-400' : 'text-pitch-600'">
         {{ tagline }}

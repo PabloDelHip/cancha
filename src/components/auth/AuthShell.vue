@@ -24,7 +24,7 @@ const points = [
           <rect x="110" y="490" width="180" height="90" />
         </g>
       </svg>
-      <RouterLink to="/" class="relative w-fit" aria-label="Cancha, ir al inicio"><BrandLogo /></RouterLink>
+      <RouterLink to="/" class="relative w-fit" aria-label="Kisokar, ir al inicio"><BrandLogo /></RouterLink>
       <div class="relative mt-auto max-w-md">
         <h2 class="display text-5xl leading-[0.95]">
           Organiza el torneo.<br />
@@ -45,7 +45,7 @@ const points = [
     <!-- Formulario -->
     <main class="flex flex-col px-5 py-8 sm:px-10">
       <div class="flex items-center justify-between lg:justify-end">
-        <RouterLink to="/" class="lg:hidden" aria-label="Cancha, ir al inicio"><BrandLogo tone="dark" /></RouterLink>
+        <RouterLink to="/" class="lg:hidden" aria-label="Kisokar, ir al inicio"><BrandLogo tone="dark" /></RouterLink>
         <RouterLink to="/" class="text-sm font-semibold text-zinc-500 hover:text-zinc-900">Ver torneos →</RouterLink>
       </div>
       <div class="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">

@@ -66,7 +66,7 @@ function onCoverChanged(updated: Team) {
 async function unenroll(team: Team) {
   const ok = await confirm({
     title: `¿Retirar a ${team.name} del torneo?`,
-    message: `Sale de ${tournament.value?.name} junto con su plantilla en él. El equipo sigue existiendo en Cancha con su historial.`,
+    message: `Sale de ${tournament.value?.name} junto con su plantilla en él. El equipo sigue existiendo en Kisokar con su historial.`,
     confirmLabel: 'Retirar equipo',
     tone: 'danger',
   })
@@ -139,7 +139,7 @@ async function unenroll(team: Team) {
       v-else
       :icon="Shield"
       title="Aún no tienes equipos inscritos"
-      description="Si el equipo ya jugó en Cancha, búscalo y reutilízalo para conservar su historial. Si no existe, créalo."
+      description="Si el equipo ya jugó en Kisokar, búscalo y reutilízalo para conservar su historial. Si no existe, créalo."
       class="card"
     >
       <AppButton v-if="!readOnly" @click="enrolling = true"><Plus class="size-4" aria-hidden="true" /> Inscribir primer equipo</AppButton>

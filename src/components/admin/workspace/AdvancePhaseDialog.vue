@@ -141,7 +141,7 @@ async function submit() {
         <legend class="mb-2 text-sm font-bold text-zinc-900">¿Cómo quieres armarla?</legend>
         <div class="grid grid-cols-2 gap-2">
           <label
-            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Con los clasificados', text: 'Cancha te propone los cruces por posición y tú decides' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú eliges cada cruce' }] as const"
+            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Con los clasificados', text: 'Kisokar te propone los cruces por posición y tú decides' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú eliges cada cruce' }] as const"
             :key="o.value"
             class="flex cursor-pointer flex-col rounded-xl border p-3 text-sm transition has-[:checked]:border-pitch-900 has-[:checked]:bg-pitch-50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-pitch-500"
           >

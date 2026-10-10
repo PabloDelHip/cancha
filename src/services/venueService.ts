@@ -5,6 +5,8 @@ import { MockHttpError } from '@/mocks/session'
 /** Sedes y canchas del organizador (/venues). El servidor valida conflictos y permisos. */
 export interface VenueService {
   list(): Promise<Venue[]>
+  /** Sedes del propietario del torneo (para quien asigna canchas en él). */
+  forTournament(tournamentId: ID): Promise<Venue[]>
   create(input: { name: string; address: string | null; bufferMinutes: number; fields: { name: string }[] }): Promise<Venue>
   update(id: ID, input: Partial<{ name: string; address: string | null; bufferMinutes: number; active: boolean }>): Promise<Venue>
   remove(id: ID): Promise<{ archived: boolean }>
@@ -17,6 +19,9 @@ export interface VenueService {
 const http: VenueService = {
   async list() {
     return (await api.get<Venue[]>('/venues')).data
+  },
+  async forTournament(tournamentId) {
+    return (await api.get<Venue[]>(`/tournaments/${tournamentId}/venues`)).data
   },
   async create(input) {
     return (await api.post<Venue>('/venues', input)).data
@@ -45,6 +50,7 @@ export const VENUES_REQUIRE_SERVER = 'Las sedes y canchas requieren el servidor 
 const unsupported = () => Promise.reject(new MockHttpError(501, VENUES_REQUIRE_SERVER))
 const mock: VenueService = {
   list: unsupported,
+  forTournament: unsupported,
   create: unsupported,
   update: unsupported,
   remove: unsupported,

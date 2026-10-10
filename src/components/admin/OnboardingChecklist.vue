@@ -10,7 +10,7 @@ const tournaments = useTournamentsStore()
 
 const steps = [
   { title: 'Crea tu torneo', text: 'Nombre, categoría, fechas y puntuación.' },
-  { title: 'Inscribe equipos', text: 'Reutiliza equipos que ya existen en Cancha o crea nuevos.' },
+  { title: 'Inscribe equipos', text: 'Reutiliza equipos que ya existen en Kisokar o crea nuevos.' },
   { title: 'Arma las plantillas', text: 'Busca jugadores existentes o regístralos; no necesitan cuenta.' },
   { title: 'Genera el calendario', text: 'Liga a una o dos vueltas, con jornadas automáticas.' },
   { title: 'Captura resultados', text: 'La tabla, los goleadores y los perfiles se actualizan solos.' },

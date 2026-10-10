@@ -79,7 +79,7 @@ function onSubmitProfile(input: PlayerInput) {
         <h2 class="text-xl font-bold">Jugadores del torneo</h2>
         <p class="text-sm text-zinc-500">
           {{ participants.length ? plural(participants.length, 'jugador participa', 'jugadores participan') : 'Ninguno todavía' }}
-          · cada uno conserva su historial en Cancha
+          · cada uno conserva su historial en Kisokar
         </p>
       </div>
       <AppButton v-if="!readOnly" :disabled="!tournamentTeams.length" @click="adding = true">
@@ -158,7 +158,7 @@ function onSubmitProfile(input: PlayerInput) {
         v-else-if="!participants.length"
         illustrated
         title="Aún no hay jugadores en este torneo"
-        description="Busca primero: si la persona ya jugó en Cancha, usa su perfil. Si no, créalo; no necesita cuenta."
+        description="Busca primero: si la persona ya jugó en Kisokar, usa su perfil. Si no, créalo; no necesita cuenta."
         class="card"
       >
         <AppButton v-if="!readOnly" @click="adding = true"><UserPlus class="size-4" aria-hidden="true" /> Agregar jugador</AppButton>

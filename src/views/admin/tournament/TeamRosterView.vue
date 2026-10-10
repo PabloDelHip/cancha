@@ -118,7 +118,7 @@ function onSubmitProfile(input: PlayerInput) {
         v-else
         :icon="Users"
         title="Plantilla vacía"
-        description="Busca primero: si el jugador ya existe en Cancha, reutiliza su perfil. Si no, créalo; no necesita cuenta."
+        description="Busca primero: si el jugador ya existe en Kisokar, reutiliza su perfil. Si no, créalo; no necesita cuenta."
         class="card"
       >
         <AppButton v-if="!readOnly" @click="adding = true"><UserPlus class="size-4" aria-hidden="true" /> Agregar primer jugador</AppButton>

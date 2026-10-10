@@ -341,7 +341,7 @@ const back = () => (step.value = step.value === 'review' ? 'players' : step.valu
       <!-- Portada -->
       <section v-if="step === 'landing'" class="mt-6 space-y-3">
         <template v-if="!auth.isAuthenticated">
-          <p class="text-sm text-zinc-600">Para inscribir a tu equipo inicia sesión. Si aún no tienes cuenta, créala: es una sola cuenta para todo en Cancha.</p>
+          <p class="text-sm text-zinc-600">Para inscribir a tu equipo inicia sesión. Si aún no tienes cuenta, créala: es una sola cuenta para todo en Kisokar.</p>
           <AppButton :to="loginTo" class="h-12 w-full text-base"><ShieldPlus class="size-5" aria-hidden="true" /> Inscribir mi equipo</AppButton>
           <AppButton :to="registerTo" variant="secondary" class="h-12 w-full text-base">Crear cuenta</AppButton>
         </template>
@@ -372,7 +372,7 @@ const back = () => (step.value = step.value === 'review' ? 'players' : step.valu
         </ul>
         <div v-else class="card px-4 py-5 text-center text-sm text-zinc-600">
           <p class="font-semibold text-zinc-900">Necesitas administrar un equipo para inscribirlo.</p>
-          <p class="mt-1">Si tu equipo aún no existe en Cancha, créalo: quedarás como su propietario.</p>
+          <p class="mt-1">Si tu equipo aún no existe en Kisokar, créalo: quedarás como su propietario.</p>
         </div>
         <AppButton v-if="reg.open" variant="secondary" class="mt-3 h-12 w-full" @click="step = 'create'"><Plus class="size-4" aria-hidden="true" /> Crear equipo</AppButton>
       </section>
@@ -380,7 +380,7 @@ const back = () => (step.value = step.value === 'review' ? 'players' : step.valu
       <!-- Crear equipo -->
       <section v-else-if="step === 'create'" aria-labelledby="create-step" class="mt-4">
         <h2 id="create-step" class="text-lg font-bold">Crear equipo</h2>
-        <p class="mb-3 text-sm text-zinc-500">Quedarás como su propietario. Si tu equipo ya existe en Cancha, pídele a su propietario que te agregue como delegado en lugar de crear otro.</p>
+        <p class="mb-3 text-sm text-zinc-500">Quedarás como su propietario. Si tu equipo ya existe en Kisokar, pídele a su propietario que te agregue como delegado en lugar de crear otro.</p>
         <div class="card p-4">
           <TeamForm form-id="join-new-team" :initial="null" @submit="createTeam" />
         </div>

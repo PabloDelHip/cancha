@@ -42,7 +42,7 @@ const MAIN = [
       <span>
         Resultados oficiales de
         {{ record.competitions ? plural(record.competitions, 'competición', 'competiciones') : 'competiciones' }}
-        en Cancha · solo partidos finalizados
+        en Kisokar · solo partidos finalizados
       </span>
     </p>
   </section>

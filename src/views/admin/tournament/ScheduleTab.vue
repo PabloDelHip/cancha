@@ -257,7 +257,7 @@ async function deleteRound(r: RoundView) {
         v-else
         illustrated
         title="Aún no hay calendario"
-        :description="system === 'knockout' ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede armar el cuadro con cabezas de serie, o puedes armarlo tú y elegir cada cruce.` : system === 'groups_knockout' && !groups.length ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar los grupos y sus jornadas, o puedes elegir tú los grupos y programar los partidos a mano.` : `Tienes ${plural(tournamentTeams.length, 'equipo')}. Cancha puede generar todas las jornadas, o puedes programarlas tú a mano: cuentan igual en la tabla.`"
+        :description="system === 'knockout' ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Kisokar puede armar el cuadro con cabezas de serie, o puedes armarlo tú y elegir cada cruce.` : system === 'groups_knockout' && !groups.length ? `Tienes ${plural(tournamentTeams.length, 'equipo')}. Kisokar puede generar los grupos y sus jornadas, o puedes elegir tú los grupos y programar los partidos a mano.` : `Tienes ${plural(tournamentTeams.length, 'equipo')}. Kisokar puede generar todas las jornadas, o puedes programarlas tú a mano: cuentan igual en la tabla.`"
         class="card"
       >
 

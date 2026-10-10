@@ -163,5 +163,5 @@ router.beforeEach(async (to) => {
 
 router.afterEach((to) => {
   const title = to.meta.title as string | undefined
-  document.title = title ? `${title} · Cancha` : 'Cancha · Torneos y perfiles de fútbol'
+  document.title = title ? `${title} · Kisokar` : 'Kisokar · Torneos y perfiles de fútbol'
 })

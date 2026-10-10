@@ -22,7 +22,7 @@ import ErrorState from '@/components/common/ErrorState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 /**
- * Perfil público del jugador: su identidad y su carrera deportiva en Cancha. No requiere sesión
+ * Perfil público del jugador: su identidad y su carrera deportiva en Kisokar. No requiere sesión
  * ni depende del panel: el mismo Player se ve igual sin importar qué organizador lo registró.
  * Todo lo deportivo lo calcula el servidor en UNA petición (GET /players/:id/profile) a partir de
  * partidos oficiales; la vista solo lo representa y nada aquí es editable. "Ver más partidos"
@@ -109,7 +109,7 @@ const milestones = computed(() =>
                 <PlayerTeamSplit :teams="profile.byTeam" :keeper="profile.goalkeeping?.byTeam" />
               </div>
               <div class="min-w-0 space-y-3">
-                <h3 class="eyebrow">Hitos en Cancha</h3>
+                <h3 class="eyebrow">Hitos en Kisokar</h3>
                 <PlayerMilestones :milestones="milestones" />
               </div>
             </div>

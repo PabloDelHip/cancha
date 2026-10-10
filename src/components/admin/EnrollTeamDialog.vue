@@ -100,7 +100,7 @@ async function createAndEnroll(input: TeamInput, logo: Blob | null) {
   <BaseModal
     :open="open"
     :title="mode === 'search' ? 'Inscribir equipo' : 'Nuevo equipo'"
-    :description="mode === 'search' ? 'Busca si el equipo ya existe en Cancha para no duplicarlo.' : 'Crea la ficha del equipo; quedará inscrito en tu torneo.'"
+    :description="mode === 'search' ? 'Busca si el equipo ya existe en Kisokar para no duplicarlo.' : 'Crea la ficha del equipo; quedará inscrito en tu torneo.'"
     size="lg"
     @close="$emit('close')"
   >

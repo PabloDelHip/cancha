@@ -57,7 +57,7 @@ const options = reactive({
 const seeding = ref<ID[]>([])
 const confirmReplace = ref(false)
 const saving = ref(false)
-/** Automático (Cancha arma los partidos) o a mano (el organizador). */
+/** Automático (Kisokar arma los partidos) o a mano (el organizador). */
 const mode = ref<'auto' | 'manual'>('auto')
 const bracketSize = ref(2)
 /** Grupo elegido para cada equipo (a mano). */
@@ -265,7 +265,7 @@ async function generate() {
         <legend class="mb-2 text-sm font-medium text-zinc-700">¿Cómo quieres armarlo?</legend>
         <div class="grid grid-cols-2 gap-2">
           <label
-            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Automático', text: 'Cancha arma los partidos' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú armas jornadas y cruces' }] as const"
+            v-for="o in [{ value: 'auto', icon: Wand2, title: 'Automático', text: 'Kisokar arma los partidos' }, { value: 'manual', icon: Hand, title: 'A mano', text: 'Tú armas jornadas y cruces' }] as const"
             :key="o.value"
             class="flex cursor-pointer flex-col rounded-xl border p-3 text-sm transition has-[:checked]:border-pitch-900 has-[:checked]:bg-pitch-50 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-pitch-500"
           >

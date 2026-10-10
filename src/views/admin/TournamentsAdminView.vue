@@ -121,7 +121,7 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
       v-if="!loading && !error && home.canOrganize && !tournaments.organized.length"
       illustrated
       title="Aún no tienes torneos"
-      description="Crea tu primer torneo. Después Cancha te guía: inscribir equipos, registrar jugadores, generar el calendario y capturar resultados."
+      description="Crea tu primer torneo. Después Kisokar te guía: inscribir equipos, registrar jugadores, generar el calendario y capturar resultados."
       class="card"
     >
       <AppButton @click="createIn(undefined)"><Plus class="size-4" aria-hidden="true" /> Crear torneo</AppButton>

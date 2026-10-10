@@ -3,7 +3,7 @@ import { BrickWall, Flag, Footprints, Goal, Handshake, Hash, ShieldCheck, Sparkl
 import type { MilestoneType, PlayerMilestone } from '@/types'
 import { formatDate } from '@/utils/format'
 
-/** Hitos en Cancha: derivados en el servidor de su historia oficial, en orden (el más reciente arriba). */
+/** Hitos en Kisokar: derivados en el servidor de su historia oficial, en orden (el más reciente arriba). */
 defineProps<{ milestones: PlayerMilestone[] }>()
 
 const LABEL: Record<MilestoneType, { icon: unknown; text: (v: number | null) => string }> = {

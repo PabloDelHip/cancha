@@ -6,7 +6,7 @@ import CardIcon from '../CardIcon.vue'
 import FormGuide from '@/components/teams/FormGuide.vue'
 
 /**
- * Carrera en Cancha: el resumen inmediato de toda su trayectoria registrada. Todo lo calcula el
+ * Carrera en Kisokar: el resumen inmediato de toda su trayectoria registrada. Todo lo calcula el
  * servidor con partidos oficiales FINISHED; aquí solo se formatea. Nada es editable.
  */
 /** `keeper`: perfil de PORTERO; sus cifras principales son las del puesto (goles y asistencias, aparte). */
@@ -22,7 +22,7 @@ const reach = computed(() => [
 
 <template>
   <section aria-labelledby="career-title" class="card overflow-hidden shadow-sm">
-    <h2 id="career-title" class="sr-only">Carrera en Cancha</h2>
+    <h2 id="career-title" class="sr-only">Carrera en Kisokar</h2>
     <dl v-if="keeper" class="tabular grid grid-cols-3 divide-x divide-zinc-100">
       <div class="px-2 pt-5 pb-4 text-center">
         <dt class="eyebrow">Partidos</dt>
@@ -88,7 +88,7 @@ const reach = computed(() => [
     </div>
     <p class="flex items-start justify-center gap-1.5 border-t border-zinc-100 px-4 py-2.5 text-center text-xs text-zinc-500">
       <ShieldCheck class="mt-px size-3.5 shrink-0 text-pitch-600" aria-hidden="true" />
-      <span>Carrera en Cancha · datos oficiales, solo partidos finalizados</span>
+      <span>Carrera en Kisokar · datos oficiales, solo partidos finalizados</span>
     </p>
   </section>
 </template>

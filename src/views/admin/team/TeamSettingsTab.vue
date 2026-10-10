@@ -72,7 +72,7 @@ async function remove() {
     <section aria-labelledby="identity-title" class="card p-4 sm:p-5">
       <h2 id="identity-title" class="text-lg font-bold">Ficha del equipo</h2>
       <p class="mb-4 text-sm text-zinc-500">
-        {{ myRole === 'owner' ? 'Cómo se ve el equipo en toda Cancha: perfil público, torneos e historial.' : 'Como delegado puedes cambiar la presentación del equipo.' }}
+        {{ myRole === 'owner' ? 'Cómo se ve el equipo en toda Kisokar: perfil público, torneos e historial.' : 'Como delegado puedes cambiar la presentación del equipo.' }}
       </p>
       <TeamForm
         v-if="team"

@@ -46,7 +46,7 @@ const steps = computed<Step[]>(() => [
     done: teams.value.length >= 2,
     message: teams.value.length
       ? `Tienes ${plural(teams.value.length, 'equipo inscrito', 'equipos inscritos')}. Inscribe al menos dos para armar el calendario.`
-      : 'Aún no tienes equipos inscritos. Busca equipos que ya existen en Cancha o crea uno nuevo.',
+      : 'Aún no tienes equipos inscritos. Busca equipos que ya existen en Kisokar o crea uno nuevo.',
     action: { label: teams.value.length ? 'Inscribir otro equipo' : 'Inscribir primer equipo', to: { name: 'admin-tournament-teams', params: p.value, query: { new: '1' } } },
   },
   {
@@ -63,7 +63,7 @@ const steps = computed<Step[]>(() => [
     key: 'schedule',
     title: 'Calendario',
     done: total.value > 0,
-    message: `Tienes ${plural(teams.value.length, 'equipo')}. Ahora puedes generar el calendario: Cancha arma las jornadas por ti.`,
+    message: `Tienes ${plural(teams.value.length, 'equipo')}. Ahora puedes generar el calendario: Kisokar arma las jornadas por ti.`,
     action: { label: 'Generar calendario', to: { name: 'admin-tournament-schedule', params: p.value, query: { generate: '1' } } },
   },
   {

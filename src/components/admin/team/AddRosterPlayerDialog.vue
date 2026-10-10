@@ -144,7 +144,7 @@ function onSubmit(input: PlayerInput, photo: Blob | null) {
   <BaseModal
     :open="open"
     :title="candidates ? '¿Ya está registrado?' : 'Agregar jugador'"
-    :description="candidates ? undefined : mode === 'search' ? `Busca si ya existe en Cancha: puede haber jugado en otro equipo o torneo.` : `Se creará su ficha en Cancha (no necesita cuenta) y quedará en la plantilla de ${teamName}.`"
+    :description="candidates ? undefined : mode === 'search' ? `Busca si ya existe en Kisokar: puede haber jugado en otro equipo o torneo.` : `Se creará su ficha en Kisokar (no necesita cuenta) y quedará en la plantilla de ${teamName}.`"
     @close="saving || emit('close')"
   >
     <PossibleDuplicates

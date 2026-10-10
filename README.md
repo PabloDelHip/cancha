@@ -1,4 +1,4 @@
-# Cancha · Frontend
+# Kisokar · Frontend
 
 Plataforma web para administrar torneos de fútbol amateur/semi-profesional y, a partir de los datos
 que generan, construir **perfiles deportivos públicos de los jugadores**.

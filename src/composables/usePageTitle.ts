@@ -4,6 +4,6 @@ import { watchEffect, toValue, type MaybeRefOrGetter } from 'vue'
 export function usePageTitle(title: MaybeRefOrGetter<string | undefined>) {
   watchEffect(() => {
     const value = toValue(title)
-    if (value) document.title = `${value} · Cancha`
+    if (value) document.title = `${value} · Kisokar`
   })
 }

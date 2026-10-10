@@ -144,7 +144,7 @@ async function chooseExisting(player: Pick<Player, 'id' | 'firstName' | 'lastNam
       candidates
         ? undefined
         : mode === 'search'
-          ? 'Busca si ya jugó en Cancha: usar su perfil conserva su historial.'
+          ? 'Busca si ya jugó en Kisokar: usar su perfil conserva su historial.'
           : 'Crea su perfil (no necesita cuenta). Antes revisaremos si ya existe.'
     "
     size="lg"
