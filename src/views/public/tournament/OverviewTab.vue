@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useTournamentsStore } from '@/stores'
 import { computed } from 'vue'
 import { Goal, Shield } from 'lucide-vue-next'
 import { useTournamentStats } from '@/composables/useTournamentStats'
@@ -13,6 +14,7 @@ import TopScorersTable from '@/components/tournaments/TopScorersTable.vue'
 import MatchCard from '@/components/matches/MatchCard.vue'
 
 const props = defineProps<{ id: string }>()
+const tournaments = useTournamentsStore()
 
 const stats = useTournamentStats(() => props.id)
 
@@ -52,7 +54,7 @@ const { knockout } = useTournamentChampion(structure)
         <section aria-label="Tabla de posiciones">
           <SectionHeader :title="finished ? 'Tabla final' : 'Tabla'" link-label="Completa" :to="{ name: 'tournament-standings', params: { id } }" />
           <div class="card overflow-hidden">
-            <StandingsTable :standings="stats.standings.value" compact />
+            <StandingsTable :standings="stats.standings.value" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
           </div>
         </section>
         <section aria-label="Goleadores">

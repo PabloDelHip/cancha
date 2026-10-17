@@ -2,6 +2,7 @@ import type {
   ID,
   ISODate,
   Player,
+  PlayerBlock,
   PlayerDetails,
   PlayerInput,
   PlayerProfile,
@@ -70,8 +71,14 @@ export interface PlayerService {
    * dentro de él. No toca sus participaciones en otros torneos. Devuelve su historial.
    */
   register(playerId: ID, assignment: RosterAssignment): Promise<TeamMembership[]>
-  /** Da de baja al jugador de MI torneo (conserva el historial). */
-  unregister(tournamentId: ID, playerId: ID): Promise<void>
+  /** Da de baja al jugador de MI torneo, con motivo (conserva estadísticas e historial). */
+  unregister(tournamentId: ID, playerId: ID, reason: string): Promise<void>
+  /** 3C: anula su última transferencia (errónea, sin partidos con el equipo nuevo). Devuelve su historial. */
+  annulTransfer(tournamentId: ID, playerId: ID, reason: string): Promise<TeamMembership[]>
+  /** 3D: bloqueos administrativos del torneo (vigentes y levantados). */
+  listBlocks(tournamentId: ID): Promise<PlayerBlock[]>
+  block(tournamentId: ID, playerId: ID, reason: string): Promise<PlayerBlock[]>
+  unblock(tournamentId: ID, playerId: ID, reason: string): Promise<PlayerBlock[]>
 }
 
 const http: PlayerService = {
@@ -118,17 +125,34 @@ const http: PlayerService = {
       : await fetchAll<ApiMembership>('/memberships')
     return rows.map(toMembership)
   },
-  async register(playerId, { tournamentId, teamId, shirtNumber }) {
+  async register(playerId, { tournamentId, teamId, shirtNumber, ...extra }) {
     const { data } = await api.put<ApiMembership[]>(`/tournaments/${tournamentId}/players/${playerId}`, {
       teamId,
       jerseyNumber: shirtNumber,
+      // fromTeamId (cambio explícito), startDate + retroactiveReason, overLimitReason: solo si vienen.
+      ...Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== undefined && v !== '')),
     })
     return data.map(toMembership)
   },
-  async unregister(tournamentId, playerId) {
-    await api.delete(`/tournaments/${tournamentId}/players/${playerId}`)
+  async unregister(tournamentId, playerId, reason) {
+    await api.delete(`/tournaments/${tournamentId}/players/${playerId}`, { data: { reason } })
+  },
+  async annulTransfer(tournamentId, playerId, reason) {
+    const { data } = await api.post<ApiMembership[]>(`/tournaments/${tournamentId}/players/${playerId}/annul-transfer`, { reason })
+    return data.map(toMembership)
+  },
+  async listBlocks(tournamentId) {
+    return (await api.get<PlayerBlock[]>(`/tournaments/${tournamentId}/player-blocks`)).data
+  },
+  async block(tournamentId, playerId, reason) {
+    return (await api.post<PlayerBlock[]>(`/tournaments/${tournamentId}/players/${playerId}/block`, { reason })).data
+  },
+  async unblock(tournamentId, playerId, reason) {
+    return (await api.post<PlayerBlock[]>(`/tournaments/${tournamentId}/players/${playerId}/unblock`, { reason })).data
   },
 }
+
+export const ANNUL_TRANSFER_REQUIRES_SERVER = 'Anular una transferencia requiere el servidor (modo demo sin backend)'
 
 /** Mismas reglas que el backend: solo el organizador del torneo toca sus participaciones. */
 const mock: PlayerService = {
@@ -207,7 +231,7 @@ const mock: PlayerService = {
     const all = getDb().memberships
     return delay(playerId ? all.filter((m) => m.playerId === playerId) : all)
   },
-  register(playerId, { tournamentId, teamId, shirtNumber }) {
+  register(playerId, { tournamentId, teamId, shirtNumber, fromTeamId }) {
     const check = () => {
       assertTournamentWritable(tournamentId)
       const db = getDb()
@@ -225,6 +249,10 @@ const mock: PlayerService = {
           m.playerId !== playerId,
       )
       if (taken) throw new MockHttpError(409, `El dorsal #${shirtNumber} ya está ocupado en ese equipo`)
+      const current = db.memberships.find((m) => m.tournamentId === tournamentId && m.playerId === playerId && m.status === 'active')
+      if (current && current.teamId !== teamId && current.teamId !== fromTeamId) {
+        throw new MockHttpError(409, 'El jugador ya juega con otro equipo en este torneo.')
+      }
     }
     return guard(check, () =>
       mutate((db) => {
@@ -247,6 +275,7 @@ const mock: PlayerService = {
             startDate: changeDate,
             endDate: null,
             status: 'active',
+            registeredAt: today,
             createdAt: now(),
             updatedAt: now(),
           })
@@ -276,6 +305,11 @@ const mock: PlayerService = {
       },
     )
   },
+  annulTransfer: () => Promise.reject(new MockHttpError(501, ANNUL_TRANSFER_REQUIRES_SERVER)),
+  // 3D: los bloqueos viven en el servidor; en el modo demo no hay ninguno.
+  listBlocks: () => Promise.resolve([]),
+  block: () => Promise.reject(new MockHttpError(501, 'Bloquear jugadores requiere el servidor (modo demo sin backend)')),
+  unblock: () => Promise.reject(new MockHttpError(501, 'Bloquear jugadores requiere el servidor (modo demo sin backend)')),
 }
 
 export const playerService: PlayerService = USE_MOCKS ? mock : http

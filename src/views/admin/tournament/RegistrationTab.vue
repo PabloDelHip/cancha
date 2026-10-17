@@ -37,7 +37,7 @@ const saving = ref(false)
 const linkBusy = ref(false)
 const reviewing = ref<string | null>(null)
 
-const form = reactive({ enabled: false, minPlayers: '' as string | number, maxPlayers: '' as string | number, maxTeams: '' as string | number, deadline: '' })
+const form = reactive({ enabled: false, minPlayers: '' as string | number, maxPlayers: '' as string | number, maxTeams: '' as string | number, deadline: '', transferDeadline: '', lockTransfersOnKnockout: false })
 function fillForm(s: RegistrationAdminState) {
   const r = s.registration
   Object.assign(form, {
@@ -46,6 +46,8 @@ function fillForm(s: RegistrationAdminState) {
     maxPlayers: r.maxPlayers?.toString() ?? '',
     maxTeams: r.maxTeams?.toString() ?? '',
     deadline: r.deadline ?? '',
+    transferDeadline: r.transferDeadline ?? '',
+    lockTransfersOnKnockout: r.lockTransfersOnKnockout ?? false,
   })
 }
 
@@ -82,6 +84,8 @@ async function save() {
       maxPlayers: num(form.maxPlayers),
       maxTeams: num(form.maxTeams),
       deadline: form.deadline || null,
+      transferDeadline: form.transferDeadline || null,
+      lockTransfersOnKnockout: form.lockTransfersOnKnockout,
     })
     const tournaments = useTournamentsStore()
     const tournament = tournaments.get(props.id)
@@ -234,6 +238,18 @@ const summary = computed(() => {
               <FormField id="reg-deadline" label="Fecha límite">
                 <input id="reg-deadline" v-model="form.deadline" type="date" class="input" />
               </FormField>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <FormField id="reg-transfer-deadline" label="Cambios de equipo hasta" hint="Último día para cambiar jugadores de equipo. Vacío = sin límite.">
+                <input id="reg-transfer-deadline" v-model="form.transferDeadline" type="date" class="input" />
+              </FormField>
+              <label class="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-zinc-200 px-4 py-3">
+                <span>
+                  <span class="block font-semibold text-zinc-900">Sin cambios en la eliminatoria</span>
+                  <span class="block text-xs text-zinc-500">Desde el primer partido de eliminatoria; tú o un administrador pueden autorizar excepciones con motivo.</span>
+                </span>
+                <input v-model="form.lockTransfersOnKnockout" type="checkbox" class="size-6 shrink-0 accent-pitch-700" />
+              </label>
             </div>
           </fieldset>
           <div v-if="!readOnly" class="flex justify-end">

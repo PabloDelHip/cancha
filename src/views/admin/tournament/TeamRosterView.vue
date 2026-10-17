@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue'
-import { ArrowLeftRight, ChevronLeft, ExternalLink, History, Lock, Pencil, Shield, UserMinus, UserPlus, Users } from 'lucide-vue-next'
+import { computed, onMounted, ref, shallowRef } from 'vue'
+import { ArrowLeftRight, ChevronLeft, ExternalLink, History, Lock, Pencil, Shield, UserMinus, UserPlus, Users, Ban } from 'lucide-vue-next'
 import type { Player, PlayerInput, Team } from '@/types'
 import { usePlayersStore, useTeamsStore, useTournamentsStore, type RosterEntry } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -12,6 +12,7 @@ import { POSITION_LABELS } from '@/utils/labels'
 import AppButton from '@/components/common/AppButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import PlayerAvatar from '@/components/players/PlayerAvatar.vue'
 import PlayerForm from '@/components/players/PlayerForm.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
@@ -27,8 +28,10 @@ const props = defineProps<{ id: string; teamId: string }>()
 const players = usePlayersStore()
 const teams = useTeamsStore()
 const tournaments = useTournamentsStore()
-const { tournament, readOnly } = useTournamentWorkspace(() => props.id)
-const { unregister } = useRosterActions(() => props.id)
+const { tournament, readOnly, can } = useTournamentWorkspace(() => props.id)
+const { unregister, toggleBlock } = useRosterActions(() => props.id)
+// 3D: bloqueos administrativos del torneo (para la marca y la acción de cada fila).
+onMounted(() => players.ensureBlocks(props.id).catch(() => undefined))
 const editor = useEditor<Player>({ openOnNew: false })
 
 const team = computed(() => teams.get(props.teamId))
@@ -84,6 +87,9 @@ function onSubmitProfile(input: PlayerInput) {
           <AppButton variant="ghost" :to="{ name: 'team', params: { id: team.id } }" :aria-label="`Ver ${team.name} en el sitio público`">
             <ExternalLink class="size-4" aria-hidden="true" />
           </AppButton>
+          <AppButton v-if="can('TEAMS')" variant="secondary" :to="{ name: 'admin-tournament-history', params: { id }, query: { teamId } }">
+            <History class="size-4" aria-hidden="true" /> Historial
+          </AppButton>
           <AppButton v-if="!readOnly" @click="adding = true"><UserPlus class="size-4" aria-hidden="true" /> Agregar jugador</AppButton>
         </div>
       </header>
@@ -96,11 +102,24 @@ function onSubmitProfile(input: PlayerInput) {
             <RouterLink :to="{ name: 'player', params: { id: entry.player.id } }" class="block truncate font-semibold hover:text-pitch-700">
               {{ fullName(entry.player) }}
             </RouterLink>
+            <StatusBadge v-if="players.activeBlock(id, entry.player.id)" class="max-w-full overflow-hidden" label="Bloqueado" :title="`Bloqueo administrativo desde el ${formatDate(players.activeBlock(id, entry.player.id)!.since)}`" tone="red" />
             <p class="truncate text-xs text-zinc-500">
               {{ POSITION_LABELS[entry.player.position] }}<template v-if="entry.player.age !== null"> · {{ entry.player.age }} años</template>
               <template v-if="!players.canEdit(entry.player.id)"> · <Lock class="inline size-3" aria-hidden="true" /> ficha de otro organizador</template>
             </p>
           </div>
+          <AppButton
+            v-if="can('TEAMS')"
+            variant="ghost"
+            size="sm"
+            icon
+            class="hidden shrink-0 sm:inline-flex"
+            :to="{ name: 'admin-tournament-history', params: { id }, query: { playerId: entry.player.id } }"
+            :aria-label="`Historial de ${fullName(entry.player)} en el torneo`"
+            title="Historial en el torneo"
+          >
+            <History class="size-3.5" aria-hidden="true" />
+          </AppButton>
           <div v-if="!readOnly" class="flex shrink-0 gap-1">
             <AppButton variant="ghost" size="sm" icon :aria-label="`Cambiar dorsal o equipo de ${fullName(entry.player)}`" title="Dorsal / equipo" @click="moving = entry">
               <ArrowLeftRight class="size-3.5" aria-hidden="true" />
@@ -110,6 +129,18 @@ function onSubmitProfile(input: PlayerInput) {
             </AppButton>
             <AppButton variant="ghost" size="sm" icon :aria-label="`Dar de baja a ${fullName(entry.player)}`" title="Dar de baja del torneo" @click="unregister(entry)">
               <UserMinus class="size-3.5" aria-hidden="true" />
+            </AppButton>
+            <AppButton
+              v-if="can('TEAMS')"
+              variant="ghost"
+              size="sm"
+              icon
+              :aria-label="`${players.activeBlock(id, entry.player.id) ? 'Levantar el bloqueo de' : 'Bloquear a'} ${fullName(entry.player)}`"
+              :title="players.activeBlock(id, entry.player.id) ? 'Levantar bloqueo' : 'Bloqueo administrativo'"
+              :class="players.activeBlock(id, entry.player.id) ? 'text-red-600' : ''"
+              @click="toggleBlock(entry)"
+            >
+              <Ban class="size-3.5" aria-hidden="true" />
             </AppButton>
           </div>
         </li>
@@ -135,9 +166,17 @@ function onSubmitProfile(input: PlayerInput) {
               {{ fullName(entry.player) }}
             </RouterLink>
             <span class="text-xs text-zinc-500">{{ formatDate(entry.membership.startDate) }} – {{ formatDate(entry.membership.endDate) }}</span>
+            <RouterLink
+              v-if="can('TEAMS')"
+              :to="{ name: 'admin-tournament-history', params: { id }, query: { playerId: entry.player.id } }"
+              class="text-xs font-semibold text-pitch-700 hover:underline"
+              :aria-label="`Historial de ${fullName(entry.player)} en el torneo`"
+            >
+              Historial
+            </RouterLink>
           </li>
         </ul>
-        <p class="mt-2 text-xs text-zinc-500">Las bajas no borran nada: sus partidos y estadísticas siguen en su perfil.</p>
+        <p class="mt-2 text-xs text-zinc-500">Las bajas no borran nada: sus partidos y estadísticas siguen en su perfil. El motivo y quién la hizo están en el historial.</p>
       </details>
     </template>
 

@@ -27,3 +27,8 @@ test('fotografías agregadas y retiradas', () => {
   assert.equal(describeEntry(entry('EVIDENCE_REMOVED', { evidence: { from: {}, to: { kind: 'SCOREBOARD' } } }), refs).title, 'Fotografía retirada: Marcador')
   assert.deepEqual(EVIDENCE_KINDS.map((k) => k.value), ['REFEREE_REPORT', 'LINEUP', 'INCIDENT', 'SCOREBOARD', 'OTHER'])
 })
+
+test('3A: corrección administrativa de la misma fecha deportiva', () => {
+  assert.equal(describeEntry(entry('ELIGIBILITY_OVERRIDE', { sameDate: { from: null, to: [{}, {}] } }, { reason: 'Junta' }), refs).title, 'Corrección administrativa: 2 jugadores figuran con otro equipo en la misma fecha')
+  assert.equal(describeEntry(entry('ELIGIBILITY_OVERRIDE', { sameDate: { from: null, to: [{}] } }), refs).title, 'Corrección administrativa: 1 jugador figura con otro equipo en la misma fecha')
+})

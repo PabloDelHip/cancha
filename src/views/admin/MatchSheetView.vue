@@ -206,7 +206,7 @@ const history = computed(() => (sheet.value ? sheet.value.history.entries.filter
               <Pencil class="size-4" aria-hidden="true" /> {{ t.lineup ? 'Editar' : 'Capturar alineación' }}
             </AppButton>
           </div>
-          <SheetLineupEditor v-if="editing === t.side" :match-id="id" :tournament-id="sheet.tournament.id" :side="t" :finished="status === 'finished'" @saved="(s) => ((editing = null), apply(s))" @cancel="editing = null" />
+          <SheetLineupEditor v-if="editing === t.side" :match-id="id" :tournament-id="sheet.tournament.id" :match-date="sheet.match.date" :side="t" :finished="status === 'finished'" @saved="(s) => ((editing = null), apply(s))" @cancel="editing = null" />
           <template v-else>
             <p v-if="t.consistency && !t.consistency.consistent && t.stats.length" class="flex gap-1.5 rounded-xl bg-amber-50 p-2 text-xs text-amber-900" role="alert">
               <AlertTriangle class="size-4 shrink-0" aria-hidden="true" /> La alineación y las estadísticas no coinciden<template v-if="t.consistency.missing.length">: participan sin figurar como jugados {{ t.consistency.missing.join(', ') }}</template><template v-if="t.consistency.extra.length">; jugados sin participar {{ t.consistency.extra.join(', ') }}</template>.

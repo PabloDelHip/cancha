@@ -84,9 +84,14 @@ export interface TeamMembership extends Timestamps {
   teamId: ID
   tournamentId: ID
   shirtNumber: number | null
+  /** Fecha EFECTIVA: desde cuándo puede jugar con el equipo. */
   startDate: ISODate
   endDate: ISODate | null
   status: MembershipStatus
+  /** Fecha REAL de la inscripción (3A). null = participación anterior a 3A (regla previa). */
+  registeredAt?: ISODate | null
+  /** 3C: equipo de origen si nació de un cambio de equipo (se puede anular si fue un error). */
+  transferredFrom?: ID | null
 }
 
 // ─── Equipos ────────────────────────────────────────────────────────────────
@@ -183,6 +188,7 @@ export type TournamentPermission =
   | 'SHEET_REOPEN'
   | 'EVIDENCE_UPLOAD'
   | 'EVIDENCE_REMOVE'
+  | 'REGISTRATION_EXCEPTIONS'
 
 export interface Tournament extends Timestamps {
   id: ID
@@ -214,12 +220,30 @@ export interface Tournament extends Timestamps {
   organizerId?: ID
 }
 
+/**
+ * 3D — bloqueo administrativo de un jugador en un torneo (no es una sanción). Vigente desde `since`
+ * hasta `until` (exclusive; null = vigente). El motivo y los autores solo llegan a quien
+ * administra la plantilla del torneo.
+ */
+export interface PlayerBlock {
+  id: ID
+  tournamentId: ID
+  playerId: ID
+  since: ISODate
+  until: ISODate | null
+  active: boolean
+  reason?: string
+  liftReason?: string | null
+}
+
 /** Inscripción de un equipo en un torneo. */
 export interface TournamentTeam {
   id: ID
   tournamentId: ID
   teamId: ID
   joinedAt: ISODateTime
+  /** 3D: fecha del retiro (abandonó después de jugar). null = participa con normalidad. */
+  withdrawnAt: ISODate | null
 }
 
 /**
@@ -387,6 +411,17 @@ export interface RosterAssignment {
   tournamentId: ID
   teamId: ID
   shirtNumber: number | null
+  /** Cambio de equipo explícito: su equipo actual en el torneo. Sin él, si ya juega con otro → 409. */
+  fromTeamId?: ID
+  /** Fecha efectiva (por defecto hoy). Anterior a hoy = retroactiva: exige `retroactiveReason`. */
+  startDate?: ISODate
+  retroactiveReason?: string
+  /** Excepción para superar el máximo de jugadores por equipo (solo propietario/administrador). */
+  overLimitReason?: string
+  /** 3C: motivo del cambio de equipo (obligatorio con `fromTeamId`). */
+  transferReason?: string
+  /** 3C: excepción para cambiar de equipo con la eliminatoria iniciada (solo propietario/administrador). */
+  knockoutReason?: string
 }
 
 export type MatchInput = Pick<
@@ -410,6 +445,8 @@ export interface MatchResultInput {
   penalties?: { home: number; away: number } | null
   /** Solo en la llave cuya regla es tiempos extra. */
   extraTime?: boolean
+  /** 3A: corrección administrativa (jugador con dos equipos en la misma fecha deportiva). */
+  sameDateReason?: string
 }
 
 // ─── Perfil del jugador (GET /players/:id/profile) ──────────────────────────
@@ -801,6 +838,8 @@ export interface TournamentStructure {
   championTeamId: ID | null
   tiebreaks: { phase: number; scope: string; order: ID[] }[]
   teams: Record<ID, TeamRef>
+  /** 3D: equipos retirados (siguen en las tablas; no clasifican). */
+  withdrawnTeamIds: ID[]
 }
 
 /** Eliminatoria que se generaría con los clasificados (POST …/phases/advance/preview): nada se guarda. */
@@ -873,9 +912,12 @@ export interface TeamTournamentEntry {
   tournament: Pick<Tournament, 'id' | 'name' | 'modality' | 'category' | 'status' | 'startDate' | 'endDate' | 'dataCoverage'>
   minPlayers: number | null
   maxPlayers: number | null
-  /** false si está finalizado (inmutable). */
+  /** false si está finalizado (inmutable) o el equipo se retiró. */
   editable: boolean
-  players: { player: Player; jerseyNumber: number | null }[]
+  /** 3D: el equipo se retiró del torneo (fecha). */
+  withdrawnAt: ISODate | null
+  /** `blocked` (3D): bloqueo administrativo vigente en ese torneo (sin el motivo). */
+  players: { player: Player; jerseyNumber: number | null; blocked: boolean }[]
 }
 
 // ─── Inscripción de equipos por link (Etapa 7) ──────────────────────────────
@@ -889,6 +931,10 @@ export interface RegistrationSettings {
   maxTeams: number | null
   /** Fecha límite inclusiva (YYYY-MM-DD). */
   deadline: ISODate | null
+  /** 3C: último día para cambiar jugadores de equipo (inclusivo). null = sin límite. */
+  transferDeadline: ISODate | null
+  /** 3C: sin cambios de equipo desde el primer partido de eliminatoria (salvo excepción). */
+  lockTransfersOnKnockout: boolean
 }
 
 export type RegistrationClosedReason = 'finished' | 'disabled' | 'deadline' | 'full'
@@ -917,7 +963,7 @@ export interface RegistrationRequestSummary {
   cancelledAt: string | null
 }
 
-export type SelectionProblemCode = 'TEAM_NOT_FOUND' | 'ALREADY_ENROLLED' | 'FULL' | 'PLAYER_NOT_FOUND' | 'NOT_IN_ROSTER' | 'OTHER_TEAM' | 'TOO_FEW' | 'TOO_MANY'
+export type SelectionProblemCode = 'TEAM_NOT_FOUND' | 'ALREADY_ENROLLED' | 'FULL' | 'PLAYER_NOT_FOUND' | 'NOT_IN_ROSTER' | 'OTHER_TEAM' | 'PREVIOUS_TEAM' | 'BLOCKED' | 'TOO_FEW' | 'TOO_MANY'
 
 export interface RegistrationRequestDetail extends RegistrationRequestSummary {
   players: { player: Pick<Player, 'id' | 'firstName' | 'lastName' | 'position' | 'photoUrl' | 'age'> | null; problem: SelectionProblemCode | null }[]
@@ -1366,6 +1412,7 @@ export type MatchLogAction =
   | 'SHEET_REOPENED'
   | 'EVIDENCE_ADDED'
   | 'EVIDENCE_REMOVED'
+  | 'ELIGIBILITY_OVERRIDE'
   | 'DELETED'
   | 'SCHEDULE_REPLACED'
 
@@ -1397,6 +1444,72 @@ export interface MatchLogEntry {
 export interface MatchLog {
   entries: MatchLogEntry[]
   refs: { teams: Record<ID, string>; referees: Record<ID, string>; users: Record<ID, string> }
+}
+
+// ─── Historial de plantillas (3E) ──────────────────────────────────────────
+
+export type RosterEventAction =
+  | 'REGISTERED'
+  | 'REJOINED'
+  | 'TRANSFER'
+  | 'TRANSFER_ANNULLED'
+  | 'UNREGISTERED'
+  | 'EXCEPTION'
+  | 'JERSEY_CHANGED'
+  | 'BLOCKED'
+  | 'UNBLOCKED'
+  | 'TEAM_WITHDRAWN'
+  | 'TEAM_REINSTATED'
+  | 'TEAM_REMOVED'
+
+/** Un movimiento de la plantilla del torneo, derivado por el servidor (solo propietario y administradores). */
+export interface RosterEvent {
+  id: string
+  action: RosterEventAction
+  /** Cuándo se registró. null = registro anterior a 3A: solo se conoce `date`. */
+  at: ISODateTime | null
+  /** Fecha efectiva (inicio o fin de la participación, desde o hasta del bloqueo…). */
+  date: ISODate
+  playerId: ID | null
+  teamId: ID | null
+  fromTeamId: ID | null
+  reason: string | null
+  /** null = sin registro de autor. `role`: rol en el torneo, `TEAM` (el equipo) o `REQUEST` (inscripción por enlace). */
+  by: { userId: ID; role: string | null } | null
+  legacy: boolean
+  details: {
+    kind?: 'RETROACTIVE' | 'OVER_LIMIT' | 'KNOCKOUT' | 'SAME_DATE'
+    from?: number | string | null
+    to?: number | string | null
+    annulled?: boolean
+    removedTeam?: boolean
+    teamWithdrawn?: boolean
+    afterUnregister?: boolean
+    viaRequest?: boolean
+    retroactive?: boolean
+    jerseyCleared?: number | null
+    cancelledMatches?: number
+    closedMemberships?: number
+    memberships?: number
+    max?: number
+    count?: number
+  }
+}
+
+export interface RosterHistoryFilter {
+  playerId?: ID
+  teamId?: ID
+  action?: RosterEventAction[]
+  from?: ISODate
+  to?: ISODate
+  page?: number
+  limit?: number
+}
+
+export interface RosterHistoryPage {
+  data: RosterEvent[]
+  meta: { page: number; limit: number; total: number; totalPages: number }
+  refs: { players: Record<ID, string>; teams: Record<ID, string>; users: Record<ID, string> }
 }
 
 // ─── Colaboradores e invitaciones (RBAC R2) ─────────────────────────────────
@@ -1621,4 +1734,6 @@ export interface SheetTeamInput {
   players: { playerId: ID; jerseyNumber?: number | null; starter: boolean; captain?: boolean }[]
   substitutions: { outPlayerId: ID; inPlayerId: ID; minute: number }[]
   reason?: string | null
+  /** 3A: corrección administrativa (jugador con dos equipos en la misma fecha deportiva). */
+  sameDateReason?: string
 }

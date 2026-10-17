@@ -58,6 +58,7 @@ const tournamentWorkspace: RouteRecordRaw[] = [
   { path: 'goleadores', name: 'admin-tournament-scorers', component: () => import('@/views/admin/tournament/ScorersTab.vue'), props: true },
   { path: 'disciplina', name: 'admin-tournament-discipline', component: () => import('@/views/admin/tournament/DisciplineTab.vue'), props: true },
   { path: 'inscripciones', name: 'admin-tournament-registration', component: () => import('@/views/admin/tournament/RegistrationTab.vue'), props: true },
+  { path: 'historial', name: 'admin-tournament-history', component: () => import('@/views/admin/tournament/HistoryTab.vue'), props: true },
   { path: 'colaboradores', name: 'admin-tournament-collaborators', component: () => import('@/views/admin/tournament/CollaboratorsTab.vue'), props: true },
   { path: 'configuracion', name: 'admin-tournament-settings', component: () => import('@/views/admin/tournament/SettingsTab.vue'), props: true },
 ]

@@ -144,6 +144,8 @@ export interface ApiTournamentTeam {
   tournamentId: string
   teamId: string
   createdAt: string
+  /** 3D. Ausente en respuestas anteriores (= no retirado). */
+  withdrawnAt?: string | null
 }
 
 export interface ApiTeam extends ApiTimestamps {
@@ -182,6 +184,8 @@ export interface ApiMembership extends ApiTimestamps {
   startDate: string
   endDate: string | null
   active: boolean
+  registeredAt?: string | null
+  transferredFrom?: string | null
 }
 
 export interface ApiMatch extends ApiTimestamps {
@@ -322,7 +326,7 @@ export function toRound(r: ApiRound): Round {
 }
 
 export function toTournamentTeam(e: ApiTournamentTeam): TournamentTeam {
-  return { id: e.id, tournamentId: e.tournamentId, teamId: e.teamId, joinedAt: e.createdAt }
+  return { id: e.id, tournamentId: e.tournamentId, teamId: e.teamId, joinedAt: e.createdAt, withdrawnAt: e.withdrawnAt ?? null }
 }
 
 export function toTeam(t: ApiTeam): Team {
@@ -370,6 +374,8 @@ export function toMembership(m: ApiMembership): TeamMembership {
     startDate: m.startDate,
     endDate: m.endDate,
     status: m.active ? 'active' : 'ended',
+    registeredAt: m.registeredAt ?? null,
+    transferredFrom: m.transferredFrom ?? null,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   }
@@ -812,6 +818,7 @@ export interface ApiStructure {
   championTeamId: string | null
   tiebreaks: { phase: number; scope: string; order: string[] }[]
   teams: Record<string, TeamRef>
+  withdrawnTeamIds?: string[]
 }
 
 const lower = <T extends string>(s: T) => s.toLowerCase() as Lowercase<T>
@@ -862,6 +869,7 @@ export function toStructure(s: ApiStructure): TournamentStructure {
     championTeamId: s.championTeamId,
     tiebreaks: s.tiebreaks,
     teams: s.teams,
+    withdrawnTeamIds: s.withdrawnTeamIds ?? [],
   }
 }
 

@@ -5,6 +5,7 @@ import { Check, Search } from 'lucide-vue-next'
 import type { ID, Player, PlayerCandidate, PlayerInput, Team } from '@/types'
 import { usePlayersStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useRegistration } from '@/composables/useRegistration'
+import { useGuardedRegister } from '@/composables/useGuardedRegister'
 import { useToast } from '@/composables/useToast'
 import { getErrorMessage, possibleDuplicates } from '@/services'
 import { displayName, fullName, matchesPlayerSearch } from '@/utils/players'
@@ -31,6 +32,7 @@ const teamsStore = useTeamsStore()
 const tournaments = useTournamentsStore()
 const toast = useToast()
 const { draft, errors, reset, validate } = useRegistration(() => props.tournamentId)
+const guarded = useGuardedRegister(() => props.tournamentId)
 
 const mode = ref<'search' | 'create'>('search')
 const query = ref('')
@@ -81,7 +83,8 @@ const results = computed(() => {
 async function register(player: Player) {
   const assignment = validate(player.id)
   if (!assignment) return false
-  await players.register(player.id, assignment)
+  // Equipo lleno: el propietario/administrador puede autorizar la excepción con motivo.
+  if (!(await guarded.register(player.id, assignment))) return false
   toast.success(`${fullName(player)} agregado a ${teamsStore.get(assignment.teamId)?.name}.`)
   emit('close')
   return true
@@ -162,7 +165,7 @@ async function chooseExisting(player: Pick<Player, 'id' | 'firstName' | 'lastNam
       />
       <div class="rounded-xl bg-zinc-50 p-4">
         <p class="mb-3 text-sm text-zinc-600">Equipo y dorsal en este torneo (para el jugador que elijas o el nuevo):</p>
-        <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-dup" />
+        <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-dup" :allow-retroactive="guarded.canExceptions.value" />
       </div>
     </div>
 
@@ -207,7 +210,7 @@ async function chooseExisting(player: Pick<Player, 'id' | 'firstName' | 'lastNam
           <p class="mb-3 text-sm">
             Agregar a <strong>{{ displayName(selected) }}</strong> en este torneo. Su perfil y su historial se conservan.
           </p>
-          <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-existing" />
+          <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-existing" :allow-retroactive="guarded.canExceptions.value" />
         </div>
       </div>
 
@@ -215,7 +218,7 @@ async function chooseExisting(player: Pick<Player, 'id' | 'firstName' | 'lastNam
       <div v-else class="space-y-4">
         <PlayerForm form-id="new-player-form" :initial="null" @submit="createAndAdd" />
         <div class="rounded-xl bg-zinc-50 p-4">
-          <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-new" />
+          <RegistrationFields v-model="draft" :teams="teams" :errors="errors" id-prefix="add-new" :allow-retroactive="guarded.canExceptions.value" />
         </div>
       </div>
     </template>

@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ID, Standing } from '@/types'
 import { useTeamsStore } from '@/stores'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import FormGuide from '@/components/teams/FormGuide.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     standings: Standing[]
     /** Versión reducida (POS, equipo, PJ, GF, GC, DG, PTS). */
@@ -12,11 +14,29 @@ withDefaults(
     highlightTeamId?: ID
     /** Número de equipos que clasifican a liguilla. */
     qualifyCount?: number
+    /** 3D: equipos retirados. Siguen en la tabla, marcados, y no ocupan plaza de clasificación. */
+    withdrawn?: ID[]
+    /**
+     * Clasificados efectivos (la eliminatoria siguiente ya se generó): se marcan tal cual, aunque
+     * alguno se retirara después. Sin él, la zona sale de `qualifyCount` saltando a los retirados.
+     */
+    qualified?: ID[] | null
   }>(),
-  { qualifyCount: 4, highlightTeamId: undefined },
+  { qualifyCount: 4, highlightTeamId: undefined, withdrawn: () => [], qualified: null },
 )
 
 const teams = useTeamsStore()
+/** Zona de clasificación entre los elegibles: el siguiente ocupa el lugar del retirado. */
+const qualifies = computed(() => {
+  if (props.qualified) return new Set(props.qualified)
+  const out = new Set<ID>()
+  let rank = 0
+  for (const row of props.standings) {
+    if (props.withdrawn.includes(row.teamId)) continue
+    if (++rank <= props.qualifyCount) out.add(row.teamId)
+  }
+  return out
+})
 </script>
 
 <template>
@@ -54,7 +74,7 @@ const teams = useTeamsStore()
           <td class="sticky left-0 z-10 py-3 pr-1 pl-4 font-semibold" :class="row.teamId === highlightTeamId ? 'bg-lime-50' : 'bg-white'">
             <span
               class="grid size-6 place-items-center rounded-md text-xs"
-              :class="row.position <= qualifyCount ? 'bg-pitch-900 text-lime-400' : 'text-zinc-500'"
+              :class="qualifies.has(row.teamId) ? 'bg-pitch-900 text-lime-400' : 'text-zinc-500'"
             >
               {{ row.position }}
             </span>
@@ -66,6 +86,7 @@ const teams = useTeamsStore()
                 <span class="sm:hidden">{{ teams.get(row.teamId)?.shortName }}</span>
                 <span class="hidden whitespace-nowrap sm:inline">{{ teams.get(row.teamId)?.name }}</span>
               </span>
+              <StatusBadge v-if="withdrawn.includes(row.teamId)" label="Retirado" tone="red" />
             </RouterLink>
           </th>
           <td class="px-1.5 text-center sm:px-2 text-zinc-600">{{ row.played }}</td>

@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftRight, Lock, Pencil, Search, UserMinus, UserPlus, Users } from 'lucide-vue-next'
+import { ArrowLeftRight, Lock, Pencil, Search, UserMinus, UserPlus, Users, Ban, History } from 'lucide-vue-next'
 import type { ID, Player, PlayerInput, Team } from '@/types'
 import { usePlayersStore, useTeamsStore, useTournamentsStore, type RosterEntry } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useEditor } from '@/composables/useEditor'
 import { useRosterActions } from '@/composables/useRosterActions'
 import { fullName } from '@/utils/players'
-import { plural } from '@/utils/format'
+import { formatDate, plural } from '@/utils/format'
 import { POSITION_LABELS } from '@/utils/labels'
 import { normalizeText } from '@/utils/text'
 import AppButton from '@/components/common/AppButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import PlayerAvatar from '@/components/players/PlayerAvatar.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import PlayerForm from '@/components/players/PlayerForm.vue'
@@ -27,8 +28,10 @@ const PAGE_SIZE = 30
 const players = usePlayersStore()
 const teams = useTeamsStore()
 const tournaments = useTournamentsStore()
-const { readOnly } = useTournamentWorkspace(() => props.id)
-const { unregister } = useRosterActions(() => props.id)
+const { readOnly, can } = useTournamentWorkspace(() => props.id)
+const { unregister, toggleBlock } = useRosterActions(() => props.id)
+// 3D: bloqueos administrativos del torneo (para la marca y la acción de cada fila).
+onMounted(() => players.ensureBlocks(props.id).catch(() => undefined))
 const editor = useEditor<Player>({ openOnNew: false })
 const route = useRoute()
 const router = useRouter()
@@ -122,6 +125,7 @@ function onSubmitProfile(input: PlayerInput) {
               <RouterLink :to="{ name: 'player', params: { id: r.player.id } }" class="block truncate font-semibold hover:text-pitch-700">
                 {{ fullName(r.player) }}
               </RouterLink>
+              <StatusBadge v-if="players.activeBlock(id, r.player.id)" class="max-w-full overflow-hidden" label="Bloqueado" :title="`Bloqueo administrativo desde el ${formatDate(players.activeBlock(id, r.player.id)!.since)}`" tone="red" />
               <p class="flex min-w-0 items-center gap-1.5 truncate text-xs text-zinc-500">
                 <TeamLogo :team="r.team" size="xs" />
                 <RouterLink :to="{ name: 'admin-tournament-team', params: { id, teamId: r.membership.teamId } }" class="truncate hover:text-pitch-700">
@@ -132,6 +136,18 @@ function onSubmitProfile(input: PlayerInput) {
                 <Lock v-if="!players.canEdit(r.player.id)" class="size-3 shrink-0" aria-label="Ficha de otro organizador" />
               </p>
             </div>
+            <AppButton
+              v-if="can('TEAMS')"
+              variant="ghost"
+              size="sm"
+              icon
+              class="hidden shrink-0 sm:inline-flex"
+              :to="{ name: 'admin-tournament-history', params: { id }, query: { playerId: r.player.id } }"
+              :aria-label="`Historial de ${fullName(r.player)} en el torneo`"
+              title="Historial en el torneo"
+            >
+              <History class="size-3.5" aria-hidden="true" />
+            </AppButton>
             <div v-if="!readOnly" class="flex shrink-0 gap-1">
               <AppButton variant="ghost" size="sm" icon :aria-label="`Cambiar dorsal o equipo de ${fullName(r.player)}`" title="Dorsal / equipo" @click="moving = r">
                 <ArrowLeftRight class="size-3.5" aria-hidden="true" />
@@ -141,6 +157,18 @@ function onSubmitProfile(input: PlayerInput) {
               </AppButton>
               <AppButton variant="ghost" size="sm" icon :aria-label="`Dar de baja a ${fullName(r.player)}`" title="Dar de baja del torneo" @click="unregister(r)">
                 <UserMinus class="size-3.5" aria-hidden="true" />
+              </AppButton>
+              <AppButton
+                v-if="can('TEAMS')"
+                variant="ghost"
+                size="sm"
+                icon
+                :aria-label="`${players.activeBlock(id, r.player.id) ? 'Levantar el bloqueo de' : 'Bloquear a'} ${fullName(r.player)}`"
+                :title="players.activeBlock(id, r.player.id) ? 'Levantar bloqueo' : 'Bloqueo administrativo'"
+                :class="players.activeBlock(id, r.player.id) ? 'text-red-600' : ''"
+                @click="toggleBlock(r)"
+              >
+                <Ban class="size-3.5" aria-hidden="true" />
               </AppButton>
             </div>
           </li>

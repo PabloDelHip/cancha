@@ -72,6 +72,7 @@ const http: MatchService = {
       extraTime: result.extraTime ?? false,
       // sendOff omitido = fila sin clasificar (capturas anteriores que el organizador no tocó).
       playerStats: result.stats.map(({ sendOff, ...s }) => ({ ...s, played: true, ...(sendOff !== undefined ? { sendOff: sendOff?.toUpperCase() ?? null } : {}) })),
+      ...(result.sameDateReason ? { sameDateReason: result.sameDateReason } : {}),
     })
     return { match: toMatch(data.match), stats: toPlayerMatchStats(data.playerStats) }
   },

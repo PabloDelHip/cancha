@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ID, ISODate, Player, PlayerDetails, PlayerInput, RosterAssignment, TeamMembership, UploadProgress } from '@/types'
+import type { ID, ISODate, Player, PlayerBlock, PlayerDetails, PlayerInput, RosterAssignment, TeamMembership, UploadProgress } from '@/types'
 import { playerService } from '@/services'
 import { POSITION_ORDER } from '@/utils/labels'
 import { createLoader, createOwnership } from './loader'
+import { belongsOn } from '@/utils/players'
 import { useTournamentsStore } from './tournaments'
 
 export interface RosterEntry {
@@ -99,6 +100,21 @@ export const usePlayersStore = defineStore('players', () => {
       .filter((e): e is RosterEntry => Boolean(e.player))
       .sort(byPositionAndNumber)
   }
+  /**
+   * Plantilla del equipo en el torneo ELEGIBLE en una fecha (captura y ficha de un partido): su
+   * participación vale ese día (`belongsOn`, misma regla que el servidor). Incluye a quien ya se
+   * fue después del partido y deja fuera a quien se inscribió más tarde sin fecha retroactiva.
+   */
+  function rosterOn(teamId: ID, tournamentId: ID, date: ISODate): RosterEntry[] {
+    const seen = new Set<ID>()
+    return memberships.value
+      .filter((m) => m.teamId === teamId && m.tournamentId === tournamentId && belongsOn(m, date))
+      .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.startDate.localeCompare(a.startDate))
+      .filter((m) => !seen.has(m.playerId) && Boolean(seen.add(m.playerId)))
+      .map((membership) => ({ membership, player: byId.value.get(membership.playerId) }))
+      .filter((e): e is RosterEntry => Boolean(e.player))
+      .sort(byPositionAndNumber)
+  }
   /** Participantes de un torneo (todos sus equipos). */
   function participantsOf(tournamentId: ID): RosterEntry[] {
     return active.value
@@ -128,18 +144,48 @@ export const usePlayersStore = defineStore('players', () => {
   /** Registra (o mueve) al jugador en un equipo de un torneo propio. */
   async function register(playerId: ID, assignment: RosterAssignment) {
     const current = membershipIn(assignment.tournamentId, playerId)
-    if (current && current.teamId === assignment.teamId && current.shirtNumber === assignment.shirtNumber) return
-    const updated = await playerService.register(playerId, assignment)
+    if (current && current.teamId === assignment.teamId && current.shirtNumber === assignment.shirtNumber && !assignment.startDate) return
+    let updated: TeamMembership[]
+    try {
+      updated = await playerService.register(playerId, assignment)
+    } catch (e) {
+      // Rechazada (p. ej. ya juega con otro equipo y la lista estaba desactualizada): se refrescan
+      // sus participaciones para que la pantalla muestre dónde está de verdad.
+      await refreshMemberships(playerId).catch(() => undefined)
+      throw e
+    }
     memberships.value = [...memberships.value.filter((m) => m.playerId !== playerId), ...updated]
     // Ahora participa en uno de mis torneos: aparece en el panel (editable solo si es mío).
     if (!ownership.isMine(playerId)) ownership.markMine(playerId, false)
   }
-  async function unregister(tournamentId: ID, playerId: ID) {
-    await playerService.unregister(tournamentId, playerId)
-    memberships.value = await playerService.listMemberships(playerId).then((own) => [
-      ...memberships.value.filter((m) => m.playerId !== playerId),
-      ...own,
-    ])
+  async function unregister(tournamentId: ID, playerId: ID, reason: string) {
+    await playerService.unregister(tournamentId, playerId, reason)
+    await refreshMemberships(playerId)
+  }
+  /** 3C: anula su última transferencia; el servidor devuelve su historial. */
+  async function annulTransfer(tournamentId: ID, playerId: ID, reason: string) {
+    const updated = await playerService.annulTransfer(tournamentId, playerId, reason)
+    memberships.value = [...memberships.value.filter((m) => m.playerId !== playerId), ...updated]
+  }
+  /** 3D: bloqueos administrativos por torneo (se cargan al abrir su plantilla en el panel). */
+  const blocks = ref(new Map<ID, PlayerBlock[]>())
+  async function ensureBlocks(tournamentId: ID, force = false) {
+    if (blocks.value.has(tournamentId) && !force) return
+    const list = await playerService.listBlocks(tournamentId)
+    blocks.value = new Map(blocks.value).set(tournamentId, list)
+  }
+  function activeBlock(tournamentId: ID, playerId: ID): PlayerBlock | null {
+    return blocks.value.get(tournamentId)?.find((b) => b.playerId === playerId && b.active) ?? null
+  }
+  async function block(tournamentId: ID, playerId: ID, reason: string) {
+    blocks.value = new Map(blocks.value).set(tournamentId, await playerService.block(tournamentId, playerId, reason))
+  }
+  async function unblock(tournamentId: ID, playerId: ID, reason: string) {
+    blocks.value = new Map(blocks.value).set(tournamentId, await playerService.unblock(tournamentId, playerId, reason))
+  }
+  async function refreshMemberships(playerId: ID) {
+    const own = await playerService.listMemberships(playerId)
+    memberships.value = [...memberships.value.filter((m) => m.playerId !== playerId), ...own]
   }
 
   return {
@@ -159,6 +205,7 @@ export const usePlayersStore = defineStore('players', () => {
     membershipIn,
     membershipsOf,
     rosterOf,
+    rosterOn,
     participantsOf,
     create,
     update,
@@ -166,5 +213,11 @@ export const usePlayersStore = defineStore('players', () => {
     removePhoto,
     register,
     unregister,
+    annulTransfer,
+    blocks,
+    ensureBlocks,
+    activeBlock,
+    block,
+    unblock,
   }
 })

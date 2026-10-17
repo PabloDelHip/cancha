@@ -51,6 +51,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   function teamIdsOf(tournamentId: ID): ID[] {
     return enrollments.value.filter((e) => e.tournamentId === tournamentId).map((e) => e.teamId)
   }
+  /** 3D: equipos retirados del torneo. */
+  function withdrawnTeamIdsOf(tournamentId: ID): ID[] {
+    return enrollments.value.filter((e) => e.tournamentId === tournamentId && e.withdrawnAt).map((e) => e.teamId)
+  }
+  /** 3D: fecha de retiro del equipo en el torneo (null = participa). */
+  function withdrawnAt(tournamentId: ID, teamId: ID): string | null {
+    return enrollments.value.find((e) => e.tournamentId === tournamentId && e.teamId === teamId)?.withdrawnAt ?? null
+  }
   function tournamentsOfTeam(teamId: ID): Tournament[] {
     return enrollments.value
       .filter((e) => e.teamId === teamId)
@@ -103,6 +111,17 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     items.value = items.value.map((t) => (t.id === tournamentId ? { ...t, trackedTeamIds: t.trackedTeamIds.filter((id) => id !== teamId) } : t))
   }
 
+  /** 3D: retirar / reincorporar; el servidor devuelve las inscripciones del torneo. */
+  function replaceEnrollments(tournamentId: ID, rows: TournamentTeam[]) {
+    enrollments.value = [...enrollments.value.filter((e) => e.tournamentId !== tournamentId), ...rows]
+  }
+  async function withdrawTeam(tournamentId: ID, teamId: ID, reason: string) {
+    replaceEnrollments(tournamentId, await tournamentService.withdrawTeam(tournamentId, teamId, reason))
+  }
+  async function reinstateTeam(tournamentId: ID, teamId: ID, reason: string) {
+    replaceEnrollments(tournamentId, await tournamentService.reinstateTeam(tournamentId, teamId, reason))
+  }
+
   return {
     items,
     enrollments,
@@ -120,6 +139,8 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     resetMine: ownership.resetMine,
     get,
     teamIdsOf,
+    withdrawnAt,
+    withdrawnTeamIdsOf,
     tournamentsOfTeam,
     create,
     replace,
@@ -128,5 +149,7 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     finish,
     enrollTeam,
     unenrollTeam,
+    withdrawTeam,
+    reinstateTeam,
   }
 })

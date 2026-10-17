@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { CalendarClock, CalendarPlus, ClipboardEdit, Goal, Shield, UserPlus, Users } from 'lucide-vue-next'
-import { useRoundsStore } from '@/stores'
+import { useRoundsStore, useTournamentsStore } from '@/stores'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { isOpen, isPendingCapture } from '@/utils/matches'
@@ -11,6 +11,7 @@ import StandingsTable from '@/components/tournaments/StandingsTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const props = defineProps<{ id: string }>()
+const tournaments = useTournamentsStore()
 const stats = useTournamentStats(() => props.id)
 const rounds = useRoundsStore()
 const { readOnly, can } = useTournamentWorkspace(() => props.id)
@@ -110,7 +111,7 @@ const quickActions = computed(() => [
         <RouterLink :to="{ name: 'admin-tournament-standings', params }" class="link text-sm">Completa</RouterLink>
       </div>
       <div class="card overflow-hidden">
-        <StandingsTable :standings="stats.standings.value.slice(0, 5)" compact />
+        <StandingsTable :standings="stats.standings.value.slice(0, 5)" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
       </div>
     </section>
   </div>

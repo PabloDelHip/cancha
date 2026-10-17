@@ -43,6 +43,7 @@ const TABS: { name: string; label: string; permission: TournamentPermission | To
   { name: 'admin-tournament-scorers', label: 'Goleadores', permission: 'VIEW' },
   { name: 'admin-tournament-discipline', label: 'Disciplina', permission: 'DISCIPLINE_VIEW' },
   { name: 'admin-tournament-registration', label: 'Inscripciones', permission: 'TEAMS' },
+  { name: 'admin-tournament-history', label: 'Historial', permission: 'TEAMS' },
   { name: 'admin-tournament-collaborators', label: 'Colaboradores', permission: 'MEMBERS' },
   { name: 'admin-tournament-settings', label: 'Configuración', permission: 'SETTINGS' },
 ]

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Ban, Users } from 'lucide-vue-next'
+import { Ban, UserPlus, Users } from 'lucide-vue-next'
 import type { SendOff, Team } from '@/types'
 import { fullName } from '@/utils/players'
 import { POSITION_SHORT } from '@/utils/labels'
@@ -8,12 +8,15 @@ import NumberStepper from '@/components/common/NumberStepper.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CardIcon from '@/components/players/CardIcon.vue'
+import AppButton from '@/components/common/AppButton.vue'
 import { needsSendOffReview, type CaptureRow } from './captureTypes'
 
 const props = withDefaults(
-  defineProps<{ team: Team | undefined; tournamentId: string | undefined; rows: CaptureRow[]; score: number; rivalOwnGoals?: number; blockSuspended?: boolean }>(),
-  { rivalOwnGoals: 0, blockSuspended: false },
+  defineProps<{ team: Team | undefined; tournamentId: string | undefined; rows: CaptureRow[]; score: number; rivalOwnGoals?: number; blockSuspended?: boolean; canAddPlayer?: boolean }>(),
+  { rivalOwnGoals: 0, blockSuspended: false, canAddPlayer: false },
 )
+/** Alta rápida de un jugador que jugó y no estaba en la plantilla (lo maneja la vista). */
+defineEmits<{ addPlayer: [] }>()
 
 /** Goles de este equipo explicados: los de sus jugadores + los autogoles del rival. */
 const assigned = computed(() => props.rows.reduce((s, r) => s + r.goals, 0) + props.rivalOwnGoals)
@@ -84,6 +87,7 @@ function classify(row: CaptureRow, sendOff: SendOff) {
     </p>
 
     <EmptyState v-if="!rows.length" :icon="Users" title="Este equipo no tiene jugadores" compact>
+      <AppButton v-if="canAddPlayer" size="sm" @click="$emit('addPlayer')"><UserPlus class="size-4" aria-hidden="true" /> Agregar jugador</AppButton>
       <RouterLink
         v-if="tournamentId && team"
         :to="{ name: 'admin-tournament-team', params: { id: tournamentId, teamId: team.id } }"
@@ -177,6 +181,11 @@ function classify(row: CaptureRow, sendOff: SendOff) {
           </div>
         </li>
       </ul>
+      <div v-if="canAddPlayer" class="border-t border-zinc-100 px-4 py-2">
+        <AppButton variant="ghost" size="sm" @click="$emit('addPlayer')">
+          <UserPlus class="size-4" aria-hidden="true" /> Agregar jugador que no está en la plantilla
+        </AppButton>
+      </div>
     </template>
   </section>
 </template>

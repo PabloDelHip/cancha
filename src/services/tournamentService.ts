@@ -39,6 +39,10 @@ export interface TournamentService {
   listTeams(tournamentId?: ID): Promise<TournamentTeam[]>
   addTeam(tournamentId: ID, teamId: ID): Promise<TournamentTeam>
   removeTeam(tournamentId: ID, teamId: ID): Promise<void>
+  /** 3D: retirar un equipo con partidos (motivo). Devuelve las inscripciones del torneo. */
+  withdrawTeam(tournamentId: ID, teamId: ID, reason: string): Promise<TournamentTeam[]>
+  /** 3D: reincorporar un equipo retirado (motivo). */
+  reinstateTeam(tournamentId: ID, teamId: ID, reason: string): Promise<TournamentTeam[]>
   /** DRAFT → ACTIVE. */
   start(id: ID): Promise<Tournament>
   /**
@@ -105,6 +109,12 @@ const http: TournamentService = {
   },
   async removeTeam(tournamentId, teamId) {
     await api.delete(`/tournaments/${tournamentId}/teams/${teamId}`)
+  },
+  async withdrawTeam(tournamentId, teamId, reason) {
+    return (await api.post<ApiTournamentTeam[]>(`/tournaments/${tournamentId}/teams/${teamId}/withdraw`, { reason })).data.map(toTournamentTeam)
+  },
+  async reinstateTeam(tournamentId, teamId, reason) {
+    return (await api.post<ApiTournamentTeam[]>(`/tournaments/${tournamentId}/teams/${teamId}/reinstate`, { reason })).data.map(toTournamentTeam)
   },
   async start(id) {
     return toTournament((await api.post<ApiTournament>(`/tournaments/${id}/start`)).data)
@@ -282,6 +292,7 @@ const mock: TournamentService = {
       next: null,
       championTeamId: complete && first && !tiedTop ? first.teamId : null,
       tiebreaks: [],
+      withdrawnTeamIds: [],
       teams,
     })
   },
@@ -305,7 +316,7 @@ const mock: TournamentService = {
     return guard(() => assertTournamentWritable(tournamentId), () => mutate((db) => {
       const existing = db.tournamentTeams.find((tt) => tt.tournamentId === tournamentId && tt.teamId === teamId)
       if (existing) return delay(existing)
-      const created: TournamentTeam = { id: createId('tt'), tournamentId, teamId, joinedAt: now() }
+      const created: TournamentTeam = { id: createId('tt'), tournamentId, teamId, joinedAt: now(), withdrawnAt: null }
       db.tournamentTeams.push(created)
       return delay(created)
     }))
@@ -329,6 +340,13 @@ const mock: TournamentService = {
       })
       return delay(undefined)
     })
+  },
+  // 3D: el retiro cancela partidos y cierra participaciones con reglas que viven en el servidor.
+  withdrawTeam() {
+    return Promise.reject(new MockHttpError(501, 'Retirar un equipo requiere el servidor (modo demo sin backend)'))
+  },
+  reinstateTeam() {
+    return Promise.reject(new MockHttpError(501, 'Reincorporar un equipo requiere el servidor (modo demo sin backend)'))
   },
 }
 

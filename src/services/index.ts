@@ -19,3 +19,4 @@ export { collaboratorService, COLLABORATORS_REQUIRE_SERVER } from './collaborato
 export { incidentService, INCIDENTS_REQUIRE_SERVER } from './incidentService'
 export { agendaService, AGENDA_REQUIRES_SERVER } from './agendaService'
 export { sheetService, SHEET_REQUIRES_SERVER } from './sheetService'
+export { rosterHistoryService, ROSTER_HISTORY_REQUIRES_SERVER } from './rosterHistoryService'

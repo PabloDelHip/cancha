@@ -84,6 +84,10 @@ export function describeEntry(e: MatchLogEntry, refs: MatchLog['refs']) {
     SHEET_REOPENED: () => 'Ficha técnica reabierta',
     EVIDENCE_ADDED: () => `Fotografía agregada: ${EVIDENCE_KIND[(c.evidence?.to as { kind: EvidenceKind } | undefined)?.kind ?? 'OTHER']}`,
     EVIDENCE_REMOVED: () => `Fotografía retirada: ${EVIDENCE_KIND[(c.evidence?.to as { kind: EvidenceKind } | undefined)?.kind ?? 'OTHER']}`,
+    ELIGIBILITY_OVERRIDE: () => {
+      const n = (c.sameDate?.to as unknown[] | undefined)?.length ?? 0
+      return `Corrección administrativa: ${n === 1 ? '1 jugador figura' : `${n} jugadores figuran`} con otro equipo en la misma fecha`
+    },
     DELETED: () => `Partido eliminado: ${e.cause ? CAUSE[e.cause] : ''}`,
     SCHEDULE_REPLACED: () => `Calendario reemplazado (${e.cause ? CAUSE[e.cause] : ''}): ${e.deleted?.length ?? 0} partidos eliminados`,
   }

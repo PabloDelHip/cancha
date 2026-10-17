@@ -7,7 +7,7 @@ import { useTeamManagement } from '@/composables/useTeamManagement'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { MODALITY_LABELS, POSITION_LABELS, TOURNAMENT_STATUS } from '@/utils/labels'
-import { formatDateRange, plural } from '@/utils/format'
+import { formatDate, formatDateRange, plural } from '@/utils/format'
 import { fullName } from '@/utils/players'
 import AppButton from '@/components/common/AppButton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -21,23 +21,25 @@ import TournamentPlayersDialog from '@/components/admin/team/TournamentPlayersDi
  * organizador (máximo de jugadores, dorsal libre) y deja el historial intacto.
  */
 const { team, teamId, tournaments, reloadTournaments, actionFailed } = useTeamManagement()
-const { confirm } = useConfirm()
+const { ask } = useConfirm()
 const toast = useToast()
 const adding = ref<TeamTournamentEntry | null>(null)
 const busy = ref<string | null>(null)
 
 async function remove(entry: TeamTournamentEntry, row: TeamTournamentEntry['players'][number]) {
   const name = fullName(row.player)
-  const ok = await confirm({
+  const reason = await ask({
     title: `¿Dar de baja a ${name} de ${entry.tournament.name}?`,
     message: `Dejará de estar en la plantilla de ${team.value?.name} en este torneo. Sus partidos y estadísticas jugados se conservan, y puedes volver a inscribirlo.`,
+    label: 'Motivo de la baja',
+    placeholder: 'Ej. Se cambió de ciudad',
     confirmLabel: 'Dar de baja',
     tone: 'danger',
   })
-  if (!ok) return
+  if (reason === null) return
   busy.value = `${entry.tournament.id}:${row.player.id}`
   try {
-    await teamManagementService.unregisterFromTournament(teamId(), entry.tournament.id, row.player.id)
+    await teamManagementService.unregisterFromTournament(teamId(), entry.tournament.id, row.player.id, reason)
     await reloadTournaments()
     toast.success(`${name} ya no está inscrito en ${entry.tournament.name}.`)
   } catch (e) {
@@ -61,6 +63,7 @@ async function remove(entry: TeamTournamentEntry, row: TeamTournamentEntry['play
           <div class="min-w-0">
             <div class="mb-1 flex flex-wrap items-center gap-2">
               <StatusBadge :label="TOURNAMENT_STATUS[entry.tournament.status].label" :tone="TOURNAMENT_STATUS[entry.tournament.status].tone" />
+              <StatusBadge v-if="entry.withdrawnAt" :label="`Equipo retirado el ${formatDate(entry.withdrawnAt)}`" tone="red" />
               <span class="text-xs text-zinc-500">{{ MODALITY_LABELS[entry.tournament.modality] }} · {{ entry.tournament.category }}</span>
             </div>
             <RouterLink :to="{ name: 'tournament', params: { id: entry.tournament.id } }" class="inline-flex items-center gap-1 text-lg font-bold text-zinc-950 hover:text-pitch-700">
@@ -82,7 +85,10 @@ async function remove(entry: TeamTournamentEntry, row: TeamTournamentEntry['play
             <PlayerAvatar :player="row.player" size="sm" decorative />
             <div class="min-w-0 flex-1">
               <RouterLink :to="{ name: 'player', params: { id: row.player.id } }" class="block truncate font-semibold text-zinc-900 hover:text-pitch-700">{{ fullName(row.player) }}</RouterLink>
-              <p class="text-xs text-zinc-500">{{ POSITION_LABELS[row.player.position] }}</p>
+              <p class="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+                {{ POSITION_LABELS[row.player.position] }}
+                <StatusBadge v-if="row.blocked" label="Bloqueado por el organizador" tone="red" />
+              </p>
             </div>
             <AppButton
               v-if="entry.editable"
@@ -97,7 +103,13 @@ async function remove(entry: TeamTournamentEntry, row: TeamTournamentEntry['play
           </li>
         </ul>
         <p v-else class="px-4 py-5 text-sm text-zinc-500">
-          {{ entry.editable ? 'Todavía no hay jugadores inscritos. Inscribe a los de tu plantilla para que puedan jugar.' : 'Sin jugadores registrados.' }}
+          {{
+            entry.withdrawnAt
+              ? 'El equipo se retiró de este torneo: sus resultados se conservan, pero ya no inscribe jugadores.'
+              : entry.editable
+                ? 'Todavía no hay jugadores inscritos. Inscribe a los de tu plantilla para que puedan jugar.'
+                : 'Sin jugadores registrados.'
+          }}
         </p>
       </li>
     </ul>

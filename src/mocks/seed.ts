@@ -303,7 +303,7 @@ export function createSeed(): MockDatabase {
   const tournamentTeams: TournamentTeam[] = []
   const enroll = (tournamentId: ID, teamIds: ID[]) =>
     teamIds.forEach((teamId) =>
-      tournamentTeams.push({ id: `tt-${tournamentId}-${teamId}`, tournamentId, teamId, joinedAt: CREATED }),
+      tournamentTeams.push({ id: `tt-${tournamentId}-${teamId}`, tournamentId, teamId, joinedAt: CREATED, withdrawnAt: null }),
     )
   enroll('t-apertura-2027', TEAM_DEFS.map((t) => t.id))
   enroll('t-copa-invierno-2026', TEAM_DEFS.slice(0, 4).map((t) => t.id))

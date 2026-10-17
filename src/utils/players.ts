@@ -1,4 +1,4 @@
-import type { ID, Player, TeamMembership } from '@/types'
+import type { ID, ISODate, Player, TeamMembership } from '@/types'
 
 export function fullName(player: Pick<Player, 'firstName' | 'lastName'>): string {
   return `${player.firstName} ${player.lastName}`.trim()
@@ -29,4 +29,14 @@ export function shortName(player: Pick<Player, 'firstName' | 'lastName'>): strin
 
 export function activeMembership(memberships: TeamMembership[], playerId: ID): TeamMembership | undefined {
   return memberships.find((m) => m.playerId === playerId && m.status === 'active')
+}
+
+/**
+ * Misma regla que el backend (`membership-rules.ts`): la participación vale en la fecha del
+ * partido. Desde 3A (con `registeredAt`), solo dentro de su periodo efectivo; las anteriores a 3A
+ * activas valen en cualquier fecha.
+ */
+export function belongsOn(m: Pick<TeamMembership, 'status' | 'startDate' | 'endDate' | 'registeredAt'>, date: ISODate): boolean {
+  if (m.status === 'active' && !m.registeredAt) return true
+  return m.startDate <= date && (m.endDate === null || m.endDate >= date)
 }

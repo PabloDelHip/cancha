@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { AlertTriangle, Archive, ArrowLeft, Ban, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
-import type { ID, MatchEligibility, MatchStatus, PlayerMatchStatsInput } from '@/types'
+import type { ID, MatchEligibility, MatchStatus, Player, PlayerMatchStatsInput } from '@/types'
 import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useConfirm } from '@/composables/useConfirm'
@@ -20,6 +20,8 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CaptureTeamPanel from '@/components/matches/CaptureTeamPanel.vue'
+import QuickAddPlayerDialog from '@/components/matches/QuickAddPlayerDialog.vue'
+import { useSameDateOverride } from '@/composables/useSameDateOverride'
 import type { CaptureRow } from '@/components/matches/captureTypes'
 import { plural } from '@/utils/format'
 
@@ -33,6 +35,7 @@ const tournaments = useTournamentsStore()
 const rounds = useRoundsStore()
 const { confirm } = useConfirm()
 const toast = useToast()
+const sameDate = useSameDateOverride(() => match.value?.tournamentId)
 
 const match = computed(() => matches.get(props.id))
 const home = computed(() => teams.get(match.value?.homeTeamId))
@@ -45,6 +48,16 @@ const canCapture = computed(() => !!match.value && tournaments.can(match.value.t
 /** Ficha técnica cerrada (2D): resultado y estadísticas congelados hasta reabrirla. */
 const sheetClosed = computed(() => !!match.value?.sheetClosed)
 const readOnly = computed(() => finished.value || !canCapture.value || sheetClosed.value)
+/** Alta rápida de jugadores: inscribirlos exige el permiso de equipos del torneo (TEAMS). */
+const canAddPlayer = computed(() => !readOnly.value && !!match.value && tournaments.can(match.value.tournamentId, 'TEAMS'))
+const addingTo = ref<'home' | 'away' | null>(null)
+/** Jugador recién dado de alta: entra a la captura marcado como que jugó (cuenta al guardar). */
+function onPlayerAdded(player: Player, shirtNumber: number | null) {
+  const rows = addingTo.value === 'home' ? homeRows : awayRows
+  addingTo.value = null
+  if (rows.value.some((r) => r.player.id === player.id)) return
+  rows.value.push({ player, shirtNumber, played: true, goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0, sendOff: null, suspension: null })
+}
 const backTo = computed(() =>
   match.value
     ? { name: 'admin-tournament-schedule', params: { id: match.value.tournamentId }, query: { round: String(match.value.round) } }
@@ -134,7 +147,9 @@ function buildRows(teamId: ID): CaptureRow[] {
   const statsOf = new Map(existing.filter((s) => s.teamId === teamId).map((s) => [s.playerId, s]))
   // Plantilla del equipo EN ESTE TORNEO + quien ya tenga estadísticas en este partido
   // (aunque después haya cambiado de equipo). Un equipo puede jugar varios torneos a la vez.
-  const roster = players.rosterOf(teamId, match.value?.tournamentId).map((e) => ({ player: e.player, shirtNumber: e.membership.shirtNumber }))
+  // 3A: solo quien es elegible en la fecha del partido (inscrito después, sin fecha retroactiva, no).
+  const m = match.value
+  const roster = (m ? players.rosterOn(teamId, m.tournamentId, m.date) : []).map((e) => ({ player: e.player, shirtNumber: e.membership.shirtNumber }))
   for (const playerId of statsOf.keys()) {
     const player = players.get(playerId)
     if (player && !roster.some((r) => r.player.id === playerId)) roster.push({ player, shirtNumber: null })
@@ -263,14 +278,18 @@ async function save() {
   }
   saving.value = true
   try {
-    await matches.saveResult(m.id, {
-      homeScore: homeScore.value,
-      awayScore: awayScore.value,
-      status: status.value,
-      penalties: needsPenalties.value ? { home: penHome.value, away: penAway.value } : null,
-      extraTime: offersExtraTime.value && extraTime.value,
-      stats: [...toStats(homeRows.value, m.homeTeamId), ...toStats(awayRows.value, m.awayTeamId)],
-    })
+    const saved = await sameDate.run((sameDateReason) =>
+      matches.saveResult(m.id, {
+        homeScore: homeScore.value,
+        awayScore: awayScore.value,
+        status: status.value,
+        penalties: needsPenalties.value ? { home: penHome.value, away: penAway.value } : null,
+        extraTime: offersExtraTime.value && extraTime.value,
+        stats: [...toStats(homeRows.value, m.homeTeamId), ...toStats(awayRows.value, m.awayTeamId)],
+        ...(sameDateReason ? { sameDateReason } : {}),
+      }),
+    )
+    if (saved === null) return
     snapshot.value = serialize()
     justSaved.value = status.value === 'finished'
     toast.success(status.value === 'finished' ? 'Resultado guardado. Tabla y perfiles actualizados.' : 'Marcador en vivo actualizado.')
@@ -481,8 +500,8 @@ const statusOptions = computed<{ value: CaptureStatus; label: string }[]>(() =>
       </div>
 
       <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" :block-suspended="blockSuspended" />
-        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" :block-suspended="blockSuspended" />
+        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" @add-player="addingTo = 'home'" />
+        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" @add-player="addingTo = 'away'" />
       </div>
 
       </fieldset>
@@ -508,5 +527,14 @@ const statusOptions = computed<{ value: CaptureStatus; label: string }[]>(() =>
         </div>
       </div>
     </template>
+    <QuickAddPlayerDialog
+      v-if="match"
+      :open="!!addingTo"
+      :tournament-id="match.tournamentId"
+      :match-date="match.date"
+      :team="addingTo === 'home' ? home : away"
+      @close="addingTo = null"
+      @added="onPlayerAdded"
+    />
   </div>
 </template>

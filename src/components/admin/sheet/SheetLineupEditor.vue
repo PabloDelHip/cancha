@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { ArrowLeftRight, Plus, Trash2 } from 'lucide-vue-next'
 import type { ID, MatchSheet, SheetTeamSide } from '@/types'
 import { getErrorMessage, sheetService } from '@/services'
+import { useSameDateOverride } from '@/composables/useSameDateOverride'
 import { usePlayersStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import AppButton from '@/components/common/AppButton.vue'
@@ -14,10 +15,11 @@ import FormField from '@/components/common/FormField.vue'
  * una fila por jugador con un selector de tres estados. El servidor valida plantilla, elegibilidad,
  * coherencia con las estadísticas y sustituciones.
  */
-const props = defineProps<{ matchId: ID; tournamentId: ID; side: SheetTeamSide; finished: boolean }>()
+const props = defineProps<{ matchId: ID; tournamentId: ID; matchDate: string; side: SheetTeamSide; finished: boolean }>()
 const emit = defineEmits<{ saved: [sheet: MatchSheet]; cancel: [] }>()
 const players = usePlayersStore()
 const toast = useToast()
+const sameDate = useSameDateOverride(() => props.tournamentId)
 
 type Role = 'out' | 'starter' | 'bench'
 interface Row {
@@ -26,9 +28,9 @@ interface Row {
   role: Role
   jerseyNumber: number | null
 }
-// Plantilla del equipo en el torneo + quien ya esté en la alineación (p. ej. cambió de equipo después).
+// Plantilla del equipo elegible en la fecha del partido (3A) + quien ya esté en la alineación.
 const current = new Map((props.side.lineup?.players ?? []).map((p) => [p.playerId, p]))
-const roster = players.rosterOf(props.side.team.id, props.tournamentId)
+const roster = players.rosterOn(props.side.team.id, props.tournamentId, props.matchDate)
 const rows = reactive<Row[]>([
   ...roster.map((e) => {
     const p = current.get(e.player.id)
@@ -55,11 +57,15 @@ async function save() {
   if (needsReason.value && reason.value.trim().length < 3) return toast.error('Indica el motivo de la corrección (el partido ya finalizó).')
   saving.value = true
   try {
-    const sheet = await sheetService.saveTeam(props.matchId, props.side.team.id, {
-      players: listed.value.map((r) => ({ playerId: r.playerId, starter: r.role === 'starter', jerseyNumber: typeof r.jerseyNumber === 'number' ? r.jerseyNumber : null, captain: captain.value === r.playerId })),
-      substitutions: subs.map((s) => ({ outPlayerId: s.outPlayerId, inPlayerId: s.inPlayerId, minute: Number(s.minute) })),
-      ...(reason.value.trim() ? { reason: reason.value.trim() } : {}),
-    })
+    const sheet = await sameDate.run((sameDateReason) =>
+      sheetService.saveTeam(props.matchId, props.side.team.id, {
+        players: listed.value.map((r) => ({ playerId: r.playerId, starter: r.role === 'starter', jerseyNumber: typeof r.jerseyNumber === 'number' ? r.jerseyNumber : null, captain: captain.value === r.playerId })),
+        substitutions: subs.map((s) => ({ outPlayerId: s.outPlayerId, inPlayerId: s.inPlayerId, minute: Number(s.minute) })),
+        ...(reason.value.trim() ? { reason: reason.value.trim() } : {}),
+        ...(sameDateReason ? { sameDateReason } : {}),
+      }),
+    )
+    if (!sheet) return
     if (sheet.warnings?.length) toast.info(`Alineación guardada. Aviso: ${sheet.warnings.join(' ')}`)
     else toast.success('Alineación guardada.')
     emit('saved', sheet)

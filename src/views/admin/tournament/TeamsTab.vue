@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ExternalLink, Lock, Pencil, Plus, Shield, X } from 'lucide-vue-next'
+import { ChevronRight, ExternalLink, Lock, LogOut, Pencil, Plus, RotateCcw, Shield, X } from 'lucide-vue-next'
 import type { Team, TeamInput } from '@/types'
 import { useMatchesStore, usePlayersStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -9,7 +9,8 @@ import { useEditor } from '@/composables/useEditor'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { getErrorMessage } from '@/services'
-import { plural } from '@/utils/format'
+import { formatDate, plural } from '@/utils/format'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -28,9 +29,9 @@ const teams = useTeamsStore()
 const tournaments = useTournamentsStore()
 const players = usePlayersStore()
 const matches = useMatchesStore()
-const { tournament, readOnly } = useTournamentWorkspace(() => props.id)
+const { tournament, readOnly, can } = useTournamentWorkspace(() => props.id)
 const editor = useEditor<Team>({ openOnNew: false })
-const { confirm } = useConfirm()
+const { confirm, ask } = useConfirm()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
@@ -65,16 +66,54 @@ function onCoverChanged(updated: Team) {
 
 async function unenroll(team: Team) {
   const ok = await confirm({
-    title: `¿Retirar a ${team.name} del torneo?`,
+    title: `¿Quitar a ${team.name} del torneo?`,
     message: `Sale de ${tournament.value?.name} junto con su plantilla en él. El equipo sigue existiendo en Kisokar con su historial.`,
-    confirmLabel: 'Retirar equipo',
+    confirmLabel: 'Quitar equipo',
     tone: 'danger',
   })
   if (!ok) return
   try {
     await tournaments.unenrollTeam(props.id, team.id)
     await players.ensure(true)
-    toast.success(`${team.name} retirado del torneo.`)
+    toast.success(`${team.name} ya no está en el torneo.`)
+  } catch (e) {
+    toast.error(getErrorMessage(e))
+  }
+}
+
+/** 3D: abandonó después de jugar. Sus resultados se conservan; sus pendientes se cancelan. */
+async function withdraw(team: Team) {
+  const reason = await ask({
+    title: `¿Retirar a ${team.name} del torneo?`,
+    message:
+      'Sus resultados y estadísticas se conservan y siguen contando en la tabla, pero ya no clasifica. Sus partidos pendientes se cancelan (sin marcador ni puntos) y sus jugadores quedan fuera de la plantilla del torneo. No recibe jugadores ni partidos nuevos.',
+    label: 'Motivo del retiro',
+    placeholder: 'Ej. No se presentó a dos jornadas seguidas',
+    confirmLabel: 'Retirar equipo',
+    tone: 'danger',
+  })
+  if (reason === null) return
+  try {
+    await tournaments.withdrawTeam(props.id, team.id, reason)
+    await Promise.all([players.ensure(true), matches.ensure(true)])
+    toast.success(`${team.name} quedó retirado del torneo.`)
+  } catch (e) {
+    toast.error(getErrorMessage(e))
+  }
+}
+
+async function reinstate(team: Team) {
+  const reason = await ask({
+    title: `¿Reincorporar a ${team.name}?`,
+    message: 'Vuelve a participar y a admitir jugadores. Sus partidos cancelados no se restauran (reprograma los que correspondan) y sus jugadores se inscriben de nuevo.',
+    label: 'Motivo de la reincorporación',
+    placeholder: 'Ej. Acuerdo de la junta de delegados',
+    confirmLabel: 'Reincorporar',
+  })
+  if (reason === null) return
+  try {
+    await tournaments.reinstateTeam(props.id, team.id, reason)
+    toast.success(`${team.name} vuelve a participar.`)
   } catch (e) {
     toast.error(getErrorMessage(e))
   }
@@ -106,7 +145,10 @@ async function unenroll(team: Team) {
           >
             {{ team.name }}
           </RouterLink>
-          <p class="text-sm" :class="players.rosterOf(team.id, id).length ? 'text-zinc-500' : 'font-semibold text-amber-700'">
+          <p v-if="tournaments.withdrawnAt(id, team.id)" class="mt-0.5">
+            <StatusBadge :label="`Retirado el ${formatDate(tournaments.withdrawnAt(id, team.id))}`" tone="red" />
+          </p>
+          <p v-else class="text-sm" :class="players.rosterOf(team.id, id).length ? 'text-zinc-500' : 'font-semibold text-amber-700'">
             {{ players.rosterOf(team.id, id).length ? plural(players.rosterOf(team.id, id).length, 'jugador') : 'Sin plantilla' }}
           </p>
           <p v-if="!teams.canEdit(team.id)" class="mt-0.5 inline-flex items-center gap-1 text-xs text-zinc-500">
@@ -120,17 +162,41 @@ async function unenroll(team: Team) {
           <AppButton v-if="teams.canEdit(team.id)" variant="ghost" size="sm" icon :aria-label="`Editar ficha de ${team.name}`" @click="editor.edit(team)">
             <Pencil class="size-3.5" aria-hidden="true" />
           </AppButton>
-          <AppButton
-            v-if="!readOnly && !hasMatches(team)"
-            variant="ghost"
-            size="sm"
-            icon
-            :aria-label="`Retirar a ${team.name} del torneo`"
-            title="Retirar del torneo"
-            @click="unenroll(team)"
-          >
-            <X class="size-4" aria-hidden="true" />
-          </AppButton>
+          <template v-if="!readOnly && can('TEAMS')">
+            <AppButton
+              v-if="tournaments.withdrawnAt(id, team.id)"
+              variant="ghost"
+              size="sm"
+              icon
+              :aria-label="`Reincorporar a ${team.name}`"
+              title="Reincorporar al torneo"
+              @click="reinstate(team)"
+            >
+              <RotateCcw class="size-4" aria-hidden="true" />
+            </AppButton>
+            <AppButton
+              v-else-if="hasMatches(team)"
+              variant="ghost"
+              size="sm"
+              icon
+              :aria-label="`Retirar a ${team.name} del torneo`"
+              title="Retirar del torneo (abandonó)"
+              @click="withdraw(team)"
+            >
+              <LogOut class="size-4" aria-hidden="true" />
+            </AppButton>
+            <AppButton
+              v-else
+              variant="ghost"
+              size="sm"
+              icon
+              :aria-label="`Quitar a ${team.name} del torneo`"
+              title="Quitar del torneo"
+              @click="unenroll(team)"
+            >
+              <X class="size-4" aria-hidden="true" />
+            </AppButton>
+          </template>
           <ChevronRight class="size-4 text-zinc-300" aria-hidden="true" />
         </div>
       </li>
@@ -146,7 +212,7 @@ async function unenroll(team: Team) {
     </EmptyState>
 
     <p v-if="enrolled.length" class="mt-4 text-xs text-zinc-500">
-      Un equipo con partidos en este torneo ya no puede retirarse: sus resultados son parte del historial.
+      Un equipo sin partidos se quita del torneo. Si abandona después de jugar, se retira: sus resultados quedan en el historial y en la tabla.
     </p>
 
     <EnrollTeamDialog :open="enrolling" :tournament-id="id" @close="enrolling = false" />

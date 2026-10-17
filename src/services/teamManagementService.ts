@@ -30,7 +30,8 @@ export interface TeamManagementService {
   tournaments(teamId: ID): Promise<TeamTournamentEntry[]>
   /** Inscribe a un jugador de la plantilla en el torneo (o cambia su dorsal). */
   registerInTournament(teamId: ID, tournamentId: ID, playerId: ID, jerseyNumber: number | null): Promise<TeamTournamentEntry[]>
-  unregisterFromTournament(teamId: ID, tournamentId: ID, playerId: ID): Promise<void>
+  /** Baja del jugador en ese torneo; el motivo es obligatorio (3A). */
+  unregisterFromTournament(teamId: ID, tournamentId: ID, playerId: ID, reason: string): Promise<void>
 }
 
 type ApiRole = 'OWNER' | 'MANAGER'
@@ -53,11 +54,13 @@ interface ApiTeamTournament {
   minPlayers: number | null
   maxPlayers: number | null
   editable: boolean
-  players: { player: ApiPlayer; membership: { jerseyNumber: number | null } }[]
+  withdrawnAt?: string | null
+  players: { player: ApiPlayer; membership: { jerseyNumber: number | null }; blocked?: boolean }[]
 }
 
-const toTeamTournament = ({ tournament: t, players, ...rest }: ApiTeamTournament): TeamTournamentEntry => ({
+const toTeamTournament = ({ tournament: t, players, withdrawnAt, ...rest }: ApiTeamTournament): TeamTournamentEntry => ({
   ...rest,
+  withdrawnAt: withdrawnAt ?? null,
   tournament: {
     id: t.id,
     name: t.name,
@@ -68,7 +71,7 @@ const toTeamTournament = ({ tournament: t, players, ...rest }: ApiTeamTournament
     endDate: t.endDate,
     dataCoverage: 'full',
   },
-  players: players.map((p) => ({ player: toPlayer(p.player), jerseyNumber: p.membership.jerseyNumber })),
+  players: players.map((p) => ({ player: toPlayer(p.player), jerseyNumber: p.membership.jerseyNumber, blocked: !!p.blocked })),
 })
 
 const role = (r: ApiRole): TeamRole => (r === 'OWNER' ? 'owner' : 'manager')
@@ -117,8 +120,8 @@ const http: TeamManagementService = {
     const { data } = await api.put<{ tournaments: ApiTeamTournament[] }>(`/teams/${teamId}/tournaments/${tournamentId}/players/${playerId}`, { jerseyNumber })
     return data.tournaments.map(toTeamTournament)
   },
-  async unregisterFromTournament(teamId, tournamentId, playerId) {
-    await api.delete(`/teams/${teamId}/tournaments/${tournamentId}/players/${playerId}`)
+  async unregisterFromTournament(teamId, tournamentId, playerId, reason) {
+    await api.delete(`/teams/${teamId}/tournaments/${tournamentId}/players/${playerId}`, { data: { reason } })
   },
 }
 
