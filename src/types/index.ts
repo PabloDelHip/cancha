@@ -189,6 +189,8 @@ export type TournamentPermission =
   | 'EVIDENCE_UPLOAD'
   | 'EVIDENCE_REMOVE'
   | 'REGISTRATION_EXCEPTIONS'
+  | 'FINANCE_VIEW'
+  | 'FINANCE_MANAGE'
 
 export interface Tournament extends Timestamps {
   id: ID
