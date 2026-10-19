@@ -18,10 +18,10 @@ import PossibleDuplicates from '@/components/players/PossibleDuplicates.vue'
  * completa después desde el equipo. Es el mismo alta de siempre: el servidor revisa posibles
  * duplicados (se elige al existente o se confirma que es otra persona) y se inscribe en el equipo
  * de este torneo.
- *
  * 3A: si el partido ya pasó, inscribirlo hoy no lo habilita para ese partido: se inscribe con
- * elegibilidad retroactiva a la fecha del partido y el motivo que escribe el organizador (queda
- * auditado). Solo quien puede autorizar excepciones; el máximo de jugadores también se respeta.
+ * elegibilidad retroactiva a la fecha del partido. El motivo se registra solo (2026-10-18, pedido
+ * del usuario) y queda auditado con quién lo dio de alta. Solo quien puede autorizar excepciones
+ * (propietario o administrador); el máximo de jugadores también se respeta.
  */
 const props = defineProps<{ open: boolean; tournamentId: ID; team: Team | undefined; matchDate: string }>()
 const emit = defineEmits<{ close: []; added: [player: Player, shirtNumber: number | null] }>()
@@ -30,8 +30,10 @@ const toast = useToast()
 
 const guarded = useGuardedRegister(() => props.tournamentId)
 const past = computed(() => props.matchDate < toISODate(new Date()))
-const form = reactive({ firstName: '', lastName: '', shirtNumber: '' as number | '', reason: '' })
-const errors = reactive<{ firstName?: string; lastName?: string; shirtNumber?: string; reason?: string }>({})
+/** Motivo automático de la inscripción retroactiva (queda en la auditoría de la participación). */
+const retroReason = computed(() => `Alta desde la captura del partido del ${formatDate(props.matchDate)}: jugó ese partido.`)
+const form = reactive({ firstName: '', lastName: '', shirtNumber: '' as number | '' })
+const errors = reactive<{ firstName?: string; lastName?: string; shirtNumber?: string }>({})
 const saving = ref(false)
 const candidates = ref<PlayerCandidate[] | null>(null)
 /** Quien ya participa en este torneo no se puede elegir otra vez. */
@@ -41,8 +43,8 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return
-    Object.assign(form, { firstName: '', lastName: '', shirtNumber: '', reason: '' })
-    Object.assign(errors, { firstName: undefined, lastName: undefined, shirtNumber: undefined, reason: undefined })
+    Object.assign(form, { firstName: '', lastName: '', shirtNumber: '' })
+    Object.assign(errors, { firstName: undefined, lastName: undefined, shirtNumber: undefined })
     candidates.value = null
   },
 )
@@ -63,14 +65,15 @@ function validate() {
       : n !== null && props.team && players.rosterOf(props.team.id, props.tournamentId).some((e) => e.membership.shirtNumber === n)
         ? `El #${n} ya está ocupado en este equipo.`
         : undefined
-  errors.reason = past.value && form.reason.trim().length < 3 ? 'Explica por qué se habilita para este partido.' : undefined
-  return !errors.firstName && !errors.lastName && !errors.shirtNumber && !errors.reason
+  return !errors.firstName && !errors.lastName && !errors.shirtNumber
 }
 
 /** Lo inscribe en el equipo de este torneo y lo entrega a la captura. */
 async function register(player: Pick<Player, 'id' | 'firstName' | 'lastName'>) {
   const shirtNumber = number() || null
-  const retro = past.value ? { startDate: props.matchDate, retroactiveReason: form.reason.trim() } : {}
+  // Partido de hoy o anterior: siempre con su fecha. Así cuenta en él aunque el servidor ya esté en
+  // el día siguiente (UTC); si para el servidor no es anterior a hoy, el motivo simplemente no se usa.
+  const retro = props.matchDate <= toISODate(new Date()) ? { startDate: props.matchDate, retroactiveReason: retroReason.value } : {}
   if (!(await guarded.register(player.id, { tournamentId: props.tournamentId, teamId: props.team!.id, shirtNumber, ...retro }))) return
   const full = players.get(player.id) ?? (player as Player)
   toast.success(`${fullName(full)} agregado a ${props.team!.name}.`)
@@ -137,12 +140,9 @@ async function chooseExisting(player: Pick<Player, 'id' | 'firstName' | 'lastNam
         <p v-if="!guarded.canExceptions.value" class="text-sm text-red-700 sm:col-span-3">
           El partido fue el {{ formatDate(matchDate) }}: habilitar a alguien para un partido anterior a su inscripción lo autoriza el propietario o un administrador del torneo.
         </p>
-        <FormField v-else id="qp-reason" label="Motivo para habilitarlo en este partido" :error="errors.reason" required class="sm:col-span-3">
-          <textarea id="qp-reason" v-model="form.reason" rows="2" maxlength="300" class="input" placeholder="Ej. Jugó este partido y no estaba inscrito" />
-          <p class="mt-1 text-xs text-amber-700">
-            Se inscribe con elegibilidad desde el {{ formatDate(matchDate) }} (fecha retroactiva). Quedará registrado quién lo autorizó y por qué.
-          </p>
-        </FormField>
+        <p v-else class="text-xs text-amber-700 sm:col-span-3">
+          Se inscribe con fecha del {{ formatDate(matchDate) }} para que cuente en este partido. Quedará registrado quién lo dio de alta y el motivo: «{{ retroReason }}»
+        </p>
       </template>
     </form>
     <template v-if="!candidates" #footer>

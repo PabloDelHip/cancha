@@ -94,7 +94,7 @@ const amount = (value: string) => value.trim() === '' ? null : Number(value)
     <FormField id="t-info-costs-paymentNotes" label="Información adicional sobre pagos">
       <textarea id="t-info-costs-paymentNotes" :value="info.costs.paymentNotes ?? ''" class="input min-h-24 py-2" rows="3" maxlength="4000" @input="info.costs.paymentNotes = ($event.target as HTMLTextAreaElement).value || null" />
     </FormField>
-    <p class="text-xs text-zinc-500 sm:col-span-2">Los costos publicados son informativos. Kikovo no realiza cobros ni procesa pagos.</p>
+    <p class="text-xs text-zinc-500 sm:col-span-2">Los costos publicados son informativos. Kisokar no realiza cobros ni procesa pagos.</p>
   </div>
   <div v-else-if="section === 'rules'" class="space-y-4">
     <FormField id="t-info-rules-text" label="Reglamento general" hint="Condiciones de participación, elegibilidad, uniformes y tolerancia.">

@@ -93,7 +93,11 @@ api.interceptors.response.use(undefined, async (error: unknown) => {
   } catch {
     setAccessToken(null)
     onSessionExpired?.()
-    throw error
+    // 5B (D4): una lectura pública con un token vencido responde 401 (el backend ya no ignora el
+    // token: con él decide si se ven los borradores). Sin sesión renovable se repite como anónimo.
+    if (original.method?.toLowerCase() !== 'get') throw error
+    delete original.headers.Authorization
+    return api(original)
   }
   return api(original)
 })

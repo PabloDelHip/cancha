@@ -34,9 +34,9 @@ const canStart = computed(() => can('LIFECYCLE') && tournament.value?.status ===
 usePageTitle(() => (tournament.value ? `${tournament.value.name} · Panel` : undefined))
 
 /** Pestañas y el permiso que exige cada una (el servidor vuelve a validar cada acción). */
-const TABS: { name: string; label: string; permission: TournamentPermission | TournamentPermission[]; exact?: boolean }[] = [
+const TABS: { name: string; label: string; permission: TournamentPermission | TournamentPermission[]; exact?: boolean; activeOn?: string[] }[] = [
   { name: 'admin-tournament', label: 'Resumen', permission: 'VIEW' },
-  { name: 'admin-tournament-teams', label: 'Equipos', permission: 'TEAMS', exact: false },
+  { name: 'admin-tournament-teams', label: 'Equipos', permission: 'TEAMS', exact: false, activeOn: ['admin-tournament-team'] },
   { name: 'admin-tournament-players', label: 'Jugadores', permission: 'TEAMS' },
   { name: 'admin-tournament-schedule', label: 'Calendario', permission: ['SCHEDULE', 'ASSIGNMENTS', 'RESULTS'] },
   { name: 'admin-tournament-standings', label: 'Tabla', permission: 'VIEW' },
@@ -44,11 +44,13 @@ const TABS: { name: string; label: string; permission: TournamentPermission | To
   { name: 'admin-tournament-discipline', label: 'Disciplina', permission: 'DISCIPLINE_VIEW' },
   { name: 'admin-tournament-registration', label: 'Inscripciones', permission: 'TEAMS' },
   { name: 'admin-tournament-history', label: 'Historial', permission: 'TEAMS' },
+  { name: 'admin-tournament-finance', label: 'Finanzas', permission: 'FINANCE_VIEW', activeOn: ['admin-tournament-finance-account'] },
   { name: 'admin-tournament-collaborators', label: 'Colaboradores', permission: 'MEMBERS' },
   { name: 'admin-tournament-settings', label: 'Configuración', permission: 'SETTINGS' },
 ]
 const PERMISSION_BY_ROUTE = new Map(TABS.map((t) => [t.name, t.permission]))
 PERMISSION_BY_ROUTE.set('admin-tournament-team', 'TEAMS')
+PERMISSION_BY_ROUTE.set('admin-tournament-finance-account', 'FINANCE_VIEW')
 function allowed(name: string) {
   const p = PERMISSION_BY_ROUTE.get(name)
   if (!p) return true
@@ -61,6 +63,7 @@ const tabs = computed(() => {
     label: t.name === 'admin-tournament-standings' && tournament.value?.settings.system && tournament.value.settings.system !== 'league' ? 'Competición' : t.label,
     to: { name: t.name, params },
     exact: t.exact,
+    activeOn: t.activeOn,
   }))
 })
 /** Pestaña abierta por URL sin permiso: aviso en lugar de una pantalla que el servidor rechazaría. */

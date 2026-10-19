@@ -10,6 +10,8 @@ import { useToast } from '@/composables/useToast'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
 import { disciplineService, getErrorMessage, sheetService, USE_MOCKS } from '@/services'
 import { formatDate } from '@/utils/format'
+import { belongsOn, fullName } from '@/utils/players'
+import { useGuardedRegister } from '@/composables/useGuardedRegister'
 import { MATCH_STATUS } from '@/utils/labels'
 import { isPendingCapture } from '@/utils/matches'
 import AppButton from '@/components/common/AppButton.vue'
@@ -22,7 +24,7 @@ import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CaptureTeamPanel from '@/components/matches/CaptureTeamPanel.vue'
 import QuickAddPlayerDialog from '@/components/matches/QuickAddPlayerDialog.vue'
 import { useSameDateOverride } from '@/composables/useSameDateOverride'
-import type { CaptureRow } from '@/components/matches/captureTypes'
+import type { CaptureRow, LatePlayer } from '@/components/matches/captureTypes'
 import { plural } from '@/utils/format'
 
 const props = defineProps<{ id: string }>()
@@ -57,6 +59,45 @@ function onPlayerAdded(player: Player, shirtNumber: number | null) {
   addingTo.value = null
   if (rows.value.some((r) => r.player.id === player.id)) return
   rows.value.push({ player, shirtNumber, played: true, goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0, sendOff: null, suspension: null })
+}
+
+// ─── Inscritos después de la fecha del partido (2026-10-18) ─────────────────
+// 3A: quien se inscribió después no cuenta en el partido. Se listan aparte y quien puede autorizar
+// la fecha retroactiva los habilita con un clic: misma participación, fecha del partido y motivo
+// automático (queda en su auditoría). Así no hace falta ir a la plantilla a editarla.
+const guarded = useGuardedRegister(() => match.value?.tournamentId ?? '')
+const canEnable = computed(() => canAddPlayer.value && guarded.canExceptions.value)
+const enabling = ref<ID | null>(null)
+function lateEntries(teamId: ID | undefined) {
+  const m = match.value
+  if (!m || !teamId) return []
+  return players.rosterOf(teamId, m.tournamentId).filter((e) => !belongsOn(e.membership, m.date))
+}
+const lateOf = (side: 'home' | 'away'): LatePlayer[] => {
+  const rows = side === 'home' ? homeRows.value : awayRows.value
+  return lateEntries(side === 'home' ? home.value?.id : away.value?.id)
+    .filter((e) => !rows.some((r) => r.player.id === e.player.id))
+    .map((e) => ({ id: e.player.id, name: fullName(e.player), shirtNumber: e.membership.shirtNumber }))
+}
+async function enableForMatch(side: 'home' | 'away', playerId: ID) {
+  const m = match.value
+  const team = side === 'home' ? home.value : away.value
+  const entry = lateEntries(team?.id).find((e) => e.player.id === playerId)
+  if (!m || !team || !entry) return
+  enabling.value = playerId
+  try {
+    const reason = `Habilitado desde la captura del partido del ${formatDate(m.date)}: jugó ese partido.`
+    if (!(await guarded.register(playerId, { tournamentId: m.tournamentId, teamId: team.id, shirtNumber: entry.membership.shirtNumber, startDate: m.date, retroactiveReason: reason }))) return
+    const rows = side === 'home' ? homeRows : awayRows
+    if (!rows.value.some((r) => r.player.id === playerId)) {
+      rows.value.push({ player: entry.player, shirtNumber: entry.membership.shirtNumber, played: true, goals: 0, assists: 0, ownGoals: 0, yellowCards: 0, redCards: 0, sendOff: null, suspension: null })
+    }
+    toast.success(`${fullName(entry.player)} habilitado para este partido.`)
+  } catch (e) {
+    toast.error(getErrorMessage(e))
+  } finally {
+    enabling.value = null
+  }
 }
 const backTo = computed(() =>
   match.value
@@ -500,8 +541,8 @@ const statusOptions = computed<{ value: CaptureStatus; label: string }[]>(() =>
       </div>
 
       <div class="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" @add-player="addingTo = 'home'" />
-        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" @add-player="addingTo = 'away'" />
+        <CaptureTeamPanel :class="activeSide !== 'home' && 'hidden 2xl:block'" :team="home" :tournament-id="match?.tournamentId" :rows="homeRows" :score="homeScore" :rival-own-goals="ownGoalsOf(awayRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" :late="readOnly ? [] : lateOf('home')" :can-enable="canEnable" :enabling="enabling" @add-player="addingTo = 'home'" @enable="enableForMatch('home', $event)" />
+        <CaptureTeamPanel :class="activeSide !== 'away' && 'hidden 2xl:block'" :team="away" :tournament-id="match?.tournamentId" :rows="awayRows" :score="awayScore" :rival-own-goals="ownGoalsOf(homeRows)" :block-suspended="blockSuspended" :can-add-player="canAddPlayer" :late="readOnly ? [] : lateOf('away')" :can-enable="canEnable" :enabling="enabling" @add-player="addingTo = 'away'" @enable="enableForMatch('away', $event)" />
       </div>
 
       </fieldset>

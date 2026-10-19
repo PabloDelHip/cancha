@@ -29,6 +29,7 @@ const tabs = computed(() => {
     { label: 'Resumen', to: { name: 'admin-team', params } },
     { label: 'Plantilla', to: { name: 'admin-team-roster', params } },
     { label: 'Torneos', to: { name: 'admin-team-tournaments', params } },
+    { label: 'Pagos', to: { name: 'admin-team-finance', params } },
     { label: 'Administradores', to: { name: 'admin-team-admins', params } },
     { label: 'Configuración', to: { name: 'admin-team-settings', params } },
   ]

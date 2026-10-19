@@ -9,14 +9,27 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import CardIcon from '@/components/players/CardIcon.vue'
 import AppButton from '@/components/common/AppButton.vue'
-import { needsSendOffReview, type CaptureRow } from './captureTypes'
+import { needsSendOffReview, type CaptureRow, type LatePlayer } from './captureTypes'
 
 const props = withDefaults(
-  defineProps<{ team: Team | undefined; tournamentId: string | undefined; rows: CaptureRow[]; score: number; rivalOwnGoals?: number; blockSuspended?: boolean; canAddPlayer?: boolean }>(),
-  { rivalOwnGoals: 0, blockSuspended: false, canAddPlayer: false },
+  defineProps<{
+    team: Team | undefined
+    tournamentId: string | undefined
+    rows: CaptureRow[]
+    score: number
+    rivalOwnGoals?: number
+    blockSuspended?: boolean
+    canAddPlayer?: boolean
+    /** Inscritos con el equipo DESPUÉS de la fecha del partido (3A: todavía no cuentan en él). */
+    late?: LatePlayer[]
+    /** Puede habilitarlos (propietario o administrador: fecha retroactiva). */
+    canEnable?: boolean
+    enabling?: string | null
+  }>(),
+  { rivalOwnGoals: 0, blockSuspended: false, canAddPlayer: false, late: () => [], canEnable: false, enabling: null },
 )
-/** Alta rápida de un jugador que jugó y no estaba en la plantilla (lo maneja la vista). */
-defineEmits<{ addPlayer: [] }>()
+/** Alta rápida de quien no estaba en la plantilla y habilitar a un inscrito tarde (los maneja la vista). */
+defineEmits<{ addPlayer: []; enable: [playerId: string] }>()
 
 /** Goles de este equipo explicados: los de sus jugadores + los autogoles del rival. */
 const assigned = computed(() => props.rows.reduce((s, r) => s + r.goals, 0) + props.rivalOwnGoals)
@@ -86,7 +99,7 @@ function classify(row: CaptureRow, sendOff: SendOff) {
       {{ score - assigned }} {{ score - assigned === 1 ? 'gol sin asignar' : 'goles sin asignar' }}. Si fue autogol, regístralo en el jugador del rival que lo hizo (AG).
     </p>
 
-    <EmptyState v-if="!rows.length" :icon="Users" title="Este equipo no tiene jugadores" compact>
+    <EmptyState v-if="!rows.length" :icon="Users" :title="late.length ? 'Nadie inscrito en la fecha de este partido' : 'Este equipo no tiene jugadores'" compact>
       <AppButton v-if="canAddPlayer" size="sm" @click="$emit('addPlayer')"><UserPlus class="size-4" aria-hidden="true" /> Agregar jugador</AppButton>
       <RouterLink
         v-if="tournamentId && team"
@@ -187,5 +200,24 @@ function classify(row: CaptureRow, sendOff: SendOff) {
         </AppButton>
       </div>
     </template>
+
+    <div v-if="late.length" class="border-t border-amber-100 bg-amber-50/60 px-4 py-3">
+      <p class="text-sm font-semibold text-amber-900">Inscritos después de este partido</p>
+      <p class="mt-0.5 text-xs text-amber-800">
+        {{
+          canEnable
+            ? 'Si jugaron, habilítalos: se inscriben con la fecha del partido y el motivo queda registrado.'
+            : 'Se inscribieron después de la fecha del partido. Solo el propietario o un administrador del torneo puede habilitarlos.'
+        }}
+      </p>
+      <ul class="mt-2 space-y-1.5">
+        <li v-for="p in late" :key="p.id" class="flex items-center justify-between gap-2 text-sm">
+          <span class="min-w-0 truncate"><span v-if="p.shirtNumber !== null" class="font-mono text-zinc-500">#{{ p.shirtNumber }} </span>{{ p.name }}</span>
+          <AppButton v-if="canEnable" size="sm" variant="secondary" :loading="enabling === p.id" :disabled="!!enabling && enabling !== p.id" @click="$emit('enable', p.id)">
+            Habilitar
+          </AppButton>
+        </li>
+      </ul>
+    </div>
   </section>
 </template>

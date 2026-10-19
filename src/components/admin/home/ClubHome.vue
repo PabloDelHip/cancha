@@ -49,7 +49,7 @@ const mine = computed(() => rows.value.filter((r) => r.myRole).sort((a, b) => a.
       </div>
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :message="error" @retry="load" />
-      <ul v-else-if="mine.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <ul v-else-if="mine.length" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="r in mine" :key="r.team.id">
           <RouterLink :to="{ name: 'admin-team', params: { teamId: r.team.id } }" class="card group flex h-full items-center gap-3 p-4 transition hover:border-pitch-300 hover:shadow-sm">
             <TeamLogo :team="r.team" size="md" class="shrink-0" />

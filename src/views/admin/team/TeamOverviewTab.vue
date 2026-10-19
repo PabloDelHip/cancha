@@ -15,7 +15,7 @@ const params = computed(() => ({ teamId: teamId() }))
 
 <template>
   <div class="space-y-6">
-    <div class="grid gap-3 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <RouterLink :to="{ name: 'admin-team-roster', params }" class="card group flex items-center gap-4 p-4 hover:border-pitch-300">
         <span class="grid size-12 shrink-0 place-items-center rounded-xl bg-pitch-50 text-pitch-700"><Users class="size-6" aria-hidden="true" /></span>
         <div class="min-w-0 flex-1">

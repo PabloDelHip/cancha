@@ -6,6 +6,7 @@ import { useToast } from '@/composables/useToast'
 import { disciplineService, getErrorMessage } from '@/services'
 import { fullName } from '@/utils/players'
 import { formatDate } from '@/utils/format'
+import { keptLink } from '@/utils/finance'
 import { SANCTION_CAUSE } from '@/utils/labels'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
@@ -43,6 +44,8 @@ const matchOptions = computed(() =>
         .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
     : [],
 )
+// 5C: su partido de inicio pudo borrarse (calendario regenerado, cambio de formato, eliminatoria): se conserva.
+const keptMatch = computed(() => (props.mode === 'edit' && props.sanction?.kind === 'manual' ? keptLink(props.sanction.matchId, matchOptions.value) : null))
 const matchLabel = (m: Match) => {
   const rival = m.homeTeamId === teamId.value ? m.awayTeamId : m.homeTeamId
   return `${rounds.labelOf(props.tournamentId, m.round)} · ${formatDate(m.date)} · vs ${teams.nameOf(rival)}`
@@ -134,6 +137,7 @@ async function save() {
         <FormField v-if="mode === 'create' || sanction?.kind === 'manual'" id="sanction-match" label="Aplica desde el partido" hint="Ese partido es el primero que no puede jugar.">
           <select id="sanction-match" v-model="form.matchId" class="input" required :disabled="!teamId">
             <option value="" disabled>Elige un partido</option>
+            <option v-if="keptMatch" :value="keptMatch">El partido original (ya no está en el calendario)</option>
             <option v-for="m in matchOptions" :key="m.id" :value="m.id">{{ matchLabel(m) }}</option>
           </select>
         </FormField>

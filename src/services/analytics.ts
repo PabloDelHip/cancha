@@ -33,12 +33,18 @@ const PII_KEYS = new Set([
   'birthDate', 'birth_date', 'phone', '$phone', 'password', 'accessToken', 'refreshToken', 'access_token', 'refresh_token',
   // OJO: `token` NO va aquí: es el project token de PostHog y sin él el SDK descarta el evento.
 ])
-/** El token del enlace privado de inscripción (/join/:token) viaja en URLs y referrers. */
-const JOIN_TOKEN = /(\/join\/)[^/?#&]+/gi
-const JOIN_TOKEN_ENCODED = /(%2Fjoin%2F)[^%&#]+/gi
-/** ¿La URL actual lleva el token privado de inscripción? (los logs adjuntan la URL sin filtrar). */
-export const onSecretUrl = () => typeof window !== 'undefined' && /\/join\//i.test(window.location.pathname)
-export const redactUrl = (value: string) => value.replace(JOIN_TOKEN, '$1:token').replace(JOIN_TOKEN_ENCODED, '$1%3Atoken')
+/**
+ * Rutas con un token privado en la URL (viajan también en referrers y en la URL que adjuntan los
+ * logs): /join/:token (inscripción por enlace) y, desde 5B, /invite/:token (invitación a colaborar
+ * en un torneo, que da un rol). Nunca salen hacia PostHog: se cambian por `:token`.
+ */
+const SECRET_SEGMENTS = ['join', 'invite']
+const SECRET_PATH = new RegExp(`(/(?:${SECRET_SEGMENTS.join('|')})/)[^/?#&]+`, 'gi')
+const SECRET_PATH_ENCODED = new RegExp(`(%2F(?:${SECRET_SEGMENTS.join('|')})%2F)[^%&#]+`, 'gi')
+/** ¿La URL actual lleva un token privado? (los logs adjuntan la URL sin filtrar: ahí no se registra nada). */
+export const isSecretPath = (pathname: string) => new RegExp(`/(?:${SECRET_SEGMENTS.join('|')})/`, 'i').test(pathname)
+export const onSecretUrl = () => typeof window !== 'undefined' && isSecretPath(window.location.pathname)
+export const redactUrl = (value: string) => value.replace(SECRET_PATH, '$1:token').replace(SECRET_PATH_ENCODED, '$1%3Atoken')
 
 function scrub(props: Record<string, unknown> | undefined) {
   if (!props) return

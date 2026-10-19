@@ -1739,3 +1739,172 @@ export interface SheetTeamInput {
   /** 3A: corrección administrativa (jugador con dos equipos en la misma fecha deportiva). */
   sameDateReason?: string
 }
+
+// ---------------------------------------------------------------------------
+// Módulo 4 — finanzas (solo registro: Kisokar no procesa pagos). Importes en CENTAVOS enteros.
+// ---------------------------------------------------------------------------
+export type FinanceEntryKind = 'CHARGE' | 'PAYMENT' | 'DISCOUNT' | 'REFUND'
+export type FinanceCategory = 'ENROLLMENT' | 'PLAYER_FEE' | 'REFEREE' | 'FINE' | 'OTHER'
+export type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD' | 'OTHER'
+export type FinanceAccountStatus = 'ENROLLED' | 'WITHDRAWN' | 'NOT_ENROLLED'
+
+export interface FinanceTotals {
+  charged: number
+  paid: number
+  discounted: number
+  refunded: number
+  /** Positivo = adeudo; negativo = saldo a favor. */
+  balance: number
+  due: number
+  credit: number
+  entries?: number
+}
+
+export interface FinanceEntry {
+  id: ID
+  tournamentId?: ID
+  teamId?: ID
+  kind: FinanceEntryKind
+  category: FinanceCategory | null
+  amount: number
+  currency: string
+  method: PaymentMethod | null
+  reference: string | null
+  date: ISODate
+  concept: string
+  reason: string | null
+  /** Solo el organizador (nunca en la vista del equipo). */
+  notes?: string | null
+  matchId?: ID | null
+  playerId?: ID | null
+  recordedBy?: ID
+  recordedRole?: string | null
+  /** Fecha de anulación (4D); en la vista del equipo también `voided`. */
+  voidedAt?: string | null
+  voided?: boolean
+  /** Solo el organizador: quién anuló, con qué rol y por qué. */
+  voidedBy?: ID | null
+  voidedRole?: string | null
+  voidReason?: string | null
+  /** Corrección (4D): el movimiento que reemplaza / al que corrige. */
+  replacedBy?: ID | null
+  replaces?: ID | null
+  /** Vista del equipo: si fue reemplazado o es un reemplazo (sin el motivo interno). */
+  correction?: 'REPLACED' | 'REPLACEMENT' | null
+  createdAt: string
+}
+
+/** 4D — página del estado de cuenta (cronológica; el saldo inicial cuadra el acumulado). */
+export interface FinancePage {
+  page: number
+  pages: number
+  limit: number
+  total: number
+  openingBalance: number
+}
+
+export interface FinanceAccountRow extends FinanceTotals {
+  teamId: ID
+  teamName: string | null
+  status: FinanceAccountStatus
+  withdrawnAt: string | null
+}
+
+export interface FinanceAccounts {
+  tournamentId: ID
+  currency: string
+  totals: FinanceTotals
+  /** 4D: cargos vigentes por categoría y dinero recibido/devuelto por método. */
+  byCategory: { category: FinanceCategory; amount: number; entries: number }[]
+  byMethod: { kind: 'PAYMENT' | 'REFUND'; method: PaymentMethod | null; amount: number }[]
+  accounts: FinanceAccountRow[]
+}
+
+export interface FinanceStatement extends FinancePage {
+  tournamentId: ID
+  teamId: ID
+  currency: string
+  totals: FinanceTotals
+  entries: FinanceEntry[]
+  refs: { users: Record<ID, string> }
+}
+
+/** 4D — filtros del listado y la exportación de movimientos. */
+export interface FinanceEntriesFilter {
+  teamId?: ID
+  kind?: FinanceEntryKind | 'FINE'
+  method?: PaymentMethod
+  from?: ISODate
+  to?: ISODate
+  status?: 'active' | 'voided' | 'all'
+  page?: number
+  limit?: number
+}
+
+export interface FinanceEntriesPage {
+  data: FinanceEntry[]
+  page: number
+  pages: number
+  limit: number
+  total: number
+  /** Suma de lo filtrado (vigentes): lo que aumenta y lo que reduce el saldo. */
+  sums: { charges: number; credits: number }
+  refs: { teams: Record<ID, string>; users: Record<ID, string> }
+}
+
+export type FinanceReplacementInput = Omit<FinanceEntryInput, 'requestId' | 'teamId' | 'allowCredit'>
+
+export interface FinanceRewriteResult {
+  entry: FinanceEntry
+  voided?: FinanceEntry
+  account: FinanceTotals | null
+  replayed: boolean
+}
+
+export interface FinanceEntryInput {
+  requestId: string
+  teamId: ID
+  kind: FinanceEntryKind
+  amount: number
+  concept: string
+  date?: ISODate
+  category?: FinanceCategory
+  method?: PaymentMethod
+  reference?: string
+  notes?: string
+  reason?: string
+  matchId?: ID
+  playerId?: ID
+  allowCredit?: boolean
+}
+
+export interface FinanceEntryResult {
+  entry: FinanceEntry
+  account: FinanceTotals | null
+  replayed: boolean
+}
+
+export interface EnrollmentChargesResult {
+  amount: number
+  currency: string
+  created: FinanceEntry[]
+  alreadyCharged: ID[]
+}
+
+/** Vista del equipo (F3b): totales por torneo; los movimientos, por página (4D). Sin notas internas ni autores. */
+export interface TeamFinanceStatements {
+  teamId: ID
+  accounts: {
+    tournament: { id: ID; name: string; status: string; startDate: ISODate | null }
+    currency: string
+    totals: FinanceTotals
+  }[]
+}
+
+export interface TeamFinanceStatement extends FinancePage {
+  team: { id: ID; name: string }
+  tournament: { id: ID; name: string; status: string }
+  currency: string
+  totals: FinanceTotals
+  entries: FinanceEntry[]
+}

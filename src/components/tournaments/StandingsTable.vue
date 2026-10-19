@@ -5,6 +5,7 @@ import { useTeamsStore } from '@/stores'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import FormGuide from '@/components/teams/FormGuide.vue'
+import HScroll from '@/components/common/HScroll.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -41,16 +42,16 @@ const qualifies = computed(() => {
 
 <template>
   <!--
-    Estrategia móvil: abreviatura del club y todas las columnas visibles (GF y GC incluidas,
-    pedido del usuario); si no cabe, POS y equipo quedan fijos (sticky) y el resto se desplaza
-    horizontalmente.
+    Móvil: la MISMA información que en escritorio (nombre completo y forma de los últimos 5,
+    pedido del usuario 2026-10-19). POS y equipo quedan fijos (sticky) y el resto se desplaza;
+    HScroll muestra una barra arriba y abajo para que se note que se puede deslizar.
   -->
-  <div class="overflow-x-auto">
+  <HScroll>
     <table class="tabular w-full text-sm">
       <thead>
         <tr class="border-b border-zinc-200 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
           <th scope="col" class="sticky left-0 z-10 w-10 bg-white py-2.5 pr-1 pl-4 text-left"><abbr title="Posición">Pos</abbr></th>
-          <th scope="col" class="sticky left-10 z-10 bg-white py-2.5 pr-3 text-left">Equipo</th>
+          <th scope="col" class="sticky left-10 z-10 bg-white py-2.5 pr-3 text-left shadow-[6px_0_6px_-6px_rgb(0_0_0/0.15)]">Equipo</th>
           <th scope="col" class="px-1.5 text-center sm:px-2"><abbr title="Partidos jugados">PJ</abbr></th>
           <template v-if="!compact">
             <th scope="col" class="px-1.5 text-center sm:px-2"><abbr title="Ganados">G</abbr></th>
@@ -61,7 +62,7 @@ const qualifies = computed(() => {
           <th scope="col" class="px-1.5 text-center sm:px-2"><abbr title="Goles en contra">GC</abbr></th>
           <th scope="col" class="px-1.5 text-center sm:px-2"><abbr title="Diferencia de goles">DG</abbr></th>
           <th scope="col" class="px-3 text-center"><abbr title="Puntos">Pts</abbr></th>
-          <th v-if="!compact" scope="col" class="hidden pr-4 pl-2 text-left lg:table-cell">Forma</th>
+          <th v-if="!compact" scope="col" class="pr-4 pl-2 text-left">Forma</th>
         </tr>
       </thead>
       <tbody>
@@ -79,13 +80,11 @@ const qualifies = computed(() => {
               {{ row.position }}
             </span>
           </td>
-          <th scope="row" class="sticky left-10 z-10 py-2 pr-3 text-left font-normal" :class="row.teamId === highlightTeamId ? 'bg-lime-50' : 'bg-white'">
+          <th scope="row" class="sticky left-10 z-10 py-2 pr-3 text-left font-normal shadow-[6px_0_6px_-6px_rgb(0_0_0/0.15)]" :class="row.teamId === highlightTeamId ? 'bg-lime-50' : 'bg-white'">
             <RouterLink :to="{ name: 'team', params: { id: row.teamId } }" class="group flex items-center gap-2.5">
               <TeamLogo :team="teams.get(row.teamId)" size="sm" />
-              <span class="font-semibold text-zinc-900 group-hover:text-pitch-700">
-                <span class="sm:hidden">{{ teams.get(row.teamId)?.shortName }}</span>
-                <span class="hidden whitespace-nowrap sm:inline">{{ teams.get(row.teamId)?.name }}</span>
-              </span>
+              <!-- En móvil el nombre completo parte en dos líneas: la columna fija no tapa la tabla. -->
+              <span class="min-w-[8.5rem] leading-tight font-semibold text-zinc-900 group-hover:text-pitch-700 sm:min-w-0 sm:whitespace-nowrap">{{ teams.get(row.teamId)?.name }}</span>
               <StatusBadge v-if="withdrawn.includes(row.teamId)" label="Retirado" tone="red" />
             </RouterLink>
           </th>
@@ -99,9 +98,9 @@ const qualifies = computed(() => {
           <td class="px-1.5 text-center sm:px-2 text-zinc-600">{{ row.goalsAgainst }}</td>
           <td class="px-1.5 text-center sm:px-2 text-zinc-600">{{ row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference }}</td>
           <td class="px-3 text-center font-display text-lg font-bold text-zinc-950">{{ row.points }}</td>
-          <td v-if="!compact" class="hidden pr-4 pl-2 lg:table-cell"><FormGuide :form="row.form" /></td>
+          <td v-if="!compact" class="pr-4 pl-2"><FormGuide :form="row.form" /></td>
         </tr>
       </tbody>
     </table>
-  </div>
+  </HScroll>
 </template>

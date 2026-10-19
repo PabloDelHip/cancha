@@ -19,3 +19,10 @@ export interface CaptureRow {
 
 /** Expulsión de una captura anterior que no se interpreta sola: el organizador la clasifica. */
 export const needsSendOffReview = (row: CaptureRow) => row.sendOff === undefined && (row.redCards > 0 || row.yellowCards > 1)
+
+/** Inscrito con el equipo después de la fecha del partido (se puede habilitar para él). */
+export interface LatePlayer {
+  id: string
+  name: string
+  shirtNumber: number | null
+}

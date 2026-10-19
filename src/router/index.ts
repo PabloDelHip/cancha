@@ -59,6 +59,8 @@ const tournamentWorkspace: RouteRecordRaw[] = [
   { path: 'disciplina', name: 'admin-tournament-discipline', component: () => import('@/views/admin/tournament/DisciplineTab.vue'), props: true },
   { path: 'inscripciones', name: 'admin-tournament-registration', component: () => import('@/views/admin/tournament/RegistrationTab.vue'), props: true },
   { path: 'historial', name: 'admin-tournament-history', component: () => import('@/views/admin/tournament/HistoryTab.vue'), props: true },
+  { path: 'finanzas', name: 'admin-tournament-finance', component: () => import('@/views/admin/tournament/FinanceTab.vue'), props: true },
+  { path: 'finanzas/:teamId', name: 'admin-tournament-finance-account', component: () => import('@/views/admin/tournament/FinanceAccountView.vue'), props: true },
   { path: 'colaboradores', name: 'admin-tournament-collaborators', component: () => import('@/views/admin/tournament/CollaboratorsTab.vue'), props: true },
   { path: 'configuracion', name: 'admin-tournament-settings', component: () => import('@/views/admin/tournament/SettingsTab.vue'), props: true },
 ]
@@ -68,6 +70,7 @@ const teamWorkspace: RouteRecordRaw[] = [
   { path: '', name: 'admin-team', component: () => import('@/views/admin/team/TeamOverviewTab.vue') },
   { path: 'plantilla', name: 'admin-team-roster', component: () => import('@/views/admin/team/TeamRosterTab.vue') },
   { path: 'torneos', name: 'admin-team-tournaments', component: () => import('@/views/admin/team/TeamTournamentsTab.vue') },
+  { path: 'pagos', name: 'admin-team-finance', component: () => import('@/views/admin/team/TeamFinanceTab.vue') },
   { path: 'administradores', name: 'admin-team-admins', component: () => import('@/views/admin/team/TeamAdminsTab.vue') },
   { path: 'configuracion', name: 'admin-team-settings', component: () => import('@/views/admin/team/TeamSettingsTab.vue') },
 ]
@@ -114,6 +117,21 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
     children: adminRoutes,
   },
+  // 4D: estados de cuenta imprimibles, sin el marco del panel (el servidor valida el acceso).
+  {
+    path: '/imprimir/torneos/:tournamentId/finanzas/:teamId',
+    name: 'finance-print',
+    component: () => import('@/views/admin/FinancePrintView.vue'),
+    props: true,
+    meta: { requiresAuth: true, title: 'Estado de cuenta' },
+  },
+  {
+    path: '/imprimir/equipos/:teamId/pagos/:tournamentId',
+    name: 'team-finance-print',
+    component: () => import('@/views/admin/FinancePrintView.vue'),
+    props: (to) => ({ ...to.params, team: true }),
+    meta: { requiresAuth: true, title: 'Estado de cuenta' },
+  },
   {
     path: '/login',
     name: 'login',
@@ -154,9 +172,15 @@ export function safeRedirect(value: unknown, fallback = '/admin'): string {
 router.beforeEach(async (to) => {
   const needsAuth = to.matched.some((record) => record.meta.requiresAuth)
   const guestOnly = to.matched.some((record) => record.meta.guestOnly)
-  if (!needsAuth && !guestOnly) return true // el área pública no toca la sesión
-
   const auth = useAuthStore()
+  if (!needsAuth && !guestOnly) {
+    // El área pública no exige sesión. 5B (D4): si este navegador tuvo sesión, se recupera antes de
+    // cargar (una vez): con ella el propietario y sus colaboradores ven sus torneos en borrador
+    // también tras recargar. Un visitante sin sesión previa no hace ninguna petición extra.
+    if (auth.mayHaveSession && !auth.initialized) await auth.initializeAuth()
+    return true
+  }
+
   await auth.initializeAuth() // tras F5: refresh con la cookie → /auth/me
 
   if (needsAuth && !auth.isAuthenticated) return { name: 'login', query: { redirect: to.fullPath } }
