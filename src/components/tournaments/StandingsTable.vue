@@ -42,9 +42,9 @@ const qualifies = computed(() => {
 
 <template>
   <!--
-    Móvil: la MISMA información que en escritorio (nombre completo y forma de los últimos 5,
-    pedido del usuario 2026-10-19). POS y equipo quedan fijos (sticky) y el resto se desplaza;
-    HScroll muestra una barra arriba y abajo para que se note que se puede deslizar.
+    Móvil: las mismas columnas que en escritorio (con la forma de los últimos 5, pedido del usuario
+    2026-10-19); el equipo va con su abreviatura y el nombre completo pequeño debajo. POS y equipo
+    quedan fijos (sticky) y el resto se desplaza; HScroll muestra una barra arriba y abajo.
   -->
   <HScroll>
     <table class="tabular w-full text-sm">
@@ -83,8 +83,12 @@ const qualifies = computed(() => {
           <th scope="row" class="sticky left-10 z-10 py-2 pr-3 text-left font-normal shadow-[6px_0_6px_-6px_rgb(0_0_0/0.15)]" :class="row.teamId === highlightTeamId ? 'bg-lime-50' : 'bg-white'">
             <RouterLink :to="{ name: 'team', params: { id: row.teamId } }" class="group flex items-center gap-2.5">
               <TeamLogo :team="teams.get(row.teamId)" size="sm" />
-              <!-- En móvil el nombre completo parte en dos líneas: la columna fija no tapa la tabla. -->
-              <span class="min-w-[8.5rem] leading-tight font-semibold text-zinc-900 group-hover:text-pitch-700 sm:min-w-0 sm:whitespace-nowrap">{{ teams.get(row.teamId)?.name }}</span>
+              <!-- Móvil: abreviatura y, debajo, el nombre completo pequeño (cortado si no cabe): la columna fija ocupa poco. -->
+              <span class="min-w-0 group-hover:text-pitch-700">
+                <span class="block font-semibold text-zinc-900 sm:hidden">{{ teams.get(row.teamId)?.shortName }}</span>
+                <span class="block w-[5.5rem] truncate text-[11px] leading-tight text-zinc-500 sm:hidden">{{ teams.get(row.teamId)?.name }}</span>
+                <span class="hidden font-semibold whitespace-nowrap text-zinc-900 sm:inline">{{ teams.get(row.teamId)?.name }}</span>
+              </span>
               <StatusBadge v-if="withdrawn.includes(row.teamId)" label="Retirado" tone="red" />
             </RouterLink>
           </th>

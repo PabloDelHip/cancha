@@ -59,7 +59,7 @@ onBeforeUnmount(() => observer?.disconnect())
     <div v-if="overflowing" class="relative mx-4 mb-1.5 h-2 touch-none rounded-full bg-zinc-100" aria-hidden="true" data-rail="top" @pointerdown="jump">
       <div class="absolute inset-y-0 cursor-grab rounded-full bg-zinc-400 active:cursor-grabbing" :style="thumbStyle" @pointerdown="start" @pointermove="move" @pointerup="stop" @pointercancel="stop" />
     </div>
-    <div ref="scroller" class="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" @scroll.passive="update">
+    <div ref="scroller" class="relative overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" @scroll.passive="update">
       <slot />
     </div>
     <div v-if="overflowing" class="relative mx-4 mt-1.5 h-2 touch-none rounded-full bg-zinc-100" aria-hidden="true" data-rail="bottom" @pointerdown="jump">
