@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CalendarClock, CalendarRange, CheckCircle2, History, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
 import type { Match, MatchStatus, Team } from '@/types'
@@ -170,6 +170,9 @@ function newMatch(roundNumber?: number) {
 const historyOf = ref<{ matchId: string | null; title: string } | null>(null)
 /** Partido cuyo diálogo de árbitros está abierto. */
 const refereesOf = ref<Match | null>(null)
+/** 7B-B1: cartel del partido (el diálogo se carga solo al abrirlo). */
+const posterOf = ref<Match | null>(null)
+const PosterDialog = defineAsyncComponent(() => import('@/components/admin/posters/PosterDialog.vue'))
 /** Partido cuyo diálogo de incidencias está abierto (se lee del store: refleja su estado actual). */
 const incidentsOfId = ref<string | null>(null)
 const incidentsOf = computed(() => (incidentsOfId.value ? (matches.get(incidentsOfId.value) ?? null) : null))
@@ -360,10 +363,12 @@ async function deleteRound(r: RoundView) {
               :can-assign="can('ASSIGNMENTS')"
               :can-capture="can('RESULTS')"
               :allow-postpone="true"
+              :allow-poster="true"
               @edit="editMatch(m)"
               @postpone="postpone(m)"
               @reschedule="editMatch(m, 'scheduled')"
               @referees="refereesOf = m"
+              @poster="posterOf = m"
               @incidents="incidentsOfId = m.id"
               @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
             />
@@ -402,10 +407,12 @@ async function deleteRound(r: RoundView) {
                 :can-assign="can('ASSIGNMENTS')"
                 :can-capture="can('RESULTS')"
                 :allow-postpone="true"
+                :allow-poster="true"
                 @edit="editMatch(m)"
                 @postpone="postpone(m)"
                 @reschedule="editMatch(m, 'scheduled')"
                 @referees="refereesOf = m"
+                @poster="posterOf = m"
                 @incidents="incidentsOfId = m.id"
                 @history="historyOf = { matchId: m.id, title: `${teams.nameOf(m.homeTeamId)} vs ${teams.nameOf(m.awayTeamId)}` }"
               />
@@ -416,6 +423,7 @@ async function deleteRound(r: RoundView) {
       </template>
     </template>
 
+    <PosterDialog v-if="posterOf" :open="!!posterOf" :tournament-id="id" :match="posterOf" @close="posterOf = null" />
     <RescheduleDialog :open="rescheduling" :tournament-id="id" @close="rescheduling = false" />
     <GenerateScheduleDialog
       :open="generating"

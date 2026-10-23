@@ -4,10 +4,16 @@
  * bien (con pocos equipos las filas no crecen sin límite).
  */
 import { computed, type ComputedRef } from 'vue'
-import { FORMATS, type PosterData, type PosterFormat } from './data'
+import { FORMATS, type MatchPosterData, type PosterData, type PosterFormat } from './data'
 
 export interface PosterProps {
   data: PosterData
+  format: PosterFormat
+}
+
+/** 7B-B1: props de un cartel de partido. */
+export interface MatchPosterProps {
+  data: MatchPosterData
   format: PosterFormat
 }
 

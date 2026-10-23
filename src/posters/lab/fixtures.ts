@@ -3,7 +3,7 @@
  * con nombres largos, acentos y ñ, algunos sin escudo; estadísticas coherentes entre sí
  * (PJ = G + E + P, Pts = 3G + E, DIF = GF − GC). Nunca se usan en la app.
  */
-import { buildPosterPages, type PosterData, type PosterFormat } from '../data'
+import { buildMatchPoster, buildPosterPages, type MatchPosterData, type PosterData, type PosterFormat } from '../data'
 import type { Standing } from '@/types'
 
 const TEAMS: [string, string, string, boolean][] = [
@@ -89,5 +89,25 @@ export function fixturePages(format: PosterFormat, count: number, opts: { empty?
     groupLabel: null,
     format,
     formatDate: (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+  })
+}
+
+/**
+ * 7B-B1 — partido de prueba entre dos equipos del banco (`teams=a,b`, índices de TEAMS). `pending`:
+ * pospuesto sin horario; `noVenue`: sin sede.
+ */
+export function fixtureMatch(opts: { home?: number; away?: number; pending?: boolean; noVenue?: boolean; noLogo?: boolean } = {}): MatchPosterData {
+  const [h, a] = [opts.home ?? 0, opts.away ?? 4]
+  const team = (i: number) => ({ name: TEAMS[i]![0], shortName: null, colors: { primary: TEAMS[i]![1], secondary: TEAMS[i]![2] } })
+  const crest = (i: number) => (TEAMS[i]![3] ? crestSvg(TEAMS[i]![0], TEAMS[i]![1], TEAMS[i]![2], i) : null)
+  return buildMatchPoster({
+    match: { round: 10, date: '2026-10-25', time: '16:00', venue: opts.noVenue ? null : 'Unidad Deportiva Peñasco · Cancha 2', status: opts.pending ? 'postponed' : 'scheduled', pendingSchedule: opts.pending },
+    home: team(h),
+    away: team(a),
+    crests: { home: crest(h), away: crest(a) },
+    tournament: { name: 'Liga Municipal de Fútbol 7 · Apertura', startDate: '2026-08-01', endDate: null },
+    leagueName: 'Liga Peñasco Interbarrios',
+    logo: opts.noLogo ? null : LEAGUE_LOGO,
+    roundLabel: 'Jornada 10',
   })
 }

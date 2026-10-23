@@ -1,27 +1,30 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AlertTriangle, CalendarClock, CalendarOff, ClipboardEdit, Eye, FileText, History, Lock, MapPin, Pencil, Siren, UserRound } from 'lucide-vue-next'
+import { AlertTriangle, CalendarClock, CalendarOff, ClipboardEdit, Eye, FileText, History, ImageDown, Lock, MapPin, Pencil, Siren, UserRound } from 'lucide-vue-next'
 import type { Match } from '@/types'
 import { useTeamsStore } from '@/stores'
 import { USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { matchStatusBadge } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
+import { canAnnounce } from '@/posters/data'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppButton from '@/components/common/AppButton.vue'
 
 /** `can*`: permisos del usuario en el torneo (RBAC); el servidor los vuelve a validar. */
 /** `context`: torneo y jornada, cuando la fila se muestra fuera de su torneo (Agenda). */
-const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean; context?: string }>(), {
+/** `allowPoster`: ofrece «Crear imagen» del partido (7B-B1) en los programados y pospuestos. */
+const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; allowPoster?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean; context?: string }>(), {
   readOnly: false,
   canSchedule: true,
   canAssign: true,
   canCapture: true,
   allowPostpone: false,
+  allowPoster: false,
   context: undefined,
 })
-defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: []; incidents: [] }>()
+defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: []; incidents: []; poster: [] }>()
 
 const teams = useTeamsStore()
 const home = computed(() => teams.get(props.match.homeTeamId))
@@ -93,6 +96,17 @@ const winner = computed(() => {
 
     <!-- Acciones -->
     <div class="col-span-2 flex justify-end gap-1 md:col-span-1">
+      <AppButton
+        v-if="allowPoster && canAnnounce(match)"
+        variant="ghost"
+        size="sm"
+        icon
+        :aria-label="`Crear imagen de ${home?.name} contra ${away?.name}`"
+        title="Crear imagen para redes"
+        @click="$emit('poster')"
+      >
+        <ImageDown class="size-3.5" aria-hidden="true" />
+      </AppButton>
       <template v-if="!readOnly">
         <AppButton
           v-if="canSchedule"

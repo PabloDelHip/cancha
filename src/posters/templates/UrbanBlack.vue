@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import UrbanBlackBackdrop from './urban-black/UrbanBlackBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -22,20 +23,8 @@ const page = computed(() => pageLabel(props.data))
 
 <template>
   <div class="ub" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <!-- Fondo: grano y brochazos (SVG propio) -->
-    <svg class="ub-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <filter id="ub-grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" /><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0" /></filter>
-        <filter id="ub-rough"><feTurbulence type="fractalNoise" baseFrequency="0.04 0.6" numOctaves="3" seed="7" /><feDisplacementMap in="SourceGraphic" scale="38" /></filter>
-      </defs>
-      <rect width="100%" height="100%" fill="#090909" />
-      <g filter="url(#ub-rough)" opacity="0.9">
-        <path :d="`M${m.width * 0.58} -40 L${m.width + 60} -40 L${m.width + 60} ${head * 0.62} L${m.width * 0.74} ${head * 0.2} Z`" fill="#f4f4f4" opacity="0.9" />
-        <path :d="`M-60 ${head * 0.98} L${m.width * 0.42} ${head * 0.86} L${m.width * 0.45} ${head * 0.93} L-60 ${head * 1.08} Z`" fill="#e5e5e5" opacity="0.5" />
-        <path :d="`M-60 ${m.height - foot * 0.2} L${m.width * 0.7} ${m.height - foot * 1.4} L${m.width * 0.74} ${m.height - foot * 1.2} L-60 ${m.height + 40} Z`" fill="#ffffff" opacity="0.16" />
-      </g>
-      <rect width="100%" height="100%" filter="url(#ub-grain)" />
-    </svg>
+    <!-- Fondo de la familia: grano y brochazos -->
+    <UrbanBlackBackdrop :width="m.width" :height="m.height" :head="head" :foot="foot" />
 
     <!-- Cabecera -->
     <header class="ub-head" :class="{ 'ub-stacked': stacked }" :style="{ height: `${head}px` }">
@@ -89,12 +78,6 @@ const page = computed(() => pageLabel(props.data))
   font-family: 'Barlow Condensed', sans-serif;
   display: flex;
   flex-direction: column;
-}
-.ub-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .ub-head {
   position: relative;

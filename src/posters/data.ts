@@ -214,3 +214,104 @@ export function lastPlayed(
 
 /** «Liga Norte · 2027», salvo que el texto ya diga la temporada («Liga Norte 2027» no se repite). */
 export const withSeason = (text: string, season: string) => (season && !text.includes(season) ? `${text} · ${season}` : text)
+
+// ─── 7B-B1: próximo partido ──────────────────────────────────────────────────
+
+/** Un equipo en el cartel de un partido. */
+export interface PosterTeam {
+  name: string
+  initials: string
+  crest: string | null
+  colors: { primary: string; secondary: string }
+}
+
+export interface MatchPosterData {
+  tournamentName: string
+  leagueName: string | null
+  season: string
+  /** «Jornada 9», «Grupo A · Jornada 3» o el nombre propio de la jornada. */
+  roundLabel: string
+  roundNumber: number
+  groupLabel: string | null
+  home: PosterTeam
+  away: PosterTeam
+  /** «Domingo 25 de octubre» (null = sin horario confirmado). */
+  dateLabel: string | null
+  /** «16:00» (null = sin hora). */
+  timeLabel: string | null
+  /** Sede (y cancha) tal como está en el partido; null = no se muestra. */
+  venue: string | null
+  /** Aviso cuando falta la programación: «Fecha y hora por confirmar». */
+  scheduleNote: string | null
+  logo: string | null
+  logoInitials: string
+}
+
+export interface MatchBuildInput {
+  match: { round: number; date: string; time: string; venue: string | null; status: string; pendingSchedule?: boolean; stage?: { group: string | null } | null }
+  home: { name: string; shortName?: string | null; colors?: TeamColors } | undefined
+  away: { name: string; shortName?: string | null; colors?: TeamColors } | undefined
+  crests: { home: string | null; away: string | null }
+  tournament: { name: string; startDate: string; endDate: string | null }
+  leagueName: string | null
+  logo: string | null
+  roundLabel: string
+  overrides?: { title?: string; season?: string; roundLabel?: string }
+}
+
+/** Partidos que se pueden anunciar: programados y pospuestos (estos, sin fecha). */
+export const canAnnounce = (m: { status: string }) => m.status === 'scheduled' || m.status === 'postponed'
+
+const posterTeam = (t: MatchBuildInput['home'], crest: string | null): PosterTeam => {
+  const name = t?.name?.trim() || 'Equipo'
+  return { name, initials: initialsOf(name, t?.shortName), crest, colors: { primary: t?.colors?.primary || '#3f3f46', secondary: t?.colors?.secondary || '#ffffff' } }
+}
+
+/** «Domingo 25 de octubre» (la fecha del partido es local, sin zona horaria). */
+export function matchDayLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const text = new Date(y!, m! - 1, d!).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '')
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+/**
+ * Datos del cartel. Solo se muestra el horario de un partido programado: un pospuesto (o uno que
+ * nunca tuvo horario, `pendingSchedule`) conserva una fecha de referencia que NO es su horario, así
+ * que sale «por confirmar». Sede vacía = no se muestra. Nada se inventa.
+ */
+export function buildMatchPoster(input: MatchBuildInput): MatchPosterData {
+  const { match } = input
+  const confirmed = match.status === 'scheduled' && !match.pendingSchedule
+  const time = confirmed && /^\d{2}:\d{2}$/.test(match.time) ? match.time : null
+  const group = match.stage?.group ? `Grupo ${match.stage.group}` : null
+  const base = input.overrides?.roundLabel?.trim() || input.roundLabel
+  return {
+    tournamentName: input.overrides?.title?.trim() || input.tournament.name,
+    leagueName: input.leagueName,
+    season: input.overrides?.season?.trim() || seasonOf(input.tournament.startDate, input.tournament.endDate),
+    roundLabel: base,
+    roundNumber: match.round,
+    groupLabel: group,
+    home: posterTeam(input.home, input.crests.home),
+    away: posterTeam(input.away, input.crests.away),
+    dateLabel: confirmed && match.date ? matchDayLabel(match.date) : null,
+    timeLabel: time,
+    venue: match.venue?.trim() || null,
+    scheduleNote: confirmed ? (time ? null : 'Hora por confirmar') : 'Fecha y hora por confirmar',
+    logo: input.logo,
+    logoInitials: initialsOf(input.tournament.name),
+  }
+}
+
+const slugOf = (s: string, max = 40) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, max)
+
+/** «partido-halcones-vs-leones-j9-urban-black.png». */
+export const matchFileNameOf = (d: MatchPosterData, template: string) =>
+  `partido-${slugOf(d.home.name, 24) || 'local'}-vs-${slugOf(d.away.name, 24) || 'visita'}-j${d.roundNumber}-${template}.png`
