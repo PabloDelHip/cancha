@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { AlertTriangle, Ban } from 'lucide-vue-next'
-import type { ID, Match, MatchInput, MatchStatus, SlotCheck, Team, Venue } from '@/types'
-import { USE_MOCKS, venueService } from '@/services'
+import type { ID, Match, MatchInput, MatchStatus, SchedulingCheck, SlotCheck, Team, Venue } from '@/types'
+import { schedulingService, USE_MOCKS, venueService } from '@/services'
+import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useTournamentsStore, type RoundView } from '@/stores'
 import { MATCH_STATUS } from '@/utils/labels'
 import { useFormErrors } from '@/composables/useFormErrors'
@@ -86,6 +87,37 @@ watch(
   },
   { immediate: true },
 )
+
+// ─── Restricciones de calendario (6A) ───────────────────────────────────────
+// El servidor las vuelve a aplicar al guardar; solo se revisa lo que él revisaría (horario, equipos o
+// cancha nuevos, o volver a programar un partido que no ocupaba horario).
+const { can } = useTournamentWorkspace(() => props.tournamentId)
+const rules = ref<SchedulingCheck | null>(null)
+let rulesSeq = 0
+let rulesTimer: ReturnType<typeof setTimeout> | undefined
+watch(
+  () => [form.homeTeamId, form.awayTeamId, form.date, form.time, form.fieldId, form.status] as const,
+  ([homeTeamId, awayTeamId, date, time, fieldId, status]) => {
+    const seq = ++rulesSeq
+    clearTimeout(rulesTimer)
+    rules.value = null
+    const m = props.initial
+    const plays = (s: MatchStatus) => s === 'scheduled' || s === 'live'
+    const changed = !m || !plays(m.status) || m.date !== date || m.time !== time || m.homeTeamId !== homeTeamId || m.awayTeamId !== awayTeamId || (m.fieldId ?? null) !== (fieldId ?? null)
+    if (USE_MOCKS || !can('SCHEDULE') || !changed || !plays(status) || !homeTeamId || !awayTeamId || homeTeamId === awayTeamId || !date || !/^\d{2}:\d{2}$/.test(time)) return
+    rulesTimer = setTimeout(async () => {
+      try {
+        const result = await schedulingService.check(props.tournamentId, { matchId: m?.id, homeTeamId, awayTeamId, date, time, fieldId })
+        if (seq === rulesSeq) rules.value = result
+      } catch {
+        // Sin aviso previo: el servidor valida al guardar.
+      }
+    }, 300)
+  },
+  { immediate: true },
+)
+/** La disponibilidad de la cancha en modo aviso ya la muestra la revisión de la cancha. */
+const rulesWarnings = computed(() => (rules.value?.warnings ?? []).filter((w) => w.code !== 'FIELD_UNAVAILABLE'))
 
 const hasResult = computed(() => props.initial?.homeScore != null || props.initial?.status === 'finished')
 const suspended = computed(() => props.initial?.status === 'suspended')
@@ -239,6 +271,15 @@ function onSubmit() {
         Registra tus sedes y canchas en <RouterLink :to="{ name: 'admin-venues' }" class="link">Sedes</RouterLink> para asignarlas y evitar choques de horario.
       </p>
     </fieldset>
+    <div v-if="rules && (rules.errors.length || rulesWarnings.length)" class="space-y-1 rounded-xl border px-3 py-2 text-xs sm:col-span-2" :class="rules.errors.length ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'" aria-live="polite">
+      <p v-if="rules.errors.length" class="font-semibold text-red-800">No se podrá guardar: incumple las restricciones del calendario.</p>
+      <p v-for="(v, i) in rules.errors" :key="`e${i}`" class="flex items-start gap-1.5 text-red-700">
+        <Ban class="mt-px size-3.5 shrink-0" aria-hidden="true" /> {{ v.message }}
+      </p>
+      <p v-for="(v, i) in rulesWarnings" :key="`w${i}`" class="flex items-start gap-1.5 text-amber-800">
+        <AlertTriangle class="mt-px size-3.5 shrink-0" aria-hidden="true" /> {{ v.message }} Se puede guardar.
+      </p>
+    </div>
 
     <FormField v-if="initial && (!hasResult || suspended)" id="m-status" label="Estado" :error="errors.status" class="sm:col-span-2">
       <select id="m-status" v-model="form.status" class="input" v-bind="aria('status', 'm-status')">

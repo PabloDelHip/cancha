@@ -22,6 +22,7 @@ import RefereeAssignmentDialog from '@/components/admin/referees/RefereeAssignme
 import MatchHistoryDialog from '@/components/admin/history/MatchHistoryDialog.vue'
 import IncidentsDialog from '@/components/admin/incidents/IncidentsDialog.vue'
 import MatchEditorDialog from '@/components/admin/workspace/MatchEditorDialog.vue'
+import RescheduleDialog from '@/components/admin/scheduling/RescheduleDialog.vue'
 
 /**
  * Calendario del torneo: jornadas (organización deportiva) y sus partidos (programación
@@ -146,6 +147,8 @@ const resting = computed(() => {
 
 // ─── Diálogos ─────────────────────────────────────────────────────────────
 const generating = ref(false)
+/** 6C: reprogramar parte del calendario. */
+const rescheduling = ref(false)
 const roundDialog = ref<{ open: boolean; round: RoundView | null }>({ open: false, round: null })
 const matchDefaults = ref<{ round: number; status?: MatchStatus }>({ round: 1 })
 
@@ -240,6 +243,7 @@ async function deleteRound(r: RoundView) {
           <Wand2 class="size-4" aria-hidden="true" /> Generar calendario
         </AppButton>
         <AppButton v-if="manual && (all.length || rounds.length)" @click="newMatch()"><Plus class="size-4" aria-hidden="true" /> Programar partido</AppButton>
+        <AppButton v-if="!USE_MOCKS && all.length" variant="secondary" @click="rescheduling = true"><CalendarClock class="size-4" aria-hidden="true" /> Reprogramar</AppButton>
       </div>
       <AppButton v-if="!USE_MOCKS && (all.length || rounds.length)" variant="ghost" @click="historyOf = { matchId: null, title: 'Historial de partidos' }">
         <History class="size-4" aria-hidden="true" /> Historial
@@ -412,6 +416,7 @@ async function deleteRound(r: RoundView) {
       </template>
     </template>
 
+    <RescheduleDialog :open="rescheduling" :tournament-id="id" @close="rescheduling = false" />
     <GenerateScheduleDialog
       :open="generating"
       :tournament-id="id"

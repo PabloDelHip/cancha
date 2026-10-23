@@ -299,6 +299,11 @@ export interface Match extends Timestamps {
   extraTime?: boolean
   /** Ficha técnica cerrada (2D): información deportiva congelada. */
   sheetClosed?: { at: ISODateTime } | null
+  /**
+   * 6C: pospuesto que NUNCA tuvo horario («por programar»). Su fecha y hora son solo la referencia
+   * de su jornada: no se muestran como horario.
+   */
+  pendingSchedule?: boolean
 }
 
 /**
@@ -852,10 +857,14 @@ export interface AdvancePreview {
   rounds: { name: string; ties: { slot: number; home: SlotSource; away: SlotSource }[] }[]
   /** Partidos que se crearían ya (los de quienes pasan directo esperan a su rival). */
   matches: { homeTeamId: ID; awayTeamId: ID; date: ISODate; time: string; roundName: string | null }[]
+  /** 6A: partidos de la propuesta que incumplen restricciones de calendario (con errores, no se genera). */
+  constraints?: ConstraintIssues[]
+  /** 6B: horarios válidos (solo si se pidió `smart`). */
+  proposal?: ScheduleProposal | null
   teams: Record<string, TeamRef>
 }
 
-export interface AdvancePhaseInput {
+export type AdvancePhaseInput = {
   /** Armar la eliminatoria a mano (sin fechas ni clasificados automáticos). */
   manual?: boolean
   /** A mano: equipos de la primera ronda (8 = cuartos). */
@@ -866,7 +875,10 @@ export interface AdvancePhaseInput {
   minutesBetweenMatches: number
   venue: string | null
   tiebreaks: { scope: string; order: ID[] }[]
-}
+  /** 6B: la vista previa busca horarios válidos; `assignments` confirma los elegidos. */
+  smart?: boolean
+  assignments?: ScheduleAssignment[]
+} & SmartScheduleOptions
 
 // ─── Administración global del equipo (Etapa 6: 6A roles + 6B plantilla global) ──
 //
@@ -1307,6 +1319,203 @@ export interface SlotCheck {
   warnings: string[]
 }
 
+// ─── Restricciones de calendario (6A) ────────────────────────────────────────
+
+/** Días 0 = domingo … 6 = sábado (como la disponibilidad de las canchas). */
+export interface SchedulingRules {
+  /** Zona IANA del torneo; null = la de las ligas. */
+  timeZone: string | null
+  days: number[]
+  startTime: string | null
+  /** Admite `24:00`. */
+  endTime: string | null
+  fieldGapMinutes: number | null
+  maxMatchesPerDay: number | null
+  maxSimultaneous: number | null
+  fieldAvailability: 'WARN' | 'BLOCK'
+  /** 6B: reglas generales que solo avisan (preferencias). */
+  softRules: SoftRule[]
+}
+
+export type SoftRule = 'DAYS' | 'HOURS' | 'DAILY_LIMIT'
+
+export interface TeamTimeRange {
+  /** null = todos los días. */
+  day: number | null
+  from: string
+  to: string
+}
+
+export interface TeamSchedulingRules {
+  unavailableDays: number[]
+  unavailableDates: ISODate[]
+  unavailableTimes: TeamTimeRange[]
+  minRestHours: number | null
+  maxMatchesPerDay: number | null
+  /** true = obligatoria; false = preferencia (solo avisa). */
+  strict: boolean
+  notes: string | null
+}
+
+export type ConstraintCode =
+  | 'DAY_NOT_ALLOWED'
+  | 'OUTSIDE_HOURS'
+  | 'TOURNAMENT_DAILY_LIMIT'
+  | 'SIMULTANEOUS_LIMIT'
+  | 'FIELD_GAP'
+  | 'FIELD_UNAVAILABLE'
+  | 'TEAM_DAY'
+  | 'TEAM_DATE'
+  | 'TEAM_TIME'
+  | 'TEAM_REST'
+  | 'TEAM_DAILY_LIMIT'
+
+export interface ConstraintViolation {
+  code: ConstraintCode
+  severity: 'ERROR' | 'WARNING'
+  scope: 'TOURNAMENT' | 'TEAM' | 'FIELD'
+  message: string
+  teamId: ID | null
+  fieldId: ID | null
+  relatedMatchIds: ID[]
+}
+
+/** Un partido (programado o propuesto) y lo que incumple. */
+export interface ConstraintIssues {
+  key: string
+  matchId: ID | null
+  round: number | null
+  date: ISODate
+  time: string
+  homeTeamId: ID
+  awayTeamId: ID
+  errors: ConstraintViolation[]
+  warnings: ConstraintViolation[]
+}
+
+export interface SchedulingConflicts {
+  /** Desde qué fecha se revisa (hoy, en la zona del torneo). */
+  today: ISODate
+  checked: number
+  matches: ConstraintIssues[]
+}
+
+export interface SchedulingOverview {
+  rules: SchedulingRules
+  durationMinutes: number
+  /** La duración está configurada (si no, se usa la de por defecto). */
+  durationConfigured: boolean
+  effectiveTimeZone: string
+  updatedAt: string | null
+  updatedBy: string | null
+  teams: { teamId: ID; name: string; withdrawn: boolean; configured: boolean; rules: TeamSchedulingRules }[]
+  conflicts: SchedulingConflicts
+}
+
+// ─── Generación inteligente (6B) ─────────────────────────────────────────────
+
+/** Qué buscar: periodo, días, horario y canchas. Lo omitido sale de las restricciones del torneo. */
+export interface SmartScheduleOptions {
+  endDate?: ISODate
+  days?: number[]
+  lastKickoff?: string
+  fieldIds?: ID[]
+  /** Sin canchas: partidos a la vez. */
+  parallel?: number
+}
+
+export interface ScheduleAssignment {
+  round: number
+  homeTeamId: ID
+  awayTeamId: ID
+  date: ISODate
+  time: string
+  fieldId: ID | null
+}
+
+export type ProposalReasonCode = ConstraintCode | 'TEAM_OVERLAP' | 'FIELD_BUSY' | 'CAPACITY' | 'NO_SLOTS' | 'SEARCH_LIMIT'
+
+export interface ScheduleProposal {
+  matches: (ScheduleAssignment & { key: string; field: string | null; warnings: ConstraintViolation[] })[]
+  unscheduled: { key: string; round: number; homeTeamId: ID; awayTeamId: ID; reasons: { code: ProposalReasonCode; count: number; message: string; teamId: ID | null; fieldId: ID | null }[] }[]
+  metrics: {
+    placed: number
+    unplaced: number
+    withWarnings: number
+    lateRounds: number
+    lateDays: number
+    shortestRestHours: number | null
+    longestGapDays: number | null
+    firstDate: ISODate | null
+    lastDate: ISODate | null
+    evaluations: number
+    elapsedMs: number
+    truncated: boolean
+  }
+  search: { from: ISODate; to: ISODate; days: number[]; firstKickoff: string; lastKickoff: string; step: number; parallel: number | null; fieldIds: ID[] }
+  teams: Record<string, string>
+  /** Calendario inicial: nombres de las jornadas y lo que se reemplazaría. */
+  rounds?: { number: number; name: string | null }[]
+  replaces?: number
+}
+
+// ─── Reprogramación parcial (6C) ─────────────────────────────────────────────
+
+/** Qué partidos reprogramar (los filtros se combinan). */
+export interface RescheduleSelection {
+  matchIds?: ID[]
+  round?: number
+  from?: ISODate
+  to?: ISODate
+  fieldId?: ID
+  venueId?: ID
+  pending?: boolean
+}
+
+export interface RescheduleSearch {
+  from?: ISODate
+  to?: ISODate
+  days?: number[]
+  firstKickoff?: string
+  lastKickoff?: string
+  fieldIds?: ID[]
+  keepValid?: boolean
+  avoidDates?: ISODate[]
+  avoidFieldIds?: ID[]
+}
+
+export type RescheduleAction = 'KEEP' | 'MOVE' | 'PENDING'
+
+export interface RescheduleProposalItem {
+  matchId: ID
+  version: string
+  round: number
+  homeTeamId: ID
+  awayTeamId: ID
+  action: RescheduleAction
+  before: { date: ISODate; time: string; fieldId: ID | null; venue: string | null; status: string; pendingSchedule: boolean }
+  after: { date: ISODate; time: string; fieldId: ID | null; field: string | null } | null
+  warnings: ConstraintViolation[]
+  reasons: ScheduleProposal['unscheduled'][number]['reasons']
+}
+
+export interface RescheduleProposal {
+  items: RescheduleProposalItem[]
+  excluded: { matchId: ID; round: number; homeTeamId: ID; awayTeamId: ID; date: ISODate; time: string; reason: string }[]
+  summary: { selected: number; move: number; keep: number; pending: number; excluded: number }
+  metrics: { kept: number; moved: number; unplaced: number; dateChanges: number; timeChanges: number; fieldChanges: number; withWarnings: number; evaluations: number; elapsedMs: number; truncated: boolean }
+  search: { from: ISODate; to: ISODate; days: number[]; fieldIds: ID[]; keepValid: boolean }
+  fields: Record<string, string>
+  teams: Record<string, string>
+  reasonRequired: boolean
+}
+
+export interface SchedulingCheck {
+  valid: boolean
+  errors: ConstraintViolation[]
+  warnings: ConstraintViolation[]
+}
+
 // ─── Árbitros (Módulo 2B) ───────────────────────────────────────────────────
 
 export type RefereeRole = 'central' | 'assistant_1' | 'assistant_2' | 'fourth' | 'scorekeeper'
@@ -1415,6 +1624,7 @@ export type MatchLogAction =
   | 'EVIDENCE_ADDED'
   | 'EVIDENCE_REMOVED'
   | 'ELIGIBILITY_OVERRIDE'
+  | 'SCHEDULING_RULES_UPDATED'
   | 'DELETED'
   | 'SCHEDULE_REPLACED'
 

@@ -39,6 +39,7 @@ const TABS: { name: string; label: string; permission: TournamentPermission | To
   { name: 'admin-tournament-teams', label: 'Equipos', permission: 'TEAMS', exact: false, activeOn: ['admin-tournament-team'] },
   { name: 'admin-tournament-players', label: 'Jugadores', permission: 'TEAMS' },
   { name: 'admin-tournament-schedule', label: 'Calendario', permission: ['SCHEDULE', 'ASSIGNMENTS', 'RESULTS'] },
+  { name: 'admin-tournament-scheduling', label: 'Restricciones', permission: 'SCHEDULE' },
   { name: 'admin-tournament-standings', label: 'Tabla', permission: 'VIEW' },
   { name: 'admin-tournament-scorers', label: 'Goleadores', permission: 'VIEW' },
   { name: 'admin-tournament-discipline', label: 'Disciplina', permission: 'DISCIPLINE_VIEW' },

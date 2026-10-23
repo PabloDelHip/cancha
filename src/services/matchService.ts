@@ -1,4 +1,4 @@
-import type { ID, Match, MatchInput, MatchResultInput, PlayerMatchStats, ReschedulePreview, Round } from '@/types'
+import type { ID, Match, MatchInput, MatchResultInput, PlayerMatchStats, ReschedulePreview, RescheduleAction, RescheduleProposal, RescheduleSearch, RescheduleSelection, Round, ScheduleAssignment, ScheduleProposal, SmartScheduleOptions } from '@/types'
 import { api, fetchAll, USE_MOCKS } from './api'
 import { fromMatchInput, fromMatchStatus, toMatch, toPlayerMatchStats, toRound, type ApiMatch, type ApiPlayerMatchStats, type ApiRound } from './mappers'
 import { generateRoundRobin, planMatches, type ScheduleOptions } from '@/utils/schedule'
@@ -24,7 +24,13 @@ export interface MatchService {
    * Genera el calendario de liga en el servidor (jornadas + partidos, en una transacción).
    * 409 si hay partidos jugados/en juego, o partidos programados sin `replaceExisting`.
    */
-  generateSchedule(tournamentId: ID, options: GenerateScheduleInput): Promise<{ rounds: Round[]; matches: Match[] }>
+  /** `warnings`: preferencias de calendario incumplidas (6A); las obligatorias rechazan con 409 SCHEDULE_CONSTRAINTS. */
+  generateSchedule(tournamentId: ID, options: GenerateScheduleInput): Promise<{ rounds: Round[]; matches: Match[]; warnings?: string[] }>
+  /** 6B: propuesta (fecha, hora y cancha de cada partido) sin guardar nada. */
+  proposeSchedule(tournamentId: ID, options: GenerateScheduleInput): Promise<ScheduleProposal>
+  /** 6C: reprogramación parcial — propuesta (sin escrituras) y confirmación (todo o nada). */
+  rescheduleProposal(tournamentId: ID, selection: RescheduleSelection, search: RescheduleSearch): Promise<RescheduleProposal>
+  confirmReschedule(tournamentId: ID, input: { reason?: string; allowPending?: number; items: { matchId: ID; version: string; action: RescheduleAction; date?: string; time?: string; fieldId?: ID | null }[] }): Promise<{ moved: number; kept: number; pending: number; matches: Match[]; warnings: string[] }>
 }
 
 export type GenerateScheduleInput = ScheduleOptions & {
@@ -37,6 +43,9 @@ export type GenerateScheduleInput = ScheduleOptions & {
   manual?: boolean
   /** Eliminación directa a mano: equipos de la primera ronda. */
   bracketSize?: number
+  /** 6B: confirma una propuesta (el servidor revalida todo). */
+  assignments?: ScheduleAssignment[]
+} & SmartScheduleOptions & {
   /** Grupos elegidos por el organizador. */
   groups?: ID[][]
 }
@@ -80,12 +89,28 @@ const http: MatchService = {
     await api.delete(`/matches/${id}`)
   },
   async generateSchedule(tournamentId, options) {
-    const { data } = await api.post<{ rounds: ApiRound[]; matches: ApiMatch[] }>(`/tournaments/${tournamentId}/schedule`, options)
-    return { rounds: data.rounds.map(toRound), matches: data.matches.map(toMatch) }
+    const { data } = await api.post<{ rounds: ApiRound[]; matches: ApiMatch[]; warnings?: string[] }>(`/tournaments/${tournamentId}/schedule`, options)
+    return { rounds: data.rounds.map(toRound), matches: data.matches.map(toMatch), warnings: data.warnings ?? [] }
+  },
+  async proposeSchedule(tournamentId, options) {
+    return (await api.post<ScheduleProposal>(`/tournaments/${tournamentId}/schedule/proposal`, options)).data
+  },
+  async rescheduleProposal(tournamentId, selection, search) {
+    return (await api.post<RescheduleProposal>(`/tournaments/${tournamentId}/reschedule/proposal`, { selection, search })).data
+  },
+  async confirmReschedule(tournamentId, input) {
+    const { data } = await api.post<{ moved: number; kept: number; pending: number; matches: ApiMatch[]; warnings: string[] }>(`/tournaments/${tournamentId}/reschedule`, input)
+    return { ...data, matches: data.matches.map(toMatch) }
   },
 }
 
+/** La búsqueda de horarios corre en el servidor: en modo demo se usa el generador de siempre. */
+export const PROPOSAL_REQUIRES_SERVER = 'La propuesta de calendario requiere el servidor (modo demo sin backend)'
+
 const mock: MatchService = {
+  proposeSchedule: () => Promise.reject(new MockHttpError(501, PROPOSAL_REQUIRES_SERVER)),
+  rescheduleProposal: () => Promise.reject(new MockHttpError(501, PROPOSAL_REQUIRES_SERVER)),
+  confirmReschedule: () => Promise.reject(new MockHttpError(501, PROPOSAL_REQUIRES_SERVER)),
   list: () => delay(getDb().matches),
   get(id) {
     const found = getDb().matches.find((m) => m.id === id)

@@ -3,7 +3,7 @@ import { nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { X } from 'lucide-vue-next'
 
 const props = withDefaults(
-  defineProps<{ open: boolean; title: string; description?: string; size?: 'md' | 'lg'; role?: 'dialog' | 'alertdialog' }>(),
+  defineProps<{ open: boolean; title: string; description?: string; size?: 'md' | 'lg' | 'xl'; role?: 'dialog' | 'alertdialog' }>(),
   { description: undefined, size: 'md', role: 'dialog' },
 )
 const emit = defineEmits<{ close: [] }>()
@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
           aria-modal="true"
           :aria-labelledby="titleId"
           class="flex max-h-[92dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
-          :class="size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg'"
+          :class="size === 'xl' ? 'sm:max-w-5xl' : size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-lg'"
         >
           <header class="flex items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
             <div>

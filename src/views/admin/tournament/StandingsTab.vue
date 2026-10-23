@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { GitBranch } from 'lucide-vue-next'
+import { computed, defineAsyncComponent, ref } from 'vue'
+import { GitBranch, ImageDown } from 'lucide-vue-next'
 import type { Team, TournamentStructure } from '@/types'
 import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useTournamentStats } from '@/composables/useTournamentStats'
@@ -25,6 +25,10 @@ const matches = useMatchesStore()
 const rounds = useRoundsStore()
 const toast = useToast()
 const advancing = ref(false)
+/** 7B-A: imagen de la tabla para redes (se carga solo al abrirla: fuentes y exportador). */
+const posterOpen = ref(false)
+const PosterDialog = defineAsyncComponent(() => import('@/components/admin/posters/PosterDialog.vue'))
+const hasTable = computed(() => !!structure.value?.phases.some((p) => (p.type === 'league' && p.table.length) || (p.type === 'groups' && p.groups.some((g) => g.table.length))))
 const teamsStore = useTeamsStore()
 const tournaments = useTournamentsStore()
 const { confirm } = useConfirm()
@@ -80,7 +84,10 @@ async function onAdvanced(next: TournamentStructure) {
         <h2 id="st-title" class="text-xl font-bold">{{ system === 'league' ? (stats.tournament.value?.status === 'finished' ? 'Tabla final' : 'Tabla de posiciones') : 'Competición' }}</h2>
         <p class="text-sm text-zinc-500">{{ SYSTEM_LABELS[system] }} · {{ stats.playedCount.value }} partidos finalizados · se actualiza al capturar cada resultado</p>
       </div>
-      <AppButton v-if="canAdvance" @click="advancing = true"><GitBranch class="size-4" aria-hidden="true" /> Armar eliminatoria</AppButton>
+      <div class="flex flex-wrap gap-2">
+        <AppButton v-if="hasTable" variant="secondary" @click="posterOpen = true"><ImageDown class="size-4" aria-hidden="true" /> Crear imagen</AppButton>
+        <AppButton v-if="canAdvance" @click="advancing = true"><GitBranch class="size-4" aria-hidden="true" /> Armar eliminatoria</AppButton>
+      </div>
     </div>
     <p v-if="canAdvance && structure?.next && !structure.next.ready" class="mb-4 rounded-xl bg-zinc-50 p-3 text-sm text-zinc-600">
       Con los clasificados: {{ structure.next.blockers.join('. ') }}. También puedes armar la eliminatoria a mano.
@@ -101,6 +108,7 @@ async function onAdvanced(next: TournamentStructure) {
       programados, pospuestos y cancelados no suman. Si el empate persiste, decide el organizador (nunca el nombre).
     </p>
 
+ <PosterDialog v-if="structure && posterOpen" :open="posterOpen" :tournament-id="id" :structure="structure" @close="posterOpen = false" />
     <AdvancePhaseDialog v-if="structure" :open="advancing" :tournament-id="id" :structure="structure" :team-count="enrolled.length" @close="advancing = false" @done="onAdvanced" />
     <TieDialog
       v-if="tiePhase && tieTarget"

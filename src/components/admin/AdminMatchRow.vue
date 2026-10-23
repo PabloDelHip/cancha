@@ -5,7 +5,7 @@ import type { Match } from '@/types'
 import { useTeamsStore } from '@/stores'
 import { USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
-import { MATCH_STATUS } from '@/utils/labels'
+import { matchStatusBadge } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -45,7 +45,8 @@ const winner = computed(() => {
     <!-- Fecha (y estado en móvil) -->
     <div class="col-span-2 flex items-center justify-between md:col-span-1 md:block">
       <div>
-        <p class="text-xs text-zinc-500" :class="inactive && 'line-through decoration-zinc-400'">
+        <p v-if="match.pendingSchedule" class="text-xs font-semibold text-amber-800">Sin fecha</p>
+        <p v-else class="text-xs text-zinc-500" :class="inactive && 'line-through decoration-zinc-400'">
           {{ formatMatchDay(match.date) }} <span class="tabular font-semibold text-zinc-800 md:block md:text-sm">{{ match.time }}</span>
         </p>
         <p v-if="match.fieldId && match.venue" class="flex items-center gap-1 truncate text-[11px] text-zinc-500" :title="match.venue">
@@ -57,7 +58,7 @@ const winner = computed(() => {
       </div>
       <span class="md:hidden">
         <StatusBadge v-if="pending && match.status === 'scheduled'" label="Por capturar" tone="amber" />
-        <StatusBadge v-else v-bind="MATCH_STATUS[match.status]" :pulse="match.status === 'live'" />
+        <StatusBadge v-else v-bind="matchStatusBadge(match)" :pulse="match.status === 'live'" />
       </span>
     </div>
 
@@ -87,7 +88,7 @@ const winner = computed(() => {
     <!-- Estado (escritorio) -->
     <div class="hidden justify-center md:flex">
       <StatusBadge v-if="pending && match.status === 'scheduled'" label="Por capturar" tone="amber" />
-      <StatusBadge v-else v-bind="MATCH_STATUS[match.status]" :pulse="match.status === 'live'" />
+      <StatusBadge v-else v-bind="matchStatusBadge(match)" :pulse="match.status === 'live'" />
     </div>
 
     <!-- Acciones -->
@@ -165,7 +166,7 @@ const winner = computed(() => {
           <Siren class="size-3.5" aria-hidden="true" /> Decidir
         </AppButton>
         <AppButton v-else-if="canSchedule && match.status === 'postponed'" variant="secondary" size="sm" @click="$emit('reschedule')">
-          <CalendarClock class="size-3.5" aria-hidden="true" /> Reprogramar
+          <CalendarClock class="size-3.5" aria-hidden="true" /> {{ match.pendingSchedule ? 'Programar' : 'Reprogramar' }}
         </AppButton>
         <AppButton
           v-else-if="canCapture && match.status !== 'cancelled' && match.status !== 'postponed'"

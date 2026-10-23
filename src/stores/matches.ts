@@ -73,6 +73,11 @@ export const useMatchesStore = defineStore('matches', () => {
     items.value = items.value.map((m) => (m.id === id ? fresh : m))
     return fresh
   }
+  /** Reemplaza partidos ya cargados por su versión del servidor (6C: reprogramación). */
+  function replaceMany(fresh: Match[]) {
+    const byId = new Map(fresh.map((m) => [m.id, m]))
+    items.value = items.value.map((m) => byId.get(m.id) ?? m)
+  }
   function patch(id: ID, changes: Partial<Match>) {
     items.value = items.value.map((m) => (m.id === id ? { ...m, ...changes } : m))
   }
@@ -83,10 +88,10 @@ export const useMatchesStore = defineStore('matches', () => {
   }
   /** Genera el calendario en el servidor y sustituye partidos y jornadas del torneo. */
   async function generateSchedule(tournamentId: ID, options: GenerateScheduleInput) {
-    const { rounds, matches } = await matchService.generateSchedule(tournamentId, options)
+    const { rounds, matches, warnings = [] } = await matchService.generateSchedule(tournamentId, options)
     items.value = [...items.value.filter((m) => m.tournamentId !== tournamentId), ...matches]
     useRoundsStore().replaceTournament(tournamentId, rounds)
-    return { rounds, matches }
+    return { rounds, matches, warnings }
   }
 
   return {
@@ -109,6 +114,7 @@ export const useMatchesStore = defineStore('matches', () => {
     saveResult,
     remove,
     patch,
+    replaceMany,
     generateSchedule,
   }
 })

@@ -208,6 +208,8 @@ export interface ApiMatch extends ApiTimestamps {
   penalties?: { home: number; away: number } | null
   extraTime?: boolean
   sheetClosed?: { at: string } | null
+  /** 6C: por programar (servidores anteriores no lo envían). */
+  pendingSchedule?: boolean
 }
 
 export interface ApiPlayerMatchStats {
@@ -402,6 +404,7 @@ export function toMatch(m: ApiMatch): Match {
     penalties: m.penalties ?? null,
     extraTime: m.extraTime ?? false,
     sheetClosed: m.sheetClosed ?? null,
+    pendingSchedule: m.pendingSchedule ?? false,
     createdAt: m.createdAt,
     updatedAt: m.updatedAt,
   }

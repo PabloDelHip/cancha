@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { ChevronRight, Clock, MapPin } from 'lucide-vue-next'
 import type { Match } from '@/types'
 import { useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
-import { MATCH_STATUS } from '@/utils/labels'
+import { MATCH_STATUS, matchStatusBadge } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
@@ -55,7 +55,7 @@ const a11yLabel = computed(() => {
         <template v-if="showTournament">{{ tournaments.get(match.tournamentId)?.name }} · </template>
         {{ rounds.labelOf(match.tournamentId, match.round) }} · {{ formatMatchDay(match.date) }}
       </span>
-      <StatusBadge v-if="match.status !== 'scheduled' && !finished" v-bind="MATCH_STATUS[match.status]" :pulse="live" />
+      <StatusBadge v-if="match.status !== 'scheduled' && !finished" v-bind="matchStatusBadge(match)" :pulse="live" />
       <span v-else-if="finished" class="rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] font-bold text-white">Finalizado</span>
     </div>
 

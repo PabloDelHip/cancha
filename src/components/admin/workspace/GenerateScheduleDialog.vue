@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { AlertTriangle, ArrowDown, ArrowUp, CalendarRange, Hand, Lock, Wand2 } from 'lucide-vue-next'
 import posthog from 'posthog-js'
 import { analyticsEnabled as posthogConfigured } from '@/services/analytics'
-import type { ID } from '@/types'
+import type { ConstraintIssues, ID, ScheduleProposal, Venue } from '@/types'
 import { posthogLog } from '@/services/posthogLogs'
 import { useMatchesStore, useTeamsStore, useTournamentsStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
-import { getErrorMessage } from '@/services'
+import { getErrorBody, getErrorMessage, matchService, USE_MOCKS, venueService } from '@/services'
 import { generateRoundRobin, planMatches, type Legs } from '@/utils/schedule'
 import { hasResult } from '@/utils/matches'
 import { formatDate, plural, toISODate } from '@/utils/format'
@@ -17,6 +17,9 @@ import { hasAssignments } from '@/utils/matches'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
+import ConstraintIssuesList from '@/components/admin/scheduling/ConstraintIssuesList.vue'
+import ScheduleProposalView from '@/components/admin/scheduling/ScheduleProposalView.vue'
+import WeekdayPicker from '@/components/admin/scheduling/WeekdayPicker.vue'
 
 /**
  * Genera la primera fase del formato del torneo con los equipos inscritos: liga (todos contra
@@ -28,6 +31,10 @@ import FormField from '@/components/common/FormField.vue'
  *
  * "Armar a mano" (formatos con fases): solo se crea la estructura —los grupos que elija el
  * organizador o un cuadro vacío— y él programa sus jornadas o arma cada cruce.
+ *
+ * 6B (con servidor): "Automático" primero pide una propuesta (POST /schedule/proposal) que busca
+ * fecha, hora y cancha respetando las restricciones; el organizador la revisa y la confirma (el
+ * servidor la revalida). En modo demo se genera como siempre.
  */
 const props = defineProps<{ open: boolean; tournamentId: ID }>()
 const emit = defineEmits<{ close: []; generated: [firstRound: number] }>()
@@ -36,6 +43,8 @@ const tournaments = useTournamentsStore()
 const teams = useTeamsStore()
 const matches = useMatchesStore()
 const toast = useToast()
+/** 6A: el último calendario rechazado por restricciones obligatorias (qué partidos y por qué). */
+const rejected = ref<{ issues: ConstraintIssues[]; teams: Record<string, string> } | null>(null)
 
 const tournament = computed(() => tournaments.get(props.tournamentId))
 const teamIds = computed(() =>
@@ -63,6 +72,20 @@ const bracketSize = ref(2)
 /** Grupo elegido para cada equipo (a mano). */
 const groupOf = ref<Record<ID, string>>({})
 
+/** 6B: dónde y cuándo buscar, y la propuesta en revisión. */
+const smart = !USE_MOCKS
+const search = reactive({ endDate: '', lastKickoff: '', days: [] as number[], fieldIds: [] as ID[], parallel: 1 })
+const venues = ref<Venue[]>([])
+const proposal = ref<ScheduleProposal | null>(null)
+const proposing = ref(false)
+/** 6C: guardar igual dejando «por programar» los partidos sin horario (confirmación explícita). */
+const acceptPending = ref(false)
+const pendingCount = computed(() => proposal.value?.unscheduled.length ?? 0)
+const canAssign = computed(() => tournaments.can(props.tournamentId, 'ASSIGNMENTS'))
+const fieldOptions = computed(() =>
+  venues.value.filter((v) => v.active).flatMap((v) => v.fields.filter((f) => f.active).map((f) => ({ id: f.id, label: `${v.name} · ${f.name}` }))),
+)
+
 watch(
   () => props.open,
   (open) => {
@@ -74,9 +97,13 @@ watch(
     options.legs = tournament.value?.settings.roundRobinLegs ?? 1
     seeding.value = [...teamIds.value]
     confirmReplace.value = false
+    rejected.value = null
     mode.value = 'auto'
     bracketSize.value = manualBracketSizes(teamIds.value.length).at(-1) ?? 2
     groupOf.value = Object.fromEntries(groups.value.flatMap((g) => g.teamIds.map((id) => [id, g.key])))
+    proposal.value = null
+    Object.assign(search, { endDate: '', lastKickoff: '', days: [], fieldIds: [], parallel: 1 })
+    if (smart && canAssign.value) venueService.forTournament(props.tournamentId).then((v) => (venues.value = v)).catch(() => (venues.value = []))
   },
 )
 
@@ -164,8 +191,14 @@ const replaceOk = computed(() => replaceable.value.length === 0 || confirmReplac
 const canSubmit = computed(() =>
   mode.value === 'manual'
     ? !blocked.value && replaceOk.value && !groupProblems.value.length
-    : !blocked.value && !!options.startDate && summary.value.matches > 0 && replaceOk.value,
+    : !blocked.value && !!options.startDate && summary.value.matches > 0 && replaceOk.value && (!pendingCount.value || acceptPending.value),
 )
+const submitLabel = computed(() => {
+  if (mode.value === 'manual') return system.value === 'knockout' ? 'Crear cuadro vacío' : system.value === 'groups_knockout' ? 'Crear grupos' : 'Armar a mano'
+  if (smart && !proposal.value) return 'Ver propuesta'
+  if (proposal.value) return pendingCount.value ? `Guardar con ${plural(pendingCount.value, 'pendiente')}` : `Guardar ${plural(proposal.value.matches.length, 'partido')}`
+  return `Generar ${plural(summary.value.matches, 'partido')}`
+})
 
 async function buildManually() {
   saving.value = true
@@ -189,17 +222,50 @@ async function buildManually() {
   }
 }
 
+/** Lo que comparten la propuesta y su confirmación (el servidor vuelve a planear los mismos partidos). */
+const request = () => ({
+  ...options,
+  venue: options.venue.trim() || null,
+  replaceExisting: replaceable.value.length > 0 && confirmReplace.value,
+  releaseAssignments: withAssignments.value > 0 && confirmReplace.value,
+  ...(system.value === 'knockout' ? { seeding: seeding.value } : {}),
+  ...(smart
+    ? {
+        ...(search.endDate ? { endDate: search.endDate } : {}),
+        ...(search.lastKickoff ? { lastKickoff: search.lastKickoff } : {}),
+        ...(search.days.length ? { days: search.days } : {}),
+        ...(search.fieldIds.length ? { fieldIds: search.fieldIds } : { parallel: search.parallel }),
+      }
+    : {}),
+})
+
+// Cambiar cualquier opción invalida la propuesta en revisión.
+watch([options, search, seeding], () => (proposal.value = null), { deep: true })
+watch(proposal, () => (acceptPending.value = false))
+
+async function propose() {
+  proposing.value = true
+  rejected.value = null
+  try {
+    proposal.value = await matchService.proposeSchedule(props.tournamentId, request())
+  } catch (e) {
+    toast.error(getErrorMessage(e))
+  } finally {
+    proposing.value = false
+  }
+}
+
 async function generate() {
   if (!canSubmit.value) return
   if (mode.value === 'manual') return buildManually()
+  if (smart && !proposal.value) return propose()
+  if (pendingCount.value && !acceptPending.value) return
   saving.value = true
   try {
     const created = await matches.generateSchedule(props.tournamentId, {
-      ...options,
-      venue: options.venue.trim() || null,
-      replaceExisting: replaceable.value.length > 0 && confirmReplace.value,
-      releaseAssignments: withAssignments.value > 0 && confirmReplace.value,
-      ...(system.value === 'knockout' ? { seeding: seeding.value } : {}),
+      ...request(),
+      ...(proposal.value ? { assignments: proposal.value.matches.map(({ round, homeTeamId, awayTeamId, date, time, fieldId }) => ({ round, homeTeamId, awayTeamId, date, time, fieldId })) } : {}),
+      ...(pendingCount.value ? { allowPending: pendingCount.value } : {}),
     })
     if (posthogConfigured) {
       posthog.capture('schedule_generated', {
@@ -219,9 +285,20 @@ async function generate() {
       replaced_existing_schedule: replaceable.value.length > 0,
     })
     toast.success(`Calendario generado: ${plural(created.rounds.length, 'jornada')} y ${plural(created.matches.length, 'partido')}.`)
+    if (created.warnings.length) toast.info(`Preferencias de calendario incumplidas: ${created.warnings.slice(0, 2).join(' ')}${created.warnings.length > 2 ? ` (y ${created.warnings.length - 2} más)` : ''}`)
+    rejected.value = null
     emit('generated', 1)
     emit('close')
   } catch (e) {
+    const body = getErrorBody<{ error?: string; matches?: ConstraintIssues[]; teams?: Record<string, string> }>(e)
+    rejected.value = body?.error === 'SCHEDULE_CONSTRAINTS' && body.matches ? { issues: body.matches, teams: body.teams ?? {} } : null
+    // 6B: algo cambió desde la vista previa (restricciones, canchas, inscritos): hay que proponer de nuevo.
+    if (proposal.value && ['SCHEDULE_CONSTRAINTS', 'FIELD_CONFLICT', 'PROPOSAL_STALE', 'PENDING_NOT_CONFIRMED'].includes(body?.error ?? '')) {
+      proposal.value = null
+      toast.error(`${getErrorMessage(e)} Algo cambió desde la propuesta: genera una nueva.`)
+      return
+    }
+    if (rejected.value) nextTick(() => document.getElementById('gen-rejected')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
     toast.error(getErrorMessage(e))
   } finally {
     saving.value = false
@@ -300,6 +377,17 @@ async function generate() {
         </section>
       </template>
 
+      <div v-else-if="proposal" class="space-y-3">
+        <ScheduleProposalView :proposal="proposal" />
+        <label v-if="pendingCount" class="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <input v-model="acceptPending" type="checkbox" class="mt-0.5 size-4 accent-amber-600" />
+          <span>
+            <strong class="block">Guardar igual y dejar {{ plural(pendingCount, 'partido', 'partidos') }} por programar</strong>
+            Se crean sin fecha ni cancha (no se inventa un horario). Los programas después desde «Reprogramar» en el calendario.
+          </span>
+        </label>
+      </div>
+
       <template v-else>
       <fieldset v-if="hasRoundRobin(system)">
         <legend class="mb-2 text-sm font-medium text-zinc-700">
@@ -354,14 +442,46 @@ async function generate() {
         </FormField>
         <FormField id="gen-gap" label="Entre partidos">
           <select id="gen-gap" v-model.number="options.minutesBetweenMatches" class="input">
-            <option :value="0">Misma hora</option>
+            <option v-if="!smart" :value="0">Misma hora</option>
             <option :value="60">1 h</option>
             <option :value="90">1 h 30</option>
             <option :value="120">2 h</option>
           </select>
         </FormField>
       </div>
-      <FormField id="gen-venue" label="Cancha / sede" hint="Opcional; se puede cambiar partido por partido">
+      <fieldset v-if="smart" class="space-y-4 rounded-xl border border-zinc-200 p-3">
+        <legend class="px-1 text-sm font-medium text-zinc-700">Dónde y cuándo buscar</legend>
+        <p class="text-xs text-zinc-500">
+          Kisokar busca para cada partido un horario que cumpla las
+          <RouterLink :to="{ name: 'admin-tournament-scheduling', params: { id: tournamentId } }" class="link">restricciones</RouterLink>
+          y reparte los descansos. Antes de guardar verás la propuesta.
+        </p>
+        <div class="grid grid-cols-2 gap-4">
+          <FormField id="gen-end" label="Buscar hasta" hint="Opcional">
+            <input id="gen-end" v-model="search.endDate" type="date" class="input" :min="options.startDate" />
+          </FormField>
+          <FormField id="gen-last" label="Último inicio" hint="Opcional">
+            <input id="gen-last" v-model="search.lastKickoff" type="time" class="input" />
+          </FormField>
+        </div>
+        <WeekdayPicker v-model="search.days" legend="Días (vacío = los del torneo)" />
+        <fieldset v-if="canAssign && fieldOptions.length">
+          <legend class="mb-2 text-sm font-medium text-zinc-700">Canchas</legend>
+          <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <label v-for="f in fieldOptions" :key="f.id" class="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm has-[:checked]:border-pitch-600 has-[:checked]:bg-pitch-50">
+              <input v-model="search.fieldIds" type="checkbox" :value="f.id" class="size-4 accent-pitch-700" />
+              <span class="min-w-0 truncate">{{ f.label }}</span>
+            </label>
+          </div>
+        </fieldset>
+        <FormField v-if="!search.fieldIds.length" id="gen-parallel" label="Partidos a la vez" hint="Sin canchas elegidas">
+          <select id="gen-parallel" v-model.number="search.parallel" class="input">
+            <option v-for="n in [1, 2, 3, 4, 6]" :key="n" :value="n">{{ n }}</option>
+          </select>
+        </FormField>
+      </fieldset>
+
+      <FormField v-if="!search.fieldIds.length" id="gen-venue" label="Cancha / sede" hint="Opcional; se puede cambiar partido por partido">
         <input id="gen-venue" v-model="options.venue" class="input" />
       </FormField>
 
@@ -412,12 +532,22 @@ async function generate() {
           </label>
         </div>
       </div>
+
+      <div v-if="rejected" id="gen-rejected" class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm" role="alert">
+        <p class="mb-2 font-semibold text-red-900">
+          No se generó: {{ plural(rejected.issues.length, 'partido incumple', 'partidos incumplen') }} restricciones obligatorias del calendario.
+          Cambia la fecha de inicio, la hora o los días entre jornadas, o revisa las
+          <RouterLink :to="{ name: 'admin-tournament-scheduling', params: { id: tournamentId } }" class="link">restricciones</RouterLink>.
+        </p>
+        <ConstraintIssuesList :issues="rejected.issues" :tournament-id="tournamentId" :team-names="rejected.teams" :limit="4" />
+      </div>
     </form>
 
     <template #footer>
       <AppButton variant="secondary" :disabled="saving" @click="emit('close')">{{ blocked ? 'Cerrar' : 'Cancelar' }}</AppButton>
-      <AppButton v-if="!blocked" type="submit" form="generate-form" :loading="saving" :disabled="!canSubmit">
-        {{ mode === 'manual' ? (system === 'knockout' ? 'Crear cuadro vacío' : system === 'groups_knockout' ? 'Crear grupos' : 'Armar a mano') : `Generar ${plural(summary.matches, 'partido')}` }}
+      <AppButton v-if="proposal && mode === 'auto'" variant="secondary" :disabled="saving" @click="proposal = null">Ajustar opciones</AppButton>
+      <AppButton v-if="!blocked" type="submit" form="generate-form" :loading="saving || proposing" :disabled="!canSubmit">
+        {{ submitLabel }}
       </AppButton>
     </template>
   </BaseModal>

@@ -1,5 +1,5 @@
 import type { DisciplineAction, RegistrationClosedReason, RegistrationRequestStatus, SanctionCause, SanctionStatus, RefereeRole, CollaboratorRole, TournamentRole, IncidentType, SuspensionDecision, EvidenceKind } from '@/types'
-import type { CompetitionSystem, KnockoutTiebreak, MatchStatus, PlayerPosition, PointsRule, TournamentModality, TournamentSettings, TournamentStatus } from '@/types'
+import type { CompetitionSystem, KnockoutTiebreak, Match, MatchStatus, PlayerPosition, PointsRule, TournamentModality, TournamentSettings, TournamentStatus } from '@/types'
 
 export type Tone = 'neutral' | 'green' | 'lime' | 'amber' | 'red' | 'blue'
 
@@ -45,6 +45,9 @@ export const MATCH_STATUS: Record<MatchStatus, { label: string; tone: Tone }> = 
   cancelled: { label: 'Cancelado', tone: 'neutral' },
   suspended: { label: 'Suspendido', tone: 'amber' },
 }
+
+/** Estado para mostrar: un pospuesto que nunca tuvo horario (6C) es «Por programar». */
+export const matchStatusBadge = (m: Pick<Match, 'status' | 'pendingSchedule'>) => (m.pendingSchedule ? { label: 'Por programar', tone: 'amber' as Tone } : MATCH_STATUS[m.status])
 
 /** Incidencias de partido (2C-2). */
 export const INCIDENT_TYPES: { value: IncidentType; label: string; description: string }[] = [

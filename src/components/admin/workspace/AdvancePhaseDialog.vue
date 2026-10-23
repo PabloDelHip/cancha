@@ -4,11 +4,13 @@ import { ArrowDown, ArrowUp, Hand, Wand2 } from 'lucide-vue-next'
 import posthog from 'posthog-js'
 import { analyticsEnabled as posthogConfigured } from '@/services/analytics'
 import type { AdvancePhaseInput, AdvancePreview, ID, SlotSource, TournamentStructure } from '@/types'
-import { getErrorMessage, tournamentService } from '@/services'
+import { getErrorMessage, tournamentService, USE_MOCKS } from '@/services'
 import { formatDate, toISODate } from '@/utils/format'
 import { KNOCKOUT_ROUND_LABEL, manualBracketSizes, nextPowerOfTwo } from '@/utils/formats'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
+import ConstraintIssuesList from '@/components/admin/scheduling/ConstraintIssuesList.vue'
+import ScheduleProposalView from '@/components/admin/scheduling/ScheduleProposalView.vue'
 import FormField from '@/components/common/FormField.vue'
 
 /**
@@ -21,6 +23,9 @@ import FormField from '@/components/common/FormField.vue'
  *
  * "A mano": cuadro vacío en el que el organizador elige cada cruce (Competición → Agregar cruce).
  * No exige la fase anterior terminada (pueden quedar partidos pendientes) ni la congela.
+ *
+ * 6B (con servidor): "Buscar horarios válidos" hace que la propuesta traiga también fecha y hora de
+ * cada partido según las restricciones; al usarla se confirman esos horarios (el servidor revalida).
  */
 const props = defineProps<{ open: boolean; tournamentId: ID; structure: TournamentStructure; teamCount: number }>()
 const emit = defineEmits<{ close: []; done: [structure: TournamentStructure] }>()
@@ -30,7 +35,7 @@ const error = ref<string | null>(null)
 const mode = ref<'auto' | 'manual'>('auto')
 const sizes = computed(() => manualBracketSizes(props.teamCount))
 const bracketSize = ref(2)
-const form = reactive({ startDate: toISODate(new Date()), daysBetweenRounds: 7, firstKickoff: '18:00', minutesBetweenMatches: 90, venue: '' })
+const form = reactive({ startDate: toISODate(new Date()), daysBetweenRounds: 7, firstKickoff: '18:00', minutesBetweenMatches: 90, venue: '', smart: !USE_MOCKS })
 
 /** Empates por resolver, con el orden que propone el organizador (editable). */
 const clusters = ref<{ scope: string; label: string; order: ID[] }[]>([])
@@ -56,6 +61,10 @@ watch(
 
 /** Propuesta del servidor; cualquier cambio en el formulario o en los desempates la invalida. */
 const preview = ref<AdvancePreview | null>(null)
+/** 6C: usar la propuesta dejando por programar los partidos sin horario (confirmación explícita). */
+const acceptPending = ref(false)
+const pendingCount = computed(() => preview.value?.proposal?.unscheduled.length ?? 0)
+watch(preview, () => (acceptPending.value = false))
 watch([mode, form, clusters, () => props.open], () => (preview.value = null), { deep: true })
 
 const autoInput = (): AdvancePhaseInput => ({
@@ -65,7 +74,15 @@ const autoInput = (): AdvancePhaseInput => ({
   minutesBetweenMatches: Number(form.minutesBetweenMatches),
   venue: form.venue.trim() || null,
   tiebreaks: clusters.value.map((c) => ({ scope: c.scope, order: c.order })),
+  ...(form.smart ? { smart: true } : {}),
 })
+
+/** 6B: nombre de la ronda de un partido de la propuesta. */
+const roundLabel = (round: number) => {
+  const p = preview.value
+  const m = p?.proposal?.matches.find((x) => x.round === round)
+  return (m && p?.matches.find((x) => x.homeTeamId === m.homeTeamId && x.awayTeamId === m.awayTeamId)?.roundName) ?? `Jornada ${round}`
+}
 
 async function showPreview() {
   saving.value = true
@@ -117,7 +134,14 @@ async function submit() {
       return
     }
     if (!preview.value) return showPreview()
-    const result = await tournamentService.advance(props.tournamentId, autoInput())
+    const proposal = preview.value.proposal
+    if (pendingCount.value && !acceptPending.value) return
+    const result = await tournamentService.advance(props.tournamentId, {
+      ...autoInput(),
+      smart: undefined,
+      ...(proposal ? { assignments: proposal.matches.map(({ round, homeTeamId, awayTeamId, date, time, fieldId }) => ({ round, homeTeamId, awayTeamId, date, time, fieldId })) } : {}),
+      ...(pendingCount.value ? { allowPending: pendingCount.value } : {}),
+    })
     if (posthogConfigured) {
       posthog.capture('tournament_phase_advanced', {
         tournament_id: props.tournamentId,
@@ -193,6 +217,10 @@ async function submit() {
         <FormField id="adv-time" label="Primer partido"><input id="adv-time" v-model="form.firstKickoff" type="time" class="input" /></FormField>
         <FormField id="adv-gap" label="Minutos entre partidos"><input id="adv-gap" v-model.number="form.minutesBetweenMatches" type="number" min="0" max="240" class="input" /></FormField>
         <FormField id="adv-venue" label="Sede" hint="Opcional" class="col-span-2"><input id="adv-venue" v-model="form.venue" class="input" /></FormField>
+        <label v-if="!USE_MOCKS" class="col-span-2 flex cursor-pointer items-start gap-2 text-sm">
+          <input v-model="form.smart" type="checkbox" class="mt-0.5 size-4 accent-pitch-700" />
+          <span><span class="font-medium text-zinc-900">Buscar horarios válidos</span><span class="block text-xs text-zinc-500">Desde la primera ronda, respetando las restricciones del calendario.</span></span>
+        </label>
       </fieldset>
 
       <section v-if="preview" aria-labelledby="pv-title" class="space-y-3 rounded-xl border border-pitch-200 bg-pitch-50/50 p-3">
@@ -212,13 +240,24 @@ async function submit() {
           </ul>
           <p v-else class="mt-1 text-sm text-zinc-500">Los cruces los armas tú cuando se conozcan los ganadores (reacomodo).</p>
         </div>
-        <div v-if="preview.matches.length">
+        <ScheduleProposalView v-if="preview.proposal" :proposal="preview.proposal" :round-label="roundLabel" />
+        <label v-if="pendingCount" class="flex cursor-pointer items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <input v-model="acceptPending" type="checkbox" class="mt-0.5 size-4 accent-amber-600" />
+          <span><strong class="block">Usarla dejando {{ pendingCount }} por programar</strong>Se crean sin fecha; los programas después desde el calendario.</span>
+        </label>
+        <div v-else-if="preview.matches.length">
           <p class="text-xs font-semibold text-zinc-600">Partidos que se crearían ahora</p>
           <ul class="mt-1 space-y-0.5 text-sm text-zinc-700">
             <li v-for="(m, i) in preview.matches" :key="i">
               {{ formatDate(m.date) }} · {{ m.time }} — {{ preview.teams[m.homeTeamId]?.name }} vs {{ preview.teams[m.awayTeamId]?.name }}
             </li>
           </ul>
+        </div>
+        <div v-if="!preview.proposal && preview.constraints?.length" class="rounded-lg border px-3 py-2 text-sm" :class="preview.constraints.some((c) => c.errors.length) ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'" role="status">
+          <p class="mb-1 font-semibold" :class="preview.constraints.some((c) => c.errors.length) ? 'text-red-900' : 'text-amber-900'">
+            {{ preview.constraints.some((c) => c.errors.length) ? 'Con estas fechas no se puede generar: incumple restricciones obligatorias del calendario. Cambia la fecha o la hora.' : 'Incumple preferencias de calendario (se puede generar).' }}
+          </p>
+          <ConstraintIssuesList :issues="preview.constraints" :tournament-id="tournamentId" :team-names="Object.fromEntries(Object.entries(preview.teams).map(([id, t]) => [id, t.name]))" />
         </div>
         <AppButton variant="secondary" size="sm" @click="mode = 'manual'"><Hand class="size-4" aria-hidden="true" /> Prefiero armarla a mano</AppButton>
       </section>
@@ -229,7 +268,7 @@ async function submit() {
     </div>
     <template #footer>
       <AppButton variant="secondary" @click="emit('close')">Cancelar</AppButton>
-      <AppButton :loading="saving" :disabled="mode === 'auto' && hardBlockers.length > 0" @click="submit">{{ mode === 'manual' ? 'Crear cuadro vacío' : preview ? 'Usar esta propuesta' : 'Ver propuesta' }}</AppButton>
+      <AppButton :loading="saving" :disabled="mode === 'auto' && (hardBlockers.length > 0 || (pendingCount > 0 && !acceptPending))" @click="submit">{{ mode === 'manual' ? 'Crear cuadro vacío' : preview ? 'Usar esta propuesta' : 'Ver propuesta' }}</AppButton>
     </template>
   </BaseModal>
 </template>

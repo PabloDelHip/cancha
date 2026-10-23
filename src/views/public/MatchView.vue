@@ -6,7 +6,7 @@ import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTou
 import { useLeagueData } from '@/composables/useLeagueData'
 import { usePageTitle } from '@/composables/usePageTitle'
 import { trackViewOnce } from '@/services/analytics'
-import { MATCH_STATUS, POSITION_LABELS } from '@/utils/labels'
+import { matchStatusBadge, POSITION_LABELS } from '@/utils/labels'
 import { formatDate } from '@/utils/format'
 import { fullName } from '@/utils/players'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
@@ -123,7 +123,7 @@ const winner = computed(() => {
             <RouterLink v-if="tournament" :to="{ name: 'tournament-matches', params: { id: tournament.id } }" class="inline-flex items-center gap-1 font-semibold text-white/80 hover:text-white">
               <ChevronLeft class="size-4" aria-hidden="true" /> {{ tournament.name }} · {{ rounds.labelOf(tournament.id, match.round) }}
             </RouterLink>
-            <StatusBadge v-bind="MATCH_STATUS[match.status]" :pulse="match.status === 'live'" />
+            <StatusBadge v-bind="matchStatusBadge(match)" :pulse="match.status === 'live'" />
           </div>
 
           <div class="mt-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-6">
@@ -135,7 +135,7 @@ const winner = computed(() => {
               <p v-if="hasScore" class="font-display text-6xl leading-none font-extrabold sm:text-8xl">
                 {{ match.homeScore }}<span class="mx-1.5 text-white/40 sm:mx-3">–</span>{{ match.awayScore }}
               </p>
-              <p v-else-if="match.status === 'postponed' || match.status === 'suspended'" class="font-display text-3xl text-amber-300">{{ match.status === 'suspended' ? 'Suspendido' : 'Pospuesto' }}</p>
+              <p v-else-if="match.status === 'postponed' || match.status === 'suspended'" class="font-display text-3xl text-amber-300">{{ match.status === 'suspended' ? 'Suspendido' : match.pendingSchedule ? 'Por programar' : 'Pospuesto' }}</p>
               <p v-else class="font-display text-5xl font-bold text-white/90">{{ match.status === 'cancelled' ? '—' : match.time }}</p>
               <p v-if="match.extraTime" class="mt-1 text-xs font-semibold text-lime-300">Tras tiempos extra</p>
               <p v-if="match.penalties" class="mt-1 rounded-full bg-black/30 px-3 py-0.5 text-xs font-bold text-amber-300">
@@ -169,8 +169,11 @@ const winner = computed(() => {
           </div>
 
           <p class="mt-6 flex flex-wrap justify-center gap-2 text-xs">
+            <span v-if="match.pendingSchedule" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15"><CalendarDays class="size-3.5" aria-hidden="true" /> Fecha por definir</span>
+            <template v-else>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15" :class="match.status === 'postponed' && 'line-through'"><CalendarDays class="size-3.5" aria-hidden="true" /> {{ formatDate(match.date, 'long') }}</span>
             <span class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15" :class="match.status === 'postponed' && 'line-through'"><Clock class="size-3.5" aria-hidden="true" /> {{ match.time }} h</span>
+            </template>
             <span v-if="match.venue" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15"><MapPin class="size-3.5" aria-hidden="true" /> {{ match.venue }}</span>
             <span v-if="match.centralReferee" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 ring-1 ring-white/15"><UserRound class="size-3.5" aria-hidden="true" /> Árbitro: {{ match.centralReferee }}</span>
           </p>

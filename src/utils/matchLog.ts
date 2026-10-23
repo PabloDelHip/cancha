@@ -1,6 +1,8 @@
 import type { EvidenceKind, IncidentType, MatchLog, MatchLogEntry, MatchStatus, RefereeRole, SuspensionDecision } from '@/types'
 import { EVIDENCE_KIND, INCIDENT_TYPE, MATCH_STATUS, REFEREE_ROLE, SUSPENSION_DECISION } from './labels'
 import { formatDate } from './format'
+import { ruleChangeText, teamRulesSummary } from './scheduling'
+import type { TeamSchedulingRules } from '@/types'
 
 /**
  * Texto legible de una entrada del historial: un titular y el detalle de cada cambio. El
@@ -88,6 +90,7 @@ export function describeEntry(e: MatchLogEntry, refs: MatchLog['refs']) {
       const n = (c.sameDate?.to as unknown[] | undefined)?.length ?? 0
       return `Corrección administrativa: ${n === 1 ? '1 jugador figura' : `${n} jugadores figuran`} con otro equipo en la misma fecha`
     },
+    SCHEDULING_RULES_UPDATED: () => (c.teamRules ? `Restricciones de calendario de ${team(c.teamId?.to)} actualizadas` : 'Restricciones de calendario del torneo actualizadas'),
     DELETED: () => `Partido eliminado: ${e.cause ? CAUSE[e.cause] : ''}`,
     SCHEDULE_REPLACED: () => `Calendario reemplazado (${e.cause ? CAUSE[e.cause] : ''}): ${e.deleted?.length ?? 0} partidos eliminados`,
   }
@@ -104,6 +107,12 @@ export function describeEntry(e: MatchLogEntry, refs: MatchLog['refs']) {
     details.push(`${team(e.snapshot.homeTeamId)} vs ${team(e.snapshot.awayTeamId)} · ${formatDate(String(e.snapshot.date))} ${e.snapshot.time} · ${status(e.snapshot.status)}`)
   }
   if (released.length) details.push(`Se liberó: ${released.join(', ')}`)
+  if (e.action === 'SCHEDULING_RULES_UPDATED') {
+    if (c.teamRules) {
+      const to = c.teamRules.to as TeamSchedulingRules | null
+      details.push(to ? [...teamRulesSummary(to), to.strict ? 'obligatoria' : 'preferencia'].join(' · ') : 'Sin restricciones')
+    } else for (const [key, change] of Object.entries(c)) details.push(ruleChangeText(key, change.to))
+  }
 
   return { title: titles[e.action](), details, system: e.source === 'SYSTEM', by: refs.users[e.actorId] ?? null }
 }
