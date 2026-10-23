@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import FireRedBackdrop from './fire-red/FireRedBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason, type PosterRow } from '../data'
 
@@ -46,27 +47,7 @@ const podiumScale = computed(() => ({ story: 1, portrait: 0.74, square: 0.6 })[p
 
 <template>
   <div class="fr" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="fr-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <radialGradient id="fr-ember" cx="78%" cy="0%" r="85%">
-          <stop offset="0" stop-color="#ff3b1f" stop-opacity="0.75" />
-          <stop offset="0.45" stop-color="#7a0b05" stop-opacity="0.6" />
-          <stop offset="1" stop-color="#120202" stop-opacity="0" />
-        </radialGradient>
-        <linearGradient id="fr-slash" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#ff3b1f" stop-opacity="0" />
-          <stop offset="0.5" stop-color="#ff3b1f" stop-opacity="0.5" />
-          <stop offset="1" stop-color="#ff3b1f" stop-opacity="0" />
-        </linearGradient>
-        <filter id="fr-grain"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" /><feColorMatrix values="0 0 0 0 1  0 0 0 0 0.6  0 0 0 0 0.5  0 0 0 0.06 0" /></filter>
-      </defs>
-      <rect width="100%" height="100%" fill="#120202" />
-      <rect width="100%" height="100%" fill="url(#fr-ember)" />
-      <path :d="`M${m.width * 0.35} -20 L${m.width * 0.5} -20 L${m.width * 0.05} ${m.height * 0.55} L${-m.width * 0.1} ${m.height * 0.55} Z`" fill="url(#fr-slash)" opacity="0.35" />
-      <path :d="`M${m.width * 1.05} ${m.height * 0.3} L${m.width * 1.12} ${m.height * 0.3} L${m.width * 0.55} ${m.height * 1.02} L${m.width * 0.48} ${m.height * 1.02} Z`" fill="url(#fr-slash)" opacity="0.25" />
-      <rect x="0" :y="head - 8" :width="m.width" height="6" fill="#ff3b1f" />
-      <rect width="100%" height="100%" filter="url(#fr-grain)" />
-    </svg>
+    <FireRedBackdrop :width="m.width" :height="m.height" :head="head" />
 
     <header class="fr-head" :style="{ height: `${head}px` }">
       <div class="fr-titles">
@@ -121,12 +102,6 @@ const podiumScale = computed(() => ({ story: 1, portrait: 0.74, square: 0.6 })[p
   background: #120202;
   color: #fff4f0;
   font-family: 'Oswald', sans-serif;
-}
-.fr-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .fr-head {
   position: relative;
