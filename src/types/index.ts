@@ -2118,3 +2118,41 @@ export interface TeamFinanceStatement extends FinancePage {
   totals: FinanceTotals
   entries: FinanceEntry[]
 }
+
+// ─── Módulo 8: reportes y exportaciones ─────────────────────────────────────
+
+export type ReportId = 'standings' | 'matches' | 'players' | 'rosters' | 'discipline' | 'finance' | 'summary'
+export type ReportFormat = 'pdf' | 'xlsx' | 'csv'
+/** Filtros que admite cada reporte (los nombres son los parámetros del backend). */
+export type ReportFilterKey = 'phase' | 'group' | 'round' | 'teamId' | 'from' | 'to' | 'status' | 'includeInactive'
+/** Estados del filtro de partidos (los del partido más «por programar», 6C). */
+export type ReportMatchStatus = 'SCHEDULED' | 'LIVE' | 'FINISHED' | 'POSTPONED' | 'CANCELLED' | 'SUSPENDED' | 'PENDING_SCHEDULE'
+
+/** GET /tournaments/:id/reports (8A): el catálogo es la fuente de verdad de reportes, permisos y filtros. */
+export interface ReportCatalog {
+  tournamentId: ID
+  status: string
+  formats: ReportFormat[]
+  reports: {
+    id: ReportId
+    title: string
+    description: string
+    filters: ReportFilterKey[]
+    /** El rol del usuario puede exportarlo (el servidor lo vuelve a validar). */
+    allowed: boolean
+    /** Datos personales, disciplinarios o financieros: su exportación queda auditada. */
+    sensitive: boolean
+  }[]
+}
+
+/** Valores de los filtros en la pantalla (vacío = sin filtro). */
+export interface ReportFilters {
+  phase: string
+  group: string
+  round: string
+  teamId: string
+  from: string
+  to: string
+  status: ReportMatchStatus[]
+  includeInactive: boolean
+}

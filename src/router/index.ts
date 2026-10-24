@@ -62,6 +62,7 @@ const tournamentWorkspace: RouteRecordRaw[] = [
   { path: 'historial', name: 'admin-tournament-history', component: () => import('@/views/admin/tournament/HistoryTab.vue'), props: true },
   { path: 'finanzas', name: 'admin-tournament-finance', component: () => import('@/views/admin/tournament/FinanceTab.vue'), props: true },
   { path: 'finanzas/:teamId', name: 'admin-tournament-finance-account', component: () => import('@/views/admin/tournament/FinanceAccountView.vue'), props: true },
+  { path: 'reportes', name: 'admin-tournament-reports', component: () => import('@/views/admin/tournament/ReportsTab.vue'), props: true },
   { path: 'colaboradores', name: 'admin-tournament-collaborators', component: () => import('@/views/admin/tournament/CollaboratorsTab.vue'), props: true },
   { path: 'configuracion', name: 'admin-tournament-settings', component: () => import('@/views/admin/tournament/SettingsTab.vue'), props: true },
 ]

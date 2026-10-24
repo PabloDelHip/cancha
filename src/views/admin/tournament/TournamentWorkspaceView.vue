@@ -46,6 +46,8 @@ const TABS: { name: string; label: string; permission: TournamentPermission | To
   { name: 'admin-tournament-registration', label: 'Inscripciones', permission: 'TEAMS' },
   { name: 'admin-tournament-history', label: 'Historial', permission: 'TEAMS' },
   { name: 'admin-tournament-finance', label: 'Finanzas', permission: 'FINANCE_VIEW', activeOn: ['admin-tournament-finance-account'] },
+  // 8B: todos los colaboradores ven el catálogo; cada reporte dice si su rol puede descargarlo.
+  { name: 'admin-tournament-reports', label: 'Reportes', permission: 'VIEW' },
   { name: 'admin-tournament-collaborators', label: 'Colaboradores', permission: 'MEMBERS' },
   { name: 'admin-tournament-settings', label: 'Configuración', permission: 'SETTINGS' },
 ]
