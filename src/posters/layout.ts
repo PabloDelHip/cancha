@@ -4,7 +4,7 @@
  * bien (con pocos equipos las filas no crecen sin límite).
  */
 import { computed, type ComputedRef } from 'vue'
-import { FORMATS, type MatchPosterData, type PosterData, type PosterFormat } from './data'
+import { FORMATS, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from './data'
 
 export interface PosterProps {
   data: PosterData
@@ -86,3 +86,61 @@ export const STAT_COLUMNS = [
 export const statGrid = (m: Metrics, pos: number, crest: number) => `${pos}px ${crest}px minmax(0,1fr) repeat(6, ${m.statW}px) ${m.difW}px ${m.ptsW}px`
 
 export const pageLabel = (d: PosterData) => (d.page.total > 1 ? `${d.rows[0]?.position}–${d.rows.at(-1)?.position} de ${d.totalTeams}` : null)
+
+/** 7B-C: props de una imagen de resultados de la jornada. */
+export interface ResultsPosterProps {
+  data: ResultsPosterData
+  format: PosterFormat
+}
+
+export interface ResultMetrics {
+  width: number
+  height: number
+  rowH: number
+  crest: number
+  /** Letra del nombre del equipo. */
+  name: number
+  /** Letra del marcador. */
+  score: number
+  /** Con filas altas el nombre cabe en dos líneas. */
+  nameLines: 1 | 2
+  /** Letra de ESE nombre: los largos se achican (hasta un 30 %) antes de recortarse. */
+  nameOf: (name: string) => number
+}
+
+/**
+ * Medidas de una lista de resultados: cada plantilla dice cuánto alto deja a la lista en cada
+ * formato; con pocos partidos las filas no crecen sin límite.
+ */
+export function useResultMetrics(
+  props: ResultsPosterProps,
+  listHeight: Record<PosterFormat, number>,
+  opts: { maxRow?: Partial<Record<PosterFormat, number>>; crestRatio?: number; maxCrest?: number; nameRatio?: number; maxName?: number; scoreRatio?: number; maxScore?: number; nameChars?: number } = {},
+): ComputedRef<ResultMetrics> {
+  return computed(() => {
+    const { width, height } = FORMATS[props.format]
+    const rows = Math.max(1, props.data.rows.length)
+    const maxRow = opts.maxRow?.[props.format] ?? ({ story: 190, portrait: 150, square: 140 } as const)[props.format]
+    const rowH = Math.floor(Math.min(maxRow, listHeight[props.format] / rows))
+    // El ancho es el mismo en los tres formatos: escudo, marcador y nombre tienen tope por ancho
+    // (en historia las filas ganan aire, no se comen el nombre).
+    const name = Math.round(Math.max(22, Math.min(opts.maxName ?? 37, rowH * (opts.nameRatio ?? 0.25))))
+    const nameLines = rowH >= 96 ? 2 : 1
+    /** Caracteres que caben a la letra base (por línea); se estima por familia con `nameChars`. */
+    const cap = (opts.nameChars ?? 11) * nameLines
+    return {
+      width,
+      height,
+      rowH,
+      crest: Math.round(Math.min(opts.maxCrest ?? 86, rowH * (opts.crestRatio ?? 0.54))),
+      name,
+      score: Math.round(Math.max(34, Math.min(opts.maxScore ?? 66, rowH * (opts.scoreRatio ?? 0.44)))),
+      nameLines,
+      // Cabe por largo total y por su palabra más larga («Universitarios» no se puede partir).
+      nameOf: (n: string) => {
+        const word = Math.max(1, ...n.split(/\s+/).map((w) => w.length))
+        return Math.round(name * Math.max(0.66, Math.min(1, cap / Math.max(1, n.length), (opts.nameChars ?? 11) / word)))
+      },
+    }
+  })
+}

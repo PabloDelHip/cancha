@@ -315,3 +315,114 @@ const slugOf = (s: string, max = 40) =>
 /** «partido-halcones-vs-leones-j9-urban-black.png». */
 export const matchFileNameOf = (d: MatchPosterData, template: string) =>
   `partido-${slugOf(d.home.name, 24) || 'local'}-vs-${slugOf(d.away.name, 24) || 'visita'}-j${d.roundNumber}-${template}.png`
+
+// ─── 7B-C: resultados de la jornada ──────────────────────────────────────────
+
+export interface ResultRow {
+  id: ID
+  home: PosterTeam
+  away: PosterTeam
+  homeScore: number
+  awayScore: number
+  /** Quién ganó (por marcador o, igualado, por penales); null = empate. */
+  winner: 'home' | 'away' | null
+  /** «Grupo A · Penales 4-3», «Tiempo extra»… (null = nada que aclarar). */
+  detail: string | null
+}
+
+export interface ResultsPosterData {
+  tournamentName: string
+  leagueName: string | null
+  season: string
+  roundLabel: string
+  roundNumber: number
+  /** «Domingo 25 de octubre» si todos se jugaron el mismo día (si no, null). */
+  dateLabel: string | null
+  /** «2 partidos por jugar» si la jornada no está completa (null = completa). */
+  pendingNote: string | null
+  rows: ResultRow[]
+  page: { index: number; total: number }
+  logo: string | null
+  logoInitials: string
+}
+
+type ResultMatch = {
+  id: ID
+  status: string
+  date: string
+  homeTeamId: ID
+  awayTeamId: ID
+  homeScore: number | null
+  awayScore: number | null
+  penalties?: { home: number; away: number } | null
+  extraTime?: boolean
+  stage?: { group: string | null } | null
+}
+
+export interface ResultsBuildInput {
+  /** Todos los partidos de la jornada (en el orden del calendario). */
+  matches: ResultMatch[]
+  teams: Record<ID, { name: string; shortName?: string | null; colors?: TeamColors } | undefined>
+  crests: Record<ID, string | null>
+  tournament: { name: string; startDate: string; endDate: string | null }
+  leagueName: string | null
+  logo: string | null
+  roundNumber: number
+  roundLabel: string
+  format: PosterFormat
+  overrides?: { title?: string; season?: string; roundLabel?: string }
+}
+
+/** Resultados legibles por imagen; con más partidos se reparten en varias. */
+export const MAX_RESULTS: Record<PosterFormat, number> = { story: 10, portrait: 7, square: 5 }
+
+/** Un resultado publicable: partido finalizado con marcador capturado. */
+const isResult = (m: ResultMatch) => m.status === 'finished' && m.homeScore !== null && m.awayScore !== null
+
+/** Hay algo que publicar en esa jornada. */
+export const hasResults = (matches: ResultMatch[]) => matches.some(isResult)
+
+/**
+ * Datos de la imagen de resultados. Solo partidos FINALIZADOS con marcador, tal como están
+ * capturados: los que faltan no se muestran, se avisa cuántos quedan por jugar (los cancelados no
+ * cuentan). Nada se inventa.
+ */
+export function buildResultPages(input: ResultsBuildInput): ResultsPosterData[] {
+  const played = input.matches.filter(isResult)
+  const pending = input.matches.filter((m) => !isResult(m) && m.status !== 'cancelled').length
+  const rows: ResultRow[] = played.map((m) => {
+    const hs = m.homeScore!
+    const as = m.awayScore!
+    const pens = m.penalties ?? null
+    const winner = hs > as ? 'home' : as > hs ? 'away' : pens && pens.home !== pens.away ? (pens.home > pens.away ? 'home' : 'away') : null
+    const detail = [m.stage?.group ? `Grupo ${m.stage.group}` : null, pens ? `Penales ${pens.home}-${pens.away}` : m.extraTime ? 'Tiempo extra' : null].filter(Boolean).join(' · ')
+    return {
+      id: m.id,
+      home: posterTeam(input.teams[m.homeTeamId], input.crests[m.homeTeamId] ?? null),
+      away: posterTeam(input.teams[m.awayTeamId], input.crests[m.awayTeamId] ?? null),
+      homeScore: hs,
+      awayScore: as,
+      winner,
+      detail: detail || null,
+    }
+  })
+  const dates = new Set(played.map((m) => m.date).filter(Boolean))
+  const pages = paginate(rows, input.format, MAX_RESULTS[input.format])
+  return pages.map((page, index) => ({
+    tournamentName: input.overrides?.title?.trim() || input.tournament.name,
+    leagueName: input.leagueName,
+    season: input.overrides?.season?.trim() || seasonOf(input.tournament.startDate, input.tournament.endDate),
+    roundLabel: input.overrides?.roundLabel?.trim() || input.roundLabel,
+    roundNumber: input.roundNumber,
+    dateLabel: dates.size === 1 ? matchDayLabel([...dates][0]!) : null,
+    pendingNote: pending ? `${pending} ${pending === 1 ? 'partido' : 'partidos'} por jugar` : null,
+    rows: page,
+    page: { index, total: pages.length },
+    logo: input.logo,
+    logoInitials: initialsOf(input.tournament.name),
+  }))
+}
+
+/** «resultados-liga-norte-j9-urban-black-1de2.png». */
+export const resultsFileNameOf = (d: ResultsPosterData, template: string) =>
+  `resultados-${slugOf(d.tournamentName) || 'torneo'}-j${d.roundNumber}-${template}${d.page.total > 1 ? `-${d.page.index + 1}de${d.page.total}` : ''}.png`

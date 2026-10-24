@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { CalendarClock, CalendarRange, CheckCircle2, History, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
+import { CalendarClock, CalendarRange, CheckCircle2, History, ImageDown, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
+import { hasResults } from '@/posters/data'
 import type { Match, MatchStatus, Team } from '@/types'
 import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore, type RoundView } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -172,6 +173,8 @@ const historyOf = ref<{ matchId: string | null; title: string } | null>(null)
 const refereesOf = ref<Match | null>(null)
 /** 7B-B1: cartel del partido (el diálogo se carga solo al abrirlo). */
 const posterOf = ref<Match | null>(null)
+/** 7B-C: imagen de resultados de esa jornada. */
+const resultsOf = ref<number | null>(null)
 const PosterDialog = defineAsyncComponent(() => import('@/components/admin/posters/PosterDialog.vue'))
 /** Partido cuyo diálogo de incidencias está abierto (se lee del store: refleja su estado actual). */
 const incidentsOfId = ref<string | null>(null)
@@ -347,9 +350,12 @@ async function deleteRound(r: RoundView) {
               <CheckCircle2 class="size-3.5" aria-hidden="true" /> Completa
             </span>
             <span v-else-if="roundSummary(round).total" class="text-xs text-zinc-500">{{ roundSummary(round).done }}/{{ roundSummary(round).total }} jugados</span>
-            <span v-if="!scheduleLocked" class="ml-auto flex gap-1">
-              <AppButton variant="ghost" size="sm" @click="roundDialog = { open: true, round }"><Pencil class="size-3.5" aria-hidden="true" /> Editar jornada</AppButton>
-              <AppButton v-if="manual" variant="secondary" size="sm" @click="newMatch(round.number)"><Plus class="size-3.5" aria-hidden="true" /> Partido</AppButton>
+            <span class="ml-auto flex flex-wrap justify-end gap-1">
+              <AppButton v-if="hasResults(round.matches)" variant="ghost" size="sm" @click="resultsOf = round.number"><ImageDown class="size-3.5" aria-hidden="true" /> Imagen de resultados</AppButton>
+              <template v-if="!scheduleLocked">
+                <AppButton variant="ghost" size="sm" @click="roundDialog = { open: true, round }"><Pencil class="size-3.5" aria-hidden="true" /> Editar jornada</AppButton>
+                <AppButton v-if="manual" variant="secondary" size="sm" @click="newMatch(round.number)"><Plus class="size-3.5" aria-hidden="true" /> Partido</AppButton>
+              </template>
             </span>
           </div>
 
@@ -424,6 +430,7 @@ async function deleteRound(r: RoundView) {
     </template>
 
     <PosterDialog v-if="posterOf" :open="!!posterOf" :tournament-id="id" :match="posterOf" @close="posterOf = null" />
+    <PosterDialog v-if="resultsOf !== null" :open="resultsOf !== null" :tournament-id="id" :round="resultsOf" @close="resultsOf = null" />
     <RescheduleDialog :open="rescheduling" :tournament-id="id" @close="rescheduling = false" />
     <GenerateScheduleDialog
       :open="generating"

@@ -10,7 +10,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
 import { componentOf, templateOf, templatesFor } from '@/posters/templates/registry'
-import { buildMatchPoster, buildPosterPages, fileNameOf, FORMATS, lastPlayed, matchFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat } from '@/posters/data'
+import { buildMatchPoster, buildPosterPages, buildResultPages, fileNameOf, FORMATS, lastPlayed, matchFileNameOf, resultsFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from '@/posters/data'
 import { loadFonts } from '@/posters/fonts'
 import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/posters/export'
 
@@ -20,8 +20,9 @@ import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/
  * estructura del torneo (los mismos de la tabla del panel); solo los textos del título se pueden
  * ajustar, como texto plano.
  * 7B-B1 — con `match`, el cartel de ese partido (solo las familias que ya tienen ese tipo).
+ * 7B-C — con `round`, los resultados de esa jornada.
  */
-const props = defineProps<{ open: boolean; tournamentId: ID; structure?: TournamentStructure | null; match?: Match | null }>()
+const props = defineProps<{ open: boolean; tournamentId: ID; structure?: TournamentStructure | null; match?: Match | null; round?: number | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const tournaments = useTournamentsStore()
@@ -30,9 +31,9 @@ const rounds = useRoundsStore()
 const teams = useTeamsStore()
 const toast = useToast()
 
-const kind = computed(() => (props.match ? 'match' : 'standings') as 'match' | 'standings')
+const kind = computed(() => (props.match ? 'match' : props.round != null ? 'results' : 'standings'))
 const templates = computed(() => templatesFor(kind.value))
-const templateId = ref(templatesFor(props.match ? 'match' : 'standings')[0]!.id)
+const templateId = ref(templatesFor(kind.value)[0]!.id)
 const format = ref<PosterFormat>('portrait')
 const optionKey = ref('')
 const pageIndex = ref(0)
@@ -68,8 +69,27 @@ const matchPoster = computed<MatchPosterData | null>(() => {
     overrides: texts.value,
   })
 })
-const pages = computed<(PosterData | MatchPosterData)[]>(() => {
+/** Partidos de la jornada, en el orden del calendario. */
+const roundMatches = computed(() => (props.round != null ? (rounds.roundsOf(props.tournamentId).find((r) => r.number === props.round)?.matches ?? []) : []))
+const resultPages = computed<ResultsPosterData[]>(() => {
+  const t = tournament.value
+  if (!t || props.round == null) return []
+  return buildResultPages({
+    matches: roundMatches.value,
+    teams: Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)])),
+    crests: crests.value,
+    tournament: { name: t.name, startDate: t.startDate, endDate: t.endDate },
+    leagueName: leagueName.value,
+    logo: logo.value,
+    roundNumber: props.round,
+    roundLabel: rounds.labelOf(props.tournamentId, props.round),
+    format: format.value,
+    overrides: texts.value,
+  })
+})
+const pages = computed<(PosterData | MatchPosterData | ResultsPosterData)[]>(() => {
   if (matchPoster.value) return [matchPoster.value]
+  if (kind.value === 'results') return resultPages.value.filter((p) => p.rows.length)
   const t = tournament.value
   const o = option.value
   if (!t || !o || !props.structure) return []
@@ -113,7 +133,9 @@ watch(
     // Escudos y logo como data URL (si alguno no se puede leer, se usa el de iniciales).
     const logos: Record<ID, string | null | undefined> = props.match
       ? { [props.match.homeTeamId]: teams.get(props.match.homeTeamId)?.logoUrl, [props.match.awayTeamId]: teams.get(props.match.awayTeamId)?.logoUrl }
-      : Object.fromEntries(Object.entries(props.structure?.teams ?? {}).map(([id, t]) => [id, t?.logoUrl]))
+      : props.round != null
+        ? Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)?.logoUrl]))
+        : Object.fromEntries(Object.entries(props.structure?.teams ?? {}).map(([id, t]) => [id, t?.logoUrl]))
     const entries = await Promise.all(Object.entries(logos).map(async ([id, url]) => [id, await toDataUrl(url)] as const))
     crests.value = Object.fromEntries(entries)
     logo.value = await toDataUrl(tournament.value?.logoUrl)
@@ -149,7 +171,7 @@ async function renderAll(): Promise<File[]> {
     if (!node) throw new Error('La vista previa no está lista')
     const blob = await renderPng(node, format.value, template.value.fonts)
     const data = pages.value[i]!
-    const name = 'home' in data ? matchFileNameOf(data, template.value.id) : fileNameOf(data, template.value.id)
+    const name = 'home' in data ? matchFileNameOf(data, template.value.id) : 'pendingNote' in data ? resultsFileNameOf(data, template.value.id) : fileNameOf(data, template.value.id)
     files.push(new File([blob], name, { type: 'image/png' }))
   }
   pageIndex.value = current
@@ -173,7 +195,7 @@ async function share() {
   try {
     const files = await renderAll()
     const p = page.value
-    const title = p && 'home' in p ? `${p.home.name} vs ${p.away.name} · ${p.roundLabel}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
+    const title = p && 'home' in p ? `${p.home.name} vs ${p.away.name} · ${p.roundLabel}` : p && 'pendingNote' in p ? `Resultados · ${p.roundLabel} · ${p.tournamentName}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
     const result = await sharePngs(files, title.trim())
     if (result === 'unsupported') {
       for (const f of files) downloadFile(f, f.name)
@@ -186,12 +208,22 @@ async function share() {
   }
 }
 /** Compartir solo se ofrece donde el navegador admite archivos (si no, queda Descargar). */
+const HINTS = {
+  standings: 'Las posiciones y números no se pueden editar',
+  match: 'Los equipos, la fecha, la hora y la sede no se pueden editar',
+  results: 'Los equipos y los marcadores no se pueden editar',
+}
+const DESCRIPTIONS = {
+  standings: 'La tabla de posiciones lista para compartir en redes y WhatsApp.',
+  match: 'El próximo partido listo para compartir en redes y WhatsApp.',
+  results: 'Los resultados de la jornada listos para compartir en redes y WhatsApp.',
+}
 const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)], 'x.png', { type: 'image/png' })]))
 </script>
 
 <template>
-  <BaseModal :open="open" title="Crear imagen" :description="match ? 'El próximo partido listo para compartir en redes y WhatsApp.' : 'La tabla de posiciones lista para compartir en redes y WhatsApp.'" size="xl" @close="busy || emit('close')">
-    <div v-if="!pages.length && !match" class="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600">Este torneo todavía no tiene una tabla de posiciones que publicar.</div>
+  <BaseModal :open="open" title="Crear imagen" :description="DESCRIPTIONS[kind]" size="xl" @close="busy || emit('close')">
+    <div v-if="!pages.length && !match" class="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600">{{ kind === 'results' ? 'Esta jornada todavía no tiene resultados que publicar.' : 'Este torneo todavía no tiene una tabla de posiciones que publicar.' }}</div>
     <div v-else class="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
       <!-- Vista previa real -->
       <div class="min-w-0">
@@ -205,7 +237,8 @@ const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)
           <span class="tabular text-zinc-600">Imagen {{ pageIndex + 1 }} de {{ pages.length }}</span>
           <AppButton variant="secondary" size="sm" icon :disabled="pageIndex >= pages.length - 1" aria-label="Imagen siguiente" @click="pageIndex++"><ChevronRight class="size-4" aria-hidden="true" /></AppButton>
         </div>
-        <p v-if="pages.length > 1 && option" class="mt-1 text-center text-xs text-zinc-500">Con {{ option?.table.length }} equipos la tabla se reparte en {{ pages.length }} imágenes para que se lea bien.</p>
+        <p v-if="pages.length > 1 && kind === 'standings' && option" class="mt-1 text-center text-xs text-zinc-500">Con {{ option?.table.length }} equipos la tabla se reparte en {{ pages.length }} imágenes para que se lea bien.</p>
+        <p v-else-if="pages.length > 1 && kind === 'results'" class="mt-1 text-center text-xs text-zinc-500">Los resultados se reparten en {{ pages.length }} imágenes para que se lean bien.</p>
       </div>
 
       <!-- Opciones -->
@@ -233,7 +266,7 @@ const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)
           </div>
         </fieldset>
 
-        <FormField v-if="!match && options.length > 1" id="poster-table" label="Tabla">
+        <FormField v-if="kind === 'standings' && options.length > 1" id="poster-table" label="Tabla">
           <select id="poster-table" v-model="optionKey" class="input">
             <option v-for="o in options" :key="o.key" :value="o.key">{{ o.label }}</option>
           </select>
@@ -244,7 +277,7 @@ const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)
           <div class="space-y-3 border-t border-zinc-100 p-3">
             <FormField id="poster-title" label="Nombre del torneo"><input id="poster-title" v-model="texts.title" class="input" maxlength="60" :placeholder="tournament?.name" /></FormField>
             <FormField id="poster-season" label="Temporada"><input id="poster-season" v-model="texts.season" class="input" maxlength="24" :placeholder="pages[0]?.season" /></FormField>
-            <FormField id="poster-round" :label="match ? 'Jornada' : 'Jornada o corte'" :hint="match ? 'Los equipos, la fecha, la hora y la sede no se pueden editar' : 'Las posiciones y números no se pueden editar'"><input id="poster-round" v-model="texts.roundLabel" class="input" maxlength="40" :placeholder="pages[0]?.roundLabel" /></FormField>
+            <FormField id="poster-round" :label="kind === 'standings' ? 'Jornada o corte' : 'Jornada'" :hint="HINTS[kind]"><input id="poster-round" v-model="texts.roundLabel" class="input" maxlength="40" :placeholder="pages[0]?.roundLabel" /></FormField>
           </div>
         </details>
       </div>

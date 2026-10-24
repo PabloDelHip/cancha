@@ -3,7 +3,7 @@
  * con nombres largos, acentos y ñ, algunos sin escudo; estadísticas coherentes entre sí
  * (PJ = G + E + P, Pts = 3G + E, DIF = GF − GC). Nunca se usan en la app.
  */
-import { buildMatchPoster, buildPosterPages, type MatchPosterData, type PosterData, type PosterFormat } from '../data'
+import { buildMatchPoster, buildPosterPages, buildResultPages, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from '../data'
 import type { Standing } from '@/types'
 
 const TEAMS: [string, string, string, boolean][] = [
@@ -109,5 +109,38 @@ export function fixtureMatch(opts: { home?: number; away?: number; pending?: boo
     leagueName: 'Liga Peñasco Interbarrios',
     logo: opts.noLogo ? null : LEAGUE_LOGO,
     roundLabel: 'Jornada 10',
+  })
+}
+
+/** 7B-C: jornada con `count` resultados (marcadores fijos, uno con penales y uno en grupo) y `pending` por jugar. */
+export function fixtureResults(format: PosterFormat, count: number, opts: { pending?: number; noLogo?: boolean; twoDays?: boolean } = {}): ResultsPosterData[] {
+  const SCORES: [number, number][] = [[3, 1], [0, 0], [2, 2], [1, 4], [5, 0], [2, 1], [1, 1], [0, 2], [3, 3], [4, 2], [1, 0], [2, 3]]
+  const n = Math.min(count, 12)
+  const matches = Array.from({ length: n + (opts.pending ?? 0) }, (_, i) => {
+    const [hs, as] = SCORES[i % SCORES.length]!
+    const played = i < n
+    return {
+      id: `m${i}`,
+      status: played ? 'finished' : 'scheduled',
+      date: opts.twoDays && i % 2 ? '2026-10-26' : '2026-10-25',
+      homeTeamId: `t${(i * 2) % 24}`,
+      awayTeamId: `t${(i * 2 + 1) % 24}`,
+      homeScore: played ? hs : null,
+      awayScore: played ? as : null,
+      penalties: played && i === 2 ? { home: 4, away: 3 } : null,
+    }
+  })
+  const teams = Object.fromEntries(TEAMS.map((t, i) => [`t${i}`, { name: t[0], shortName: null, colors: { primary: t[1], secondary: t[2] } }]))
+  const crests = Object.fromEntries(TEAMS.map((t, i) => [`t${i}`, t[3] ? crestSvg(t[0], t[1], t[2], i) : null]))
+  return buildResultPages({
+    matches,
+    teams,
+    crests,
+    tournament: { name: 'Liga Municipal de Fútbol 7 · Apertura', startDate: '2026-08-01', endDate: null },
+    leagueName: 'Liga Peñasco Interbarrios',
+    logo: opts.noLogo ? null : LEAGUE_LOGO,
+    roundNumber: 10,
+    roundLabel: 'Jornada 10',
+    format,
   })
 }
