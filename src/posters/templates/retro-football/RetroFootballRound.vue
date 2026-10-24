@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Retro Football — Resultados de la jornada. El papel de los 70 de la tabla: filas punteadas con
+ * Retro Football — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. El papel de los 70 de la tabla: filas punteadas con
  * franja alterna y el marcador en la pastilla naranja con sombra café, como los puntos.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -22,7 +22,9 @@ const stacked = computed(() => props.format === 'story')
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 10) / Math.max(10, props.data.roundLabel.length))))
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#3b2314', lost: '#8a6a55', scoreFont: 'Righteous', scoreBg: '#c2410c', scoreInk: '#fbf3df', scoreRadius: '999px', card: 'rgb(124 58 18 / 0.08)', cardBorder: '2px dotted rgb(124 58 18 / 0.35)', cardRadius: '18px', detail: '#7c3a12', crestShape: 'shield', crestFont: 'Righteous' }
 </script>
@@ -36,7 +38,7 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#3b23
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.74)" shape="circle" :colors="{ primary: '#7c3a12', secondary: '#f1e3c3' }" font="Righteous" />
       </div>
       <div class="rfr-titles">
-        <p class="rfr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">Resultados · {{ kicker }}</p>
+        <p class="rfr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ tag }} · {{ kicker }}</p>
         <h1 class="rfr-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
         <p v-if="subtitle" class="rfr-sub" :style="{ fontSize: `${Math.round(s.title * 0.19)}px` }">{{ subtitle }}</p>
       </div>
@@ -50,13 +52,14 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#3b23
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Righteous" />
           </div>
           <div class="rfr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-            <span class="rfr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="rfr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="rfr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="rfr-team" :class="{ 'rfr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Righteous" />
             <span class="rfr-name" :class="{ 'rfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="rfr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -251,5 +254,27 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#3b23
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.rfr-row {
+  align-content: center;
+}
+.rfr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rfr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

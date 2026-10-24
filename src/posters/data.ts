@@ -319,6 +319,7 @@ export const matchFileNameOf = (d: MatchPosterData, template: string) =>
 // ─── 7B-C: resultados de la jornada ──────────────────────────────────────────
 
 export interface ResultRow {
+  kind: 'result'
   id: ID
   home: PosterTeam
   away: PosterTeam
@@ -330,21 +331,42 @@ export interface ResultRow {
   detail: string | null
 }
 
-export interface ResultsPosterData {
+/** 7B-D: un partido por jugar en la imagen de horarios de la jornada. */
+export interface FixtureRow {
+  kind: 'fixture'
+  id: ID
+  home: PosterTeam
+  away: PosterTeam
+  /** «16:00» solo si el partido está programado con hora; null = «Por confirmar». */
+  time: string | null
+  /** Siempre null: aún no hay ganador (comparte la forma de ResultRow). */
+  winner: null
+  /** «Sáb 24 oct · Unidad Deportiva · Cancha 2 · Grupo A» (null = nada que aclarar). */
+  detail: string | null
+}
+
+export type RoundRow = ResultRow | FixtureRow
+
+/** Imagen de una jornada: sus resultados (7B-C) o sus horarios (7B-D); las mismas plantillas. */
+export interface RoundPosterData {
+  mode: 'results' | 'fixtures'
   tournamentName: string
   leagueName: string | null
   season: string
   roundLabel: string
   roundNumber: number
-  /** «Domingo 25 de octubre» si todos se jugaron el mismo día (si no, null). */
+  /** «Domingo 25 de octubre» si todos son (o fueron) el mismo día (si no, null). */
   dateLabel: string | null
-  /** «2 partidos por jugar» si la jornada no está completa (null = completa). */
-  pendingNote: string | null
-  rows: ResultRow[]
+  /** Nota al pie: «2 partidos por jugar» (resultados) o «1 partido ya jugado» (horarios). */
+  note: string | null
+  rows: RoundRow[]
   page: { index: number; total: number }
   logo: string | null
   logoInitials: string
 }
+
+/** Compatibilidad con 7B-C. */
+export type ResultsPosterData = RoundPosterData
 
 type ResultMatch = {
   id: ID
@@ -357,6 +379,9 @@ type ResultMatch = {
   penalties?: { home: number; away: number } | null
   extraTime?: boolean
   stage?: { group: string | null } | null
+  time?: string
+  venue?: string | null
+  pendingSchedule?: boolean
 }
 
 export interface ResultsBuildInput {
@@ -400,6 +425,7 @@ export function buildResultPages(input: ResultsBuildInput): ResultsPosterData[] 
     const winner = hs > as ? 'home' : as > hs ? 'away' : pens && pens.home !== pens.away ? (pens.home > pens.away ? 'home' : 'away') : null
     const detail = [m.stage?.group ? `Grupo ${m.stage.group}` : null, pens ? `Penales ${pens.home}-${pens.away}` : m.extraTime ? 'Tiempo extra' : null].filter(Boolean).join(' · ')
     return {
+      kind: 'result' as const,
       id: m.id,
       home: posterTeam(input.teams[m.homeTeamId], input.crests[m.homeTeamId] ?? null),
       away: posterTeam(input.teams[m.awayTeamId], input.crests[m.awayTeamId] ?? null),
@@ -410,21 +436,78 @@ export function buildResultPages(input: ResultsBuildInput): ResultsPosterData[] 
     }
   })
   const dates = new Set(played.map((m) => m.date).filter(Boolean))
+  return roundPages(input, 'results', rows, dates.size === 1 ? matchDayLabel([...dates][0]!) : null, pending ? `${pending} ${pending === 1 ? 'partido' : 'partidos'} por jugar` : null)
+}
+
+function roundPages(input: ResultsBuildInput, mode: RoundPosterData['mode'], rows: RoundRow[], dateLabel: string | null, note: string | null): RoundPosterData[] {
   const pages = paginate(rows, input.format, MAX_RESULTS[input.format])
   return pages.map((page, index) => ({
+    mode,
     tournamentName: input.overrides?.title?.trim() || input.tournament.name,
     leagueName: input.leagueName,
     season: input.overrides?.season?.trim() || seasonOf(input.tournament.startDate, input.tournament.endDate),
     roundLabel: input.overrides?.roundLabel?.trim() || input.roundLabel,
     roundNumber: input.roundNumber,
-    dateLabel: dates.size === 1 ? matchDayLabel([...dates][0]!) : null,
-    pendingNote: pending ? `${pending} ${pending === 1 ? 'partido' : 'partidos'} por jugar` : null,
+    dateLabel,
+    note,
     rows: page,
     page: { index, total: pages.length },
     logo: input.logo,
     logoInitials: initialsOf(input.tournament.name),
   }))
 }
+
+// ─── 7B-D: horarios de la jornada ────────────────────────────────────────────
+
+/** Programado con fecha y hora reales (no un pospuesto ni uno que nunca tuvo horario). */
+const isConfirmed = (m: ResultMatch) => m.status === 'scheduled' && !m.pendingSchedule
+
+/** Hay partidos por jugar que anunciar en esa jornada (programados o pospuestos). */
+export const hasFixtures = (matches: ResultMatch[]) => matches.some(canAnnounce)
+
+/** «Sáb 24 oct». */
+export function shortDayLabel(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const date = new Date(y!, m! - 1, d!)
+  const day = date.toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '')
+  const month = date.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '')
+  return `${day.charAt(0).toUpperCase()}${day.slice(1)} ${d} ${month}`
+}
+
+/**
+ * Datos de la imagen de horarios. Solo partidos por jugar (programados o pospuestos). Un
+ * programado muestra su hora y su cancha; un pospuesto o uno sin horario (`pendingSchedule`) dice
+ * «Por confirmar» y no muestra su fecha ni su cancha de referencia (no son su horario). Los
+ * confirmados van primero, en orden de fecha y hora. Nada se inventa.
+ */
+export function buildFixturePages(input: ResultsBuildInput): RoundPosterData[] {
+  const upcoming = input.matches.filter(canAnnounce)
+  // Sin hora válida, al final de su día.
+  const at = (m: ResultMatch) => `${m.date} ${m.time && /^\d{2}:\d{2}$/.test(m.time) ? m.time : '99:99'}`
+  const confirmed = upcoming.filter(isConfirmed).sort((a, b) => at(a).localeCompare(at(b)))
+  const unconfirmed = upcoming.filter((m) => !isConfirmed(m))
+  const days = new Set(confirmed.map((m) => m.date).filter(Boolean))
+  const rows: FixtureRow[] = [...confirmed, ...unconfirmed].map((m) => {
+    const ok = isConfirmed(m)
+    const time = ok && m.time && /^\d{2}:\d{2}$/.test(m.time) ? m.time : null
+    const detail = [ok && days.size > 1 && m.date ? shortDayLabel(m.date) : null, ok ? m.venue?.trim() || null : null, m.stage?.group ? `Grupo ${m.stage.group}` : null].filter(Boolean).join(' · ')
+    return {
+      kind: 'fixture' as const,
+      id: m.id,
+      home: posterTeam(input.teams[m.homeTeamId], input.crests[m.homeTeamId] ?? null),
+      away: posterTeam(input.teams[m.awayTeamId], input.crests[m.awayTeamId] ?? null),
+      time,
+      winner: null,
+      detail: detail || null,
+    }
+  })
+  const played = input.matches.filter(isResult).length
+  return roundPages(input, 'fixtures', rows, days.size === 1 ? matchDayLabel([...days][0]!) : null, played ? `${played} ${played === 1 ? 'partido ya jugado' : 'partidos ya jugados'}` : null)
+}
+
+/** «horarios-liga-norte-j9-urban-black.png». */
+export const fixturesFileNameOf = (d: RoundPosterData, template: string) =>
+  `horarios-${slugOf(d.tournamentName) || 'torneo'}-j${d.roundNumber}-${template}${d.page.total > 1 ? `-${d.page.index + 1}de${d.page.total}` : ''}.png`
 
 /** «resultados-liga-norte-j9-urban-black-1de2.png». */
 export const resultsFileNameOf = (d: ResultsPosterData, template: string) =>

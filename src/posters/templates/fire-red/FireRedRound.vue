@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Fire Red — Resultados de la jornada. La brasa y los cortes de la tabla: Teko itálica con el
+ * Fire Red — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. La brasa y los cortes de la tabla: Teko itálica con el
  * número en rojo, filas con el filo rojo y el marcador en el bloque rojo cortado de los puntos.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -26,7 +26,9 @@ const title = computed(() => {
 })
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#fff4f0', lost: '#c9a49b', scoreFont: 'Teko', scoreWeight: 700, scoreBg: 'linear-gradient(90deg, #c81e0b, #ff3b1f)', scoreInk: '#ffffff', scoreClip: 'polygon(18% 0, 100% 0, 82% 100%, 0 100%)', card: 'rgb(255 255 255 / 0.04)', cardBorder: '1px solid rgb(255 106 77 / 0.3)', detail: '#ffd166', crestShape: 'shield', crestFont: 'Teko' }
 </script>
@@ -37,7 +39,7 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#fff4
 
     <header class="frr-head" :style="{ height: `${s.head}px` }">
       <div class="frr-titles">
-        <p class="frr-tag" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">Resultados</p>
+        <p class="frr-tag" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">{{ tag }}</p>
         <h1 class="frr-title" :style="{ fontSize: `${titleSize}px` }">{{ title.text }} <span v-if="title.num">{{ title.num }}</span></h1>
         <p class="frr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ kicker }}</p>
         <p v-if="subtitle" class="frr-sub" :style="{ fontSize: `${Math.round(s.title * 0.13)}px` }">{{ subtitle }}</p>
@@ -55,13 +57,14 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#fff4
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Teko" />
           </div>
           <div class="frr-score" :style="{ fontSize: `${Math.round(m.score * 1.05)}px` }">
-            <span class="frr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="frr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="frr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="frr-team" :class="{ 'frr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Teko" />
             <span class="frr-name" :class="{ 'frr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="frr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -263,5 +266,27 @@ const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#fff4
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.frr-row {
+  align-content: center;
+}
+.frr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.frr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

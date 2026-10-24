@@ -6,7 +6,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Elite White — Resultados de la jornada. Editorial como la tabla: blanco, Playfair, filetes finos
+ * Elite White — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. Editorial como la tabla: blanco, Playfair, filetes finos
  * entre partidos y el marcador en serif negra, sin cajas. El que perdió va en gris.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -25,7 +25,9 @@ const title = computed(() => {
 })
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Playfair Display', uppercase: false, ink: '#111111', lost: '#888888', scoreFont: 'Playfair Display', scoreWeight: 900, scoreBg: 'transparent', scoreInk: '#111111', card: '#ffffff', cardBorder: '1px solid #e5e5e5', detail: '#555555', crestShape: 'circle', crestFont: 'Playfair Display' }
 </script>
@@ -37,7 +39,7 @@ const CARD: ResultCardTheme = { nameFont: 'Playfair Display', uppercase: false, 
         <span class="ewr-kicker">{{ kicker }}</span>
         <Crest :src="data.logo" :initials="data.logoInitials" :size="s.logo" shape="circle" :colors="{ primary: '#111111', secondary: '#ffffff' }" font="Playfair Display" />
       </div>
-      <p class="ewr-tag" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">Resultados</p>
+      <p class="ewr-tag" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ tag }}</p>
       <h1 class="ewr-title" :style="{ fontSize: `${titleSize}px` }">{{ title.text }} <em v-if="title.num">{{ title.num }}</em></h1>
       <p v-if="subtitle" class="ewr-sub" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ subtitle }}</p>
     </header>
@@ -50,13 +52,14 @@ const CARD: ResultCardTheme = { nameFont: 'Playfair Display', uppercase: false, 
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="circle" font="Playfair Display" />
           </div>
           <div class="ewr-score" :style="{ fontSize: `${m.score}px` }">
-            <span class="ewr-box">{{ r.homeScore }}<i>–</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="ewr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>–</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="ewr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="ewr-team" :class="{ 'ewr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="circle" font="Playfair Display" />
             <span class="ewr-name" :class="{ 'ewr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="ewr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -247,5 +250,27 @@ const CARD: ResultCardTheme = { nameFont: 'Playfair Display', uppercase: false, 
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.ewr-row {
+  align-content: center;
+}
+.ewr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ewr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

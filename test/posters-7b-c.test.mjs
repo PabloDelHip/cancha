@@ -17,9 +17,9 @@ const input = (matches, extra = {}) => ({ matches, teams, crests: { a: 'data:ima
 test('solo finalizados con marcador; los demás se cuentan como por jugar (cancelados no)', () => {
   const [p] = d.buildResultPages(input([m('1'), m('2', { status: 'scheduled', homeScore: null, awayScore: null }), m('3', { status: 'postponed' }), m('4', { status: 'cancelled' }), m('5', { status: 'finished', homeScore: null, awayScore: null })]))
   assert.deepEqual(p.rows.map((r) => r.id), ['1'])
-  assert.equal(p.pendingNote, '3 partidos por jugar')
-  assert.equal(d.buildResultPages(input([m('1')]))[0].pendingNote, null)
-  assert.equal(d.buildResultPages(input([m('1'), m('2', { status: 'live' })]))[0].pendingNote, '1 partido por jugar')
+  assert.equal(p.note, '3 partidos por jugar')
+  assert.equal(d.buildResultPages(input([m('1')]))[0].note, null)
+  assert.equal(d.buildResultPages(input([m('1'), m('2', { status: 'live' })]))[0].note, '1 partido por jugar')
 })
 
 test('ganador por marcador o por penales; empate; detalle de grupo, penales y tiempo extra', () => {

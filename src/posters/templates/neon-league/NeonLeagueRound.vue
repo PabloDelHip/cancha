@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Neon League — Resultados de la jornada. El «J10» en contorno neón de la tabla; cada resultado en
+ * Neon League — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. El «J10» en contorno neón de la tabla; cada resultado en
  * una fila inclinada con el filo verde y el marcador en el bloque neón de los puntos.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -24,9 +24,11 @@ const big = computed(() => {
   if (d.roundLabel === `Jornada ${d.roundNumber}`) return { text: `J${String(d.roundNumber).padStart(2, '0')}`, size: s.value.big }
   return { text: d.roundLabel, size: Math.round(Math.min(s.value.big * 0.5, (s.value.big * 4.4) / Math.max(8, d.roundLabel.length))) }
 })
-const kicker = computed(() => (big.value.text === props.data.roundLabel ? 'Resultados' : `Resultados · ${props.data.roundLabel}`))
+const kicker = computed(() => (big.value.text === props.data.roundLabel ? tag.value : `${tag.value} · ${props.data.roundLabel}`))
 const subtitle = computed(() => (props.data.leagueName ? withSeason(props.data.tournamentName, props.data.season) : props.data.season))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Rajdhani', ink: '#eafff2', lost: '#8fbfa3', scoreFont: 'Orbitron', scoreWeight: 900, scoreBg: '#39ff88', scoreInk: '#031a0c', scoreClip: 'polygon(14% 0, 100% 0, 86% 100%, 0 100%)', card: 'linear-gradient(90deg, rgb(57 255 136 / 0.16), rgb(3 8 6 / 0.9) 60%)', cardBorder: '1px solid rgb(57 255 136 / 0.35)', detail: '#39ff88', crestShape: 'hex', crestFont: 'Orbitron' }
 </script>
@@ -56,13 +58,14 @@ const CARD: ResultCardTheme = { nameFont: 'Rajdhani', ink: '#eafff2', lost: '#8f
               <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Orbitron" />
             </div>
             <div class="nlr-score" :style="{ fontSize: `${Math.round(m.score * 0.82)}px` }">
-              <span class="nlr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-              <small v-if="r.detail">{{ r.detail }}</small>
+              <span class="nlr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="nlr-tbd">Por confirmar</span></span>
+              <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
             </div>
             <div class="nlr-team" :class="{ 'nlr-lost': r.winner === 'home' }">
               <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Orbitron" />
               <span class="nlr-name" :class="{ 'nlr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
             </div>
+            <small v-if="r.kind === 'fixture' && r.detail" class="nlr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
           </div>
         </div>
       </template>
@@ -74,7 +77,7 @@ const CARD: ResultCardTheme = { nameFont: 'Rajdhani', ink: '#eafff2', lost: '#8f
 
     <footer class="nlr-foot" :style="{ height: `${s.foot}px`, fontSize: `${({ story: 24, portrait: 20, square: 17 })[format]}px` }">
       <span class="nlr-live">●</span>
-      <span class="nlr-foot-text">{{ meta || 'Resultados' }}</span>
+      <span class="nlr-foot-text">{{ meta || tag }}</span>
       <span class="nlr-mark">KISOKAR</span>
     </footer>
   </div>
@@ -278,5 +281,27 @@ const CARD: ResultCardTheme = { nameFont: 'Rajdhani', ink: '#eafff2', lost: '#8f
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.nlr-row {
+  align-content: center;
+}
+.nlr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nlr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

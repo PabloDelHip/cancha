@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Ice Blue — Resultados de la jornada. Como la tabla: cada resultado en su propia tarjeta blanca y
+ * Ice Blue — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. Como la tabla: cada resultado en su propia tarjeta blanca y
  * el marcador en el bloque azul degradado de los puntos.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -24,7 +24,9 @@ const cardH = computed(() => m.value.rowH - GAP)
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 10) / Math.max(10, props.data.roundLabel.length))))
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Exo 2', nameWeight: 800, ink: '#0a2540', lost: '#6b8bab', scoreFont: 'Exo 2', scoreWeight: 900, scoreBg: 'linear-gradient(135deg, #3aa6f2, #0b4f8a)', scoreInk: '#ffffff', scoreRadius: '10px', card: 'rgb(255 255 255 / 0.94)', cardRadius: '18px', cardShadow: '0 6px 18px rgb(11 79 138 / 0.12)', detail: '#1d8fe0', crestShape: 'circle', crestFont: 'Exo 2' }
 </script>
@@ -38,7 +40,7 @@ const CARD: ResultCardTheme = { nameFont: 'Exo 2', nameWeight: 800, ink: '#0a254
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.7)" shape="circle" :colors="{ primary: '#0b4f8a', secondary: '#ffffff' }" font="Exo 2" />
       </div>
       <div class="ibr-titles">
-        <p class="ibr-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">Resultados</p>
+        <p class="ibr-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ tag }}</p>
         <p class="ibr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.19)}px` }">{{ kicker }}</p>
         <h1 class="ibr-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
         <p v-if="subtitle" class="ibr-sub" :style="{ fontSize: `${Math.round(s.title * 0.17)}px` }">{{ subtitle }}</p>
@@ -54,13 +56,14 @@ const CARD: ResultCardTheme = { nameFont: 'Exo 2', nameWeight: 800, ink: '#0a254
               <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
             </div>
             <div class="ibr-score" :style="{ fontSize: `${Math.round(m.score * 0.84)}px` }">
-              <span class="ibr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-              <small v-if="r.detail">{{ r.detail }}</small>
+              <span class="ibr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="ibr-tbd">Por confirmar</span></span>
+              <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
             </div>
             <div class="ibr-team" :class="{ 'ibr-lost': r.winner === 'home' }">
               <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
               <span class="ibr-name" :class="{ 'ibr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
             </div>
+            <small v-if="r.kind === 'fixture' && r.detail" class="ibr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
           </div>
         </div>
       </template>
@@ -273,5 +276,27 @@ const CARD: ResultCardTheme = { nameFont: 'Exo 2', nameWeight: 800, ink: '#0a254
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.ibr-card {
+  align-content: center;
+}
+.ibr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ibr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

@@ -158,7 +158,8 @@ export function useResultMetrics(
       // Dos columnas: cada partido es una tarjeta de dos renglones (local y visita) con su marcador.
       const cardRows = Math.ceil(rows / 2)
       const rowH = Math.floor(Math.min(160, listHeight[props.format] / cardRows))
-      const line = Math.round(rowH * 0.4)
+      // En horarios la tarjeta lleva además el renglón de cancha y día: renglones algo más bajos.
+      const line = Math.round(rowH * (props.data.mode === 'fixtures' ? 0.34 : 0.4))
       // Las familias de letra ancha (menos `nameChars`) parten de una letra más chica.
       const name = Math.round(Math.max(18, Math.min(30, line * 0.5) * Math.min(1, (opts.nameChars ?? 11) / 11)))
       const cap = 20
@@ -170,7 +171,7 @@ export function useResultMetrics(
         name,
         score: Math.round(Math.max(22, Math.min(40, line * 0.64))),
         nameLines: 1,
-        nameOf: (n: string) => Math.round(name * Math.max(0.7, Math.min(1, cap / Math.max(1, n.length)))),
+        nameOf: (n: string) => Math.round(name * Math.max(0.62, Math.min(1, cap / Math.max(1, n.length)))),
         columns: 2,
         cardRows,
         line,

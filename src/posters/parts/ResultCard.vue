@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from './Crest.vue'
-import type { ResultRow } from '../data'
+import type { RoundRow } from '../data'
 import type { ResultCardTheme, ResultMetrics } from '../layout'
 
 /**
- * 7B-C — Tarjeta compacta de un resultado, para la imagen dividida en dos columnas: un renglón por
- * equipo (escudo, nombre y goles). Cada familia la viste con su `theme` (colores, fuentes, formas).
+ * 7B-C — Tarjeta compacta de un partido de la jornada, para la imagen dividida en dos columnas: un
+ * renglón por equipo (escudo, nombre y, en resultados, sus goles). En horarios (7B-D) la hora va a
+ * la derecha, a lo alto de la tarjeta, y la cancha abajo. Cada familia la viste con su `theme`.
  */
-const props = defineProps<{ row: ResultRow; m: ResultMetrics; theme: ResultCardTheme }>()
-const sides = computed(() => [
-  { key: 'home', t: props.row.home, goals: props.row.homeScore, lost: props.row.winner === 'away' },
-  { key: 'away', t: props.row.away, goals: props.row.awayScore, lost: props.row.winner === 'home' },
-])
+const props = defineProps<{ row: RoundRow; m: ResultMetrics; theme: ResultCardTheme }>()
+const sides = computed(() => {
+  const r = props.row
+  return [
+    { key: 'home', t: r.home, goals: r.kind === 'result' ? r.homeScore : null, lost: r.winner === 'away' },
+    { key: 'away', t: r.away, goals: r.kind === 'result' ? r.awayScore : null, lost: r.winner === 'home' },
+  ]
+})
 const vars = computed(() => {
   const t = props.theme
   return {
@@ -41,10 +45,18 @@ const vars = computed(() => {
 <template>
   <div class="rc" :style="vars">
     <div class="rc-card">
-      <div v-for="x in sides" :key="x.key" class="rc-line" :class="{ 'rc-lost': x.lost }" :style="{ height: `${m.line}px` }">
-        <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="m.crest" :shape="theme.crestShape" :font="theme.crestFont" />
-        <span class="rc-name" :style="{ fontSize: `${m.nameOf(x.t.name)}px` }">{{ x.t.name }}</span>
-        <span class="rc-score" :style="{ fontSize: `${m.score}px` }">{{ x.goals }}</span>
+      <div class="rc-body">
+        <div class="rc-teams">
+          <div v-for="x in sides" :key="x.key" class="rc-line" :class="{ 'rc-lost': x.lost }" :style="{ height: `${m.line}px` }">
+            <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="m.crest" :shape="theme.crestShape" :font="theme.crestFont" />
+            <span class="rc-name" :style="{ fontSize: `${m.nameOf(x.t.name)}px` }">{{ x.t.name }}</span>
+            <span v-if="x.goals !== null" class="rc-score" :style="{ fontSize: `${m.score}px` }">{{ x.goals }}</span>
+          </div>
+        </div>
+        <span v-if="row.kind === 'fixture'" class="rc-score rc-time" :style="{ fontSize: `${Math.round(m.score * 0.76)}px` }">
+          <template v-if="row.time">{{ row.time }}</template>
+          <small v-else>Por<br />confirmar</small>
+        </span>
       </div>
       <small v-if="row.detail" class="rc-detail" :style="{ fontSize: `${Math.max(12, Math.round(m.line * 0.3))}px` }">{{ row.detail }}</small>
     </div>
@@ -72,6 +84,22 @@ const vars = computed(() => {
   border-radius: var(--rc-card-radius);
   clip-path: var(--rc-card-clip);
   box-shadow: var(--rc-card-shadow);
+}
+.rc-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+}
+.rc-teams {
+  min-width: 0;
+}
+.rc-time small {
+  display: block;
+  font-size: 0.5em;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .rc-line {
   display: grid;
@@ -112,6 +140,9 @@ const vars = computed(() => {
 }
 .rc-detail {
   align-self: flex-end;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;

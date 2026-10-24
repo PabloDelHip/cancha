@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Street Football — Resultados de la jornada. El muro de la tabla con la cinta de precaución;
+ * Street Football — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. El muro de la tabla con la cinta de precaución;
  * filas con línea punteada y franja oscura alterna, y el marcador en la etiqueta blanca girada
  * con sombra amarilla de los puntos.
  */
@@ -30,7 +30,9 @@ const title = computed(() => {
 })
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Barlow Condensed', nameWeight: 800, ink: '#f5f5f0', lost: '#a8a8a0', scoreFont: 'Archivo Black', scoreBg: '#f5f5f0', scoreInk: '#111111', card: 'rgb(0 0 0 / 0.25)', cardBorder: '2px dashed rgb(245 245 240 / 0.18)', detail: '#ffd400', crestShape: 'shield', crestFont: 'Archivo Black' }
 </script>
@@ -44,7 +46,7 @@ const CARD: ResultCardTheme = { nameFont: 'Barlow Condensed', nameWeight: 800, i
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.78)" shape="shield" :colors="{ primary: '#111111', secondary: '#ffd400' }" font="Archivo Black" />
       </div>
       <div class="sfr-titles">
-        <p class="sfr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">Resultados · {{ kicker }}</p>
+        <p class="sfr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ tag }} · {{ kicker }}</p>
         <h1 class="sfr-title" :style="{ fontSize: `${titleSize}px` }">{{ title.text }} <span v-if="title.num">{{ title.num }}</span></h1>
         <p v-if="subtitle" class="sfr-sub" :style="{ fontSize: `${Math.round(s.title * 0.17)}px` }">{{ subtitle }}</p>
       </div>
@@ -58,13 +60,14 @@ const CARD: ResultCardTheme = { nameFont: 'Barlow Condensed', nameWeight: 800, i
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Archivo Black" />
           </div>
           <div class="sfr-score" :style="{ fontSize: `${Math.round(m.score * 0.8)}px` }">
-            <span class="sfr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="sfr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="sfr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="sfr-team" :class="{ 'sfr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Archivo Black" />
             <span class="sfr-name" :class="{ 'sfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="sfr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -280,5 +283,27 @@ const CARD: ResultCardTheme = { nameFont: 'Barlow Condensed', nameWeight: 800, i
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.sfr-row {
+  align-content: center;
+}
+.sfr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sfr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Ultimate League — Resultados de la jornada. Panal de hexágonos y título metálico; cada resultado
+ * Ultimate League — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. Panal de hexágonos y título metálico; cada resultado
  * en una fila de esquinas cortadas, como la tabla, y el marcador en el hexágono magenta.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -21,7 +21,9 @@ const m = useResultMetrics(props, { story: 1920 - 500 - 120 - 110, portrait: 135
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 10) / Math.max(10, props.data.roundLabel.length))))
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Chakra Petch', ink: '#f3ecff', lost: '#b9a8e6', scoreFont: 'Russo One', scoreBg: 'linear-gradient(160deg, #ff3df5, #8a1bd6)', scoreInk: '#ffffff', scoreClip: 'polygon(20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%, 0 50%)', card: 'linear-gradient(90deg, rgb(255 255 255 / 0.1), rgb(255 61 245 / 0.12))', cardClip: 'polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%)', detail: '#3dd6ff', crestShape: 'hex', crestFont: 'Russo One' }
 </script>
@@ -35,7 +37,7 @@ const CARD: ResultCardTheme = { nameFont: 'Chakra Petch', ink: '#f3ecff', lost: 
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.66)" shape="hex" :colors="{ primary: '#2a1260', secondary: '#ff3df5' }" font="Russo One" />
       </div>
       <div class="ulr-titles">
-        <p class="ulr-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">Resultados</p>
+        <p class="ulr-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ tag }}</p>
         <p class="ulr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ kicker }}</p>
         <h1 class="ulr-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
         <p v-if="subtitle" class="ulr-sub" :style="{ fontSize: `${Math.round(s.title * 0.19)}px` }">{{ subtitle }}</p>
@@ -51,13 +53,14 @@ const CARD: ResultCardTheme = { nameFont: 'Chakra Petch', ink: '#f3ecff', lost: 
               <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Russo One" />
             </div>
             <div class="ulr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-              <span class="ulr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-              <small v-if="r.detail">{{ r.detail }}</small>
+              <span class="ulr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="ulr-tbd">Por confirmar</span></span>
+              <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
             </div>
             <div class="ulr-team" :class="{ 'ulr-lost': r.winner === 'home' }">
               <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Russo One" />
               <span class="ulr-name" :class="{ 'ulr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
             </div>
+            <small v-if="r.kind === 'fixture' && r.detail" class="ulr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
           </div>
         </div>
       </template>
@@ -274,5 +277,27 @@ const CARD: ResultCardTheme = { nameFont: 'Chakra Petch', ink: '#f3ecff', lost: 
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.ulr-row {
+  align-content: center;
+}
+.ulr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ulr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

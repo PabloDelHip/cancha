@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Stadium Lights — Resultados de la jornada. El estadio de noche de la tabla: los resultados en la
+ * Stadium Lights — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. El estadio de noche de la tabla: los resultados en la
  * tarjeta de vidrio azul y cada marcador en la pastilla clara e iluminada de los clasificados.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -22,7 +22,9 @@ const row = computed(() => props.format === 'square')
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 12) / Math.max(12, props.data.roundLabel.length))))
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Bebas Neue', nameWeight: 400, ink: '#ffffff', lost: '#9fb3d1', scoreFont: 'Bebas Neue', scoreBg: '#e6f0ff', scoreInk: '#071226', scoreRadius: '10px', card: 'rgb(255 255 255 / 0.05)', cardBorder: '1px solid rgb(207 226 255 / 0.16)', cardRadius: '16px', detail: '#9ec5ff', crestShape: 'circle', crestFont: 'Bebas Neue' }
 </script>
@@ -37,7 +39,7 @@ const CARD: ResultCardTheme = { nameFont: 'Bebas Neue', nameWeight: 400, ink: '#
       </div>
       <div class="slr-titles">
         <p class="slr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ kicker }}</p>
-        <h1 class="slr-title" :style="{ fontSize: `${titleSize}px` }"><span class="slr-tag">Resultados</span> {{ data.roundLabel }}</h1>
+        <h1 class="slr-title" :style="{ fontSize: `${titleSize}px` }"><span class="slr-tag">{{ tag }}</span> {{ data.roundLabel }}</h1>
         <p v-if="subtitle" class="slr-sub" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ subtitle }}</p>
       </div>
     </header>
@@ -50,13 +52,14 @@ const CARD: ResultCardTheme = { nameFont: 'Bebas Neue', nameWeight: 400, ink: '#
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="circle" font="Bebas Neue" />
           </div>
           <div class="slr-score" :style="{ fontSize: `${m.score}px` }">
-            <span class="slr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="slr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="slr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="slr-team" :class="{ 'slr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="circle" font="Bebas Neue" />
             <span class="slr-name" :class="{ 'slr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="slr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -267,5 +270,27 @@ const CARD: ResultCardTheme = { nameFont: 'Bebas Neue', nameWeight: 400, ink: '#
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.slr-row {
+  align-content: center;
+}
+.slr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.slr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

@@ -3,7 +3,7 @@
  * con nombres largos, acentos y ñ, algunos sin escudo; estadísticas coherentes entre sí
  * (PJ = G + E + P, Pts = 3G + E, DIF = GF − GC). Nunca se usan en la app.
  */
-import { buildMatchPoster, buildPosterPages, buildResultPages, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from '../data'
+import { buildFixturePages, buildMatchPoster, buildPosterPages, buildResultPages, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from '../data'
 import type { Standing } from '@/types'
 
 const TEAMS: [string, string, string, boolean][] = [
@@ -113,12 +113,28 @@ export function fixtureMatch(opts: { home?: number; away?: number; pending?: boo
 }
 
 /** 7B-C: jornada con `count` resultados (marcadores fijos, uno con penales y uno en grupo) y `pending` por jugar. */
-export function fixtureResults(format: PosterFormat, count: number, opts: { pending?: number; noLogo?: boolean; twoDays?: boolean } = {}): ResultsPosterData[] {
+export function fixtureResults(format: PosterFormat, count: number, opts: { pending?: number; noLogo?: boolean; twoDays?: boolean; fixtures?: boolean } = {}): ResultsPosterData[] {
   const SCORES: [number, number][] = [[3, 1], [0, 0], [2, 2], [1, 4], [5, 0], [2, 1], [1, 1], [0, 2], [3, 3], [4, 2], [1, 0], [2, 3]]
   const n = Math.min(count, 20)
   const matches = Array.from({ length: n + (opts.pending ?? 0) }, (_, i) => {
     const [hs, as] = SCORES[i % SCORES.length]!
     const played = i < n
+    if (opts.fixtures) {
+      // 7B-D: `count` por jugar (programados, cada 2 h) y `pending` pospuestos sin horario.
+      return {
+        id: `m${i}`,
+        status: played ? 'scheduled' : 'postponed',
+        pendingSchedule: !played,
+        date: opts.twoDays && i % 2 ? '2026-10-26' : '2026-10-25',
+        time: `${String(8 + ((i * 2) % 12)).padStart(2, '0')}:00`,
+        venue: `Unidad Deportiva Peñasco · Cancha ${(i % 3) + 1}`,
+        homeTeamId: `t${(i * 2) % 24}`,
+        awayTeamId: `t${(i * 2 + 1) % 24}`,
+        homeScore: null,
+        awayScore: null,
+        stage: i === 1 ? { group: 'A' } : null,
+      }
+    }
     return {
       id: `m${i}`,
       status: played ? 'finished' : 'scheduled',
@@ -132,7 +148,7 @@ export function fixtureResults(format: PosterFormat, count: number, opts: { pend
   })
   const teams = Object.fromEntries(TEAMS.map((t, i) => [`t${i}`, { name: t[0], shortName: null, colors: { primary: t[1], secondary: t[2] } }]))
   const crests = Object.fromEntries(TEAMS.map((t, i) => [`t${i}`, t[3] ? crestSvg(t[0], t[1], t[2], i) : null]))
-  return buildResultPages({
+  return (opts.fixtures ? buildFixturePages : buildResultPages)({
     matches,
     teams,
     crests,

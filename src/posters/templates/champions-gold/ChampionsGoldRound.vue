@@ -7,7 +7,7 @@ import { withSeason } from '../../data'
 import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
- * Champions Gold — Resultados de la jornada. La cabecera simétrica del cartel de partido; cada
+ * Champions Gold — Jornada: resultados (7B-C) u horarios (7B-D), según `data.mode`. La cabecera simétrica del cartel de partido; cada
  * resultado entre filetes dorados con el marcador en el medallón dorado de los clasificados.
  */
 const props = defineProps<ResultsPosterProps>()
@@ -21,7 +21,9 @@ const m = useResultMetrics(props, { story: 1920 - 470 - 130 - 110, portrait: 135
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 11) / Math.max(11, props.data.roundLabel.length))))
 const eyebrow = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
-const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** «Resultados» o «Programación»: la misma plantilla sirve para las dos imágenes de la jornada. */
+const tag = computed(() => (props.data.mode === 'results' ? 'Resultados' : 'Programación'))
+const meta = computed(() => [props.data.dateLabel, props.data.note, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
 /** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
 const CARD: ResultCardTheme = { nameFont: 'Montserrat', nameWeight: 800, ink: '#f8f1dc', lost: '#94a3b8', scoreFont: 'Cinzel', scoreWeight: 900, scoreBg: 'radial-gradient(circle at 35% 30%, #fff4c9, #d4af37 55%, #8a6a1f)', scoreInk: '#0b1736', scoreRadius: '999px', card: 'rgb(11 23 54 / 0.6)', cardBorder: '1px solid rgb(212 175 55 / 0.45)', cardRadius: '14px', detail: '#d4af37', crestShape: 'circle', crestFont: 'Cinzel' }
 </script>
@@ -34,7 +36,7 @@ const CARD: ResultCardTheme = { nameFont: 'Montserrat', nameWeight: 800, ink: '#
       <div class="cgr-badge" :style="{ width: `${s.badge}px`, height: `${s.badge}px` }">
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.68)" shape="circle" :colors="{ primary: '#0b1736', secondary: '#d4af37' }" font="Cinzel" />
       </div>
-      <p class="cgr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }"><span class="cgr-rule" />Resultados<span class="cgr-rule" /></p>
+      <p class="cgr-kicker" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }"><span class="cgr-rule" />{{ tag }}<span class="cgr-rule" /></p>
       <h1 class="cgr-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
       <p class="cgr-sub" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">{{ eyebrow }}</p>
       <p v-if="subtitle" class="cgr-sub cgr-sub2" :style="{ fontSize: `${Math.round(s.title * 0.18)}px` }">{{ subtitle }}</p>
@@ -48,13 +50,14 @@ const CARD: ResultCardTheme = { nameFont: 'Montserrat', nameWeight: 800, ink: '#
             <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="circle" font="Cinzel" />
           </div>
           <div class="cgr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-            <span class="cgr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
+            <span class="cgr-box"><template v-if="r.kind === 'result'">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</template><template v-else-if="r.time">{{ r.time }}</template><span v-else class="cgr-tbd">Por confirmar</span></span>
+            <small v-if="r.kind === 'result' && r.detail">{{ r.detail }}</small>
           </div>
           <div class="cgr-team" :class="{ 'cgr-lost': r.winner === 'home' }">
             <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="circle" font="Cinzel" />
             <span class="cgr-name" :class="{ 'cgr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
           </div>
+          <small v-if="r.kind === 'fixture' && r.detail" class="cgr-where" :style="{ fontSize: `${Math.round(m.name * 0.6)}px`, color: CARD.detail }">{{ r.detail }}</small>
         </div>
       </template>
       <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
@@ -263,5 +266,27 @@ const CARD: ResultCardTheme = { nameFont: 'Montserrat', nameWeight: 800, ink: '#
   grid-auto-flow: column;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+.cgr-row {
+  align-content: center;
+}
+.cgr-where {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 100%;
+  margin-top: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cgr-tbd {
+  display: inline-block;
+  font-size: 0.4em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 </style>

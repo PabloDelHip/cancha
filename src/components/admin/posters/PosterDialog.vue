@@ -10,7 +10,7 @@ import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
 import { componentOf, templateOf, templatesFor } from '@/posters/templates/registry'
-import { buildMatchPoster, buildPosterPages, buildResultPages, fileNameOf, FORMATS, lastPlayed, matchFileNameOf, resultsFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat, type ResultsPosterData } from '@/posters/data'
+import { buildFixturePages, buildMatchPoster, buildPosterPages, buildResultPages, fileNameOf, fixturesFileNameOf, FORMATS, lastPlayed, matchFileNameOf, resultsFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat, type RoundPosterData } from '@/posters/data'
 import { loadFonts } from '@/posters/fonts'
 import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/posters/export'
 
@@ -20,9 +20,9 @@ import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/
  * estructura del torneo (los mismos de la tabla del panel); solo los textos del título se pueden
  * ajustar, como texto plano.
  * 7B-B1 — con `match`, el cartel de ese partido (solo las familias que ya tienen ese tipo).
- * 7B-C — con `round`, los resultados de esa jornada.
+ * 7B-C/7B-D — con `round`, la jornada: sus resultados o sus horarios (`round.kind`).
  */
-const props = defineProps<{ open: boolean; tournamentId: ID; structure?: TournamentStructure | null; match?: Match | null; round?: number | null }>()
+const props = defineProps<{ open: boolean; tournamentId: ID; structure?: TournamentStructure | null; match?: Match | null; round?: { number: number; kind: 'results' | 'fixtures' } | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const tournaments = useTournamentsStore()
@@ -31,7 +31,7 @@ const rounds = useRoundsStore()
 const teams = useTeamsStore()
 const toast = useToast()
 
-const kind = computed(() => (props.match ? 'match' : props.round != null ? 'results' : 'standings'))
+const kind = computed(() => (props.match ? 'match' : (props.round?.kind ?? 'standings')))
 const templates = computed(() => templatesFor(kind.value))
 const templateId = ref(templatesFor(kind.value)[0]!.id)
 const format = ref<PosterFormat>('portrait')
@@ -70,26 +70,26 @@ const matchPoster = computed<MatchPosterData | null>(() => {
   })
 })
 /** Partidos de la jornada, en el orden del calendario. */
-const roundMatches = computed(() => (props.round != null ? (rounds.roundsOf(props.tournamentId).find((r) => r.number === props.round)?.matches ?? []) : []))
-const resultPages = computed<ResultsPosterData[]>(() => {
+const roundMatches = computed(() => (props.round ? (rounds.roundsOf(props.tournamentId).find((r) => r.number === props.round!.number)?.matches ?? []) : []))
+const roundPages = computed<RoundPosterData[]>(() => {
   const t = tournament.value
-  if (!t || props.round == null) return []
-  return buildResultPages({
+  if (!t || !props.round) return []
+  return (props.round.kind === 'results' ? buildResultPages : buildFixturePages)({
     matches: roundMatches.value,
     teams: Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)])),
     crests: crests.value,
     tournament: { name: t.name, startDate: t.startDate, endDate: t.endDate },
     leagueName: leagueName.value,
     logo: logo.value,
-    roundNumber: props.round,
-    roundLabel: rounds.labelOf(props.tournamentId, props.round),
+    roundNumber: props.round.number,
+    roundLabel: rounds.labelOf(props.tournamentId, props.round.number),
     format: format.value,
     overrides: texts.value,
   })
 })
-const pages = computed<(PosterData | MatchPosterData | ResultsPosterData)[]>(() => {
+const pages = computed<(PosterData | MatchPosterData | RoundPosterData)[]>(() => {
   if (matchPoster.value) return [matchPoster.value]
-  if (kind.value === 'results') return resultPages.value.filter((p) => p.rows.length)
+  if (props.round) return roundPages.value.filter((p) => p.rows.length)
   const t = tournament.value
   const o = option.value
   if (!t || !o || !props.structure) return []
@@ -133,7 +133,7 @@ watch(
     // Escudos y logo como data URL (si alguno no se puede leer, se usa el de iniciales).
     const logos: Record<ID, string | null | undefined> = props.match
       ? { [props.match.homeTeamId]: teams.get(props.match.homeTeamId)?.logoUrl, [props.match.awayTeamId]: teams.get(props.match.awayTeamId)?.logoUrl }
-      : props.round != null
+      : props.round
         ? Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)?.logoUrl]))
         : Object.fromEntries(Object.entries(props.structure?.teams ?? {}).map(([id, t]) => [id, t?.logoUrl]))
     const entries = await Promise.all(Object.entries(logos).map(async ([id, url]) => [id, await toDataUrl(url)] as const))
@@ -171,7 +171,7 @@ async function renderAll(): Promise<File[]> {
     if (!node) throw new Error('La vista previa no está lista')
     const blob = await renderPng(node, format.value, template.value.fonts)
     const data = pages.value[i]!
-    const name = 'home' in data ? matchFileNameOf(data, template.value.id) : 'pendingNote' in data ? resultsFileNameOf(data, template.value.id) : fileNameOf(data, template.value.id)
+    const name = 'home' in data ? matchFileNameOf(data, template.value.id) : 'mode' in data ? (data.mode === 'results' ? resultsFileNameOf : fixturesFileNameOf)(data, template.value.id) : fileNameOf(data, template.value.id)
     files.push(new File([blob], name, { type: 'image/png' }))
   }
   pageIndex.value = current
@@ -195,7 +195,7 @@ async function share() {
   try {
     const files = await renderAll()
     const p = page.value
-    const title = p && 'home' in p ? `${p.home.name} vs ${p.away.name} · ${p.roundLabel}` : p && 'pendingNote' in p ? `Resultados · ${p.roundLabel} · ${p.tournamentName}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
+    const title = p && 'home' in p ? `${p.home.name} vs ${p.away.name} · ${p.roundLabel}` : p && 'mode' in p ? `${p.mode === 'results' ? 'Resultados' : 'Horarios'} · ${p.roundLabel} · ${p.tournamentName}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
     const result = await sharePngs(files, title.trim())
     if (result === 'unsupported') {
       for (const f of files) downloadFile(f, f.name)
@@ -207,23 +207,25 @@ async function share() {
     busy.value = ''
   }
 }
-/** Compartir solo se ofrece donde el navegador admite archivos (si no, queda Descargar). */
 const HINTS = {
   standings: 'Las posiciones y números no se pueden editar',
   match: 'Los equipos, la fecha, la hora y la sede no se pueden editar',
   results: 'Los equipos y los marcadores no se pueden editar',
+  fixtures: 'Los equipos, los horarios y las canchas no se pueden editar',
 }
 const DESCRIPTIONS = {
   standings: 'La tabla de posiciones lista para compartir en redes y WhatsApp.',
   match: 'El próximo partido listo para compartir en redes y WhatsApp.',
   results: 'Los resultados de la jornada listos para compartir en redes y WhatsApp.',
+  fixtures: 'Los horarios de la jornada listos para compartir en redes y WhatsApp.',
 }
+/** Compartir solo se ofrece donde el navegador admite archivos (si no, queda Descargar). */
 const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)], 'x.png', { type: 'image/png' })]))
 </script>
 
 <template>
   <BaseModal :open="open" title="Crear imagen" :description="DESCRIPTIONS[kind]" size="xl" @close="busy || emit('close')">
-    <div v-if="!pages.length && !match" class="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600">{{ kind === 'results' ? 'Esta jornada todavía no tiene resultados que publicar.' : 'Este torneo todavía no tiene una tabla de posiciones que publicar.' }}</div>
+    <div v-if="!pages.length && !match" class="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-600">{{ kind === 'results' ? 'Esta jornada todavía no tiene resultados que publicar.' : kind === 'fixtures' ? 'Esta jornada no tiene partidos por jugar.' : 'Este torneo todavía no tiene una tabla de posiciones que publicar.' }}</div>
     <div v-else class="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
       <!-- Vista previa real -->
       <div class="min-w-0">
@@ -238,7 +240,7 @@ const shareSupported = computed(() => canShareFiles([new File([new Uint8Array(1)
           <AppButton variant="secondary" size="sm" icon :disabled="pageIndex >= pages.length - 1" aria-label="Imagen siguiente" @click="pageIndex++"><ChevronRight class="size-4" aria-hidden="true" /></AppButton>
         </div>
         <p v-if="pages.length > 1 && kind === 'standings' && option" class="mt-1 text-center text-xs text-zinc-500">Con {{ option?.table.length }} equipos la tabla se reparte en {{ pages.length }} imágenes para que se lea bien.</p>
-        <p v-else-if="pages.length > 1 && kind === 'results'" class="mt-1 text-center text-xs text-zinc-500">Los resultados se reparten en {{ pages.length }} imágenes para que se lean bien.</p>
+        <p v-else-if="pages.length > 1 && round" class="mt-1 text-center text-xs text-zinc-500">Con tantos partidos la jornada se reparte en {{ pages.length }} imágenes para que se lea bien.</p>
       </div>
 
       <!-- Opciones -->
