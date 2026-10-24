@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import IceBlueBackdrop from './IceBlueBackdrop.vue'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Ice Blue — Resultados de la jornada. Como la tabla: cada resultado en su propia tarjeta blanca y
@@ -24,6 +25,8 @@ const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.tit
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Exo 2', nameWeight: 800, ink: '#0a2540', lost: '#6b8bab', scoreFont: 'Exo 2', scoreWeight: 900, scoreBg: 'linear-gradient(135deg, #3aa6f2, #0b4f8a)', scoreInk: '#ffffff', scoreRadius: '10px', card: 'rgb(255 255 255 / 0.94)', cardRadius: '18px', cardShadow: '0 6px 18px rgb(11 79 138 / 0.12)', detail: '#1d8fe0', crestShape: 'circle', crestFont: 'Exo 2' }
 </script>
 
 <template>
@@ -42,23 +45,29 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       </div>
     </header>
 
-    <section class="ibr-list">
-      <div v-for="r in data.rows" :key="r.id" class="ibr-slot" :style="{ height: `${m.rowH}px` }">
-        <div class="ibr-card" :style="{ height: `${cardH}px` }">
-          <div class="ibr-team ibr-home" :class="{ 'ibr-lost': r.winner === 'away' }">
-            <span class="ibr-name" :class="{ 'ibr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
-          </div>
-          <div class="ibr-score" :style="{ fontSize: `${Math.round(m.score * 0.84)}px` }">
-            <span class="ibr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
-          </div>
-          <div class="ibr-team" :class="{ 'ibr-lost': r.winner === 'home' }">
-            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
-            <span class="ibr-name" :class="{ 'ibr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+    <section class="ibr-list" :class="{ 'ibr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="ibr-slot" :style="{ height: `${m.rowH}px` }">
+          <div class="ibr-card" :style="{ height: `${cardH}px` }">
+            <div class="ibr-team ibr-home" :class="{ 'ibr-lost': r.winner === 'away' }">
+              <span class="ibr-name" :class="{ 'ibr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+              <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
+            </div>
+            <div class="ibr-score" :style="{ fontSize: `${Math.round(m.score * 0.84)}px` }">
+              <span class="ibr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+              <small v-if="r.detail">{{ r.detail }}</small>
+            </div>
+            <div class="ibr-team" :class="{ 'ibr-lost': r.winner === 'home' }">
+              <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="Math.min(m.crest, cardH - 12)" shape="circle" font="Exo 2" />
+              <span class="ibr-name" :class="{ 'ibr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <p v-if="meta" class="ibr-meta" :style="{ fontSize: `${s.meta}px` }">{{ meta }}</p>
@@ -258,5 +267,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   font-size: 1.4em;
   letter-spacing: 0.2em;
   color: #0b4f8a;
+}
+.ibr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>

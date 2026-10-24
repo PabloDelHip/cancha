@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import ChampionsGoldBackdrop from './ChampionsGoldBackdrop.vue'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Champions Gold — Resultados de la jornada. La cabecera simétrica del cartel de partido; cada
@@ -21,6 +22,8 @@ const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.tit
 const eyebrow = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Montserrat', nameWeight: 800, ink: '#f8f1dc', lost: '#94a3b8', scoreFont: 'Cinzel', scoreWeight: 900, scoreBg: 'radial-gradient(circle at 35% 30%, #fff4c9, #d4af37 55%, #8a6a1f)', scoreInk: '#0b1736', scoreRadius: '999px', card: 'rgb(11 23 54 / 0.6)', cardBorder: '1px solid rgb(212 175 55 / 0.45)', cardRadius: '14px', detail: '#d4af37', crestShape: 'circle', crestFont: 'Cinzel' }
 </script>
 
 <template>
@@ -37,21 +40,27 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       <p v-if="subtitle" class="cgr-sub cgr-sub2" :style="{ fontSize: `${Math.round(s.title * 0.18)}px` }">{{ subtitle }}</p>
     </header>
 
-    <section class="cgr-list">
-      <div v-for="r in data.rows" :key="r.id" class="cgr-row" :style="{ height: `${m.rowH}px` }">
-        <div class="cgr-team cgr-home" :class="{ 'cgr-lost': r.winner === 'away' }">
-          <span class="cgr-name" :class="{ 'cgr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-          <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="circle" font="Cinzel" />
+    <section class="cgr-list" :class="{ 'cgr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="cgr-row" :style="{ height: `${m.rowH}px` }">
+          <div class="cgr-team cgr-home" :class="{ 'cgr-lost': r.winner === 'away' }">
+            <span class="cgr-name" :class="{ 'cgr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="circle" font="Cinzel" />
+          </div>
+          <div class="cgr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
+            <span class="cgr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+            <small v-if="r.detail">{{ r.detail }}</small>
+          </div>
+          <div class="cgr-team" :class="{ 'cgr-lost': r.winner === 'home' }">
+            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="circle" font="Cinzel" />
+            <span class="cgr-name" :class="{ 'cgr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+          </div>
         </div>
-        <div class="cgr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-          <span class="cgr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-          <small v-if="r.detail">{{ r.detail }}</small>
-        </div>
-        <div class="cgr-team" :class="{ 'cgr-lost': r.winner === 'home' }">
-          <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="circle" font="Cinzel" />
-          <span class="cgr-name" :class="{ 'cgr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
-        </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <p v-if="meta" class="cgr-meta" :style="{ fontSize: `${s.meta}px` }">{{ meta }}</p>
@@ -248,5 +257,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   font-size: 1.3em;
   color: #d4af37;
   letter-spacing: 0.3em;
+}
+.cgr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>

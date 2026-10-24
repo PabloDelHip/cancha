@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import RetroFootballBackdrop from './RetroFootballBackdrop.vue'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Retro Football — Resultados de la jornada. El papel de los 70 de la tabla: filas punteadas con
@@ -22,6 +23,8 @@ const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.tit
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Oswald', nameWeight: 600, ink: '#3b2314', lost: '#8a6a55', scoreFont: 'Righteous', scoreBg: '#c2410c', scoreInk: '#fbf3df', scoreRadius: '999px', card: 'rgb(124 58 18 / 0.08)', cardBorder: '2px dotted rgb(124 58 18 / 0.35)', cardRadius: '18px', detail: '#7c3a12', crestShape: 'shield', crestFont: 'Righteous' }
 </script>
 
 <template>
@@ -39,21 +42,27 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       </div>
     </header>
 
-    <section class="rfr-list">
-      <div v-for="r in data.rows" :key="r.id" class="rfr-row" :style="{ height: `${m.rowH}px` }">
-        <div class="rfr-team rfr-home" :class="{ 'rfr-lost': r.winner === 'away' }">
-          <span class="rfr-name" :class="{ 'rfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-          <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Righteous" />
+    <section class="rfr-list" :class="{ 'rfr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="rfr-row" :style="{ height: `${m.rowH}px` }">
+          <div class="rfr-team rfr-home" :class="{ 'rfr-lost': r.winner === 'away' }">
+            <span class="rfr-name" :class="{ 'rfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Righteous" />
+          </div>
+          <div class="rfr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
+            <span class="rfr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+            <small v-if="r.detail">{{ r.detail }}</small>
+          </div>
+          <div class="rfr-team" :class="{ 'rfr-lost': r.winner === 'home' }">
+            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Righteous" />
+            <span class="rfr-name" :class="{ 'rfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+          </div>
         </div>
-        <div class="rfr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-          <span class="rfr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-          <small v-if="r.detail">{{ r.detail }}</small>
-        </div>
-        <div class="rfr-team" :class="{ 'rfr-lost': r.winner === 'home' }">
-          <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Righteous" />
-          <span class="rfr-name" :class="{ 'rfr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
-        </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <p v-if="meta" class="rfr-meta" :style="{ fontSize: `${s.meta}px` }">{{ meta }}</p>
@@ -236,5 +245,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   font-size: 1.5em;
   letter-spacing: 0.08em;
   color: #c2410c;
+}
+.rfr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>

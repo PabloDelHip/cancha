@@ -104,8 +104,42 @@ export interface ResultMetrics {
   score: number
   /** Con filas altas el nombre cabe en dos líneas. */
   nameLines: 1 | 2
-  /** Letra de ESE nombre: los largos se achican (hasta un 30 %) antes de recortarse. */
+  /** Letra de ESE nombre: los largos se achican antes de recortarse. */
   nameOf: (name: string) => number
+  /** 1 = una fila por partido; 2 = la imagen se divide en dos columnas de tarjetas compactas. */
+  columns: 1 | 2
+  /** Filas de tarjetas por columna (con 2 columnas). */
+  cardRows: number
+  /** Alto de cada renglón de equipo dentro de la tarjeta compacta. */
+  line: number
+}
+
+/** Partidos que caben en una columna; con más, la imagen se divide en dos (hasta MAX_RESULTS). */
+export const SINGLE_COLUMN: Record<PosterFormat, number> = { story: 10, portrait: 7, square: 5 }
+
+/** Cómo viste cada familia la tarjeta compacta de resultado (dos columnas). */
+export interface ResultCardTheme {
+  nameFont: string
+  /** Igual que `scoreWeight`: por defecto 700. */
+  nameWeight?: number
+  uppercase?: boolean
+  ink: string
+  lost: string
+  scoreFont: string
+  /** Solo las fuentes que tienen ese peso (Anton o Bebas tienen uno: sin negrita falsa). */
+  scoreWeight?: number
+  scoreBg: string
+  scoreInk: string
+  scoreRadius?: string
+  scoreClip?: string
+  card: string
+  cardBorder?: string
+  cardRadius?: string
+  cardClip?: string
+  cardShadow?: string
+  detail: string
+  crestShape: 'circle' | 'shield' | 'square' | 'hex'
+  crestFont: string
 }
 
 /**
@@ -120,6 +154,28 @@ export function useResultMetrics(
   return computed(() => {
     const { width, height } = FORMATS[props.format]
     const rows = Math.max(1, props.data.rows.length)
+    if (rows > SINGLE_COLUMN[props.format]) {
+      // Dos columnas: cada partido es una tarjeta de dos renglones (local y visita) con su marcador.
+      const cardRows = Math.ceil(rows / 2)
+      const rowH = Math.floor(Math.min(160, listHeight[props.format] / cardRows))
+      const line = Math.round(rowH * 0.4)
+      // Las familias de letra ancha (menos `nameChars`) parten de una letra más chica.
+      const name = Math.round(Math.max(18, Math.min(30, line * 0.5) * Math.min(1, (opts.nameChars ?? 11) / 11)))
+      const cap = 20
+      return {
+        width,
+        height,
+        rowH,
+        crest: Math.round(Math.min(56, line * 0.84)),
+        name,
+        score: Math.round(Math.max(22, Math.min(40, line * 0.64))),
+        nameLines: 1,
+        nameOf: (n: string) => Math.round(name * Math.max(0.7, Math.min(1, cap / Math.max(1, n.length)))),
+        columns: 2,
+        cardRows,
+        line,
+      }
+    }
     const maxRow = opts.maxRow?.[props.format] ?? ({ story: 190, portrait: 150, square: 140 } as const)[props.format]
     const rowH = Math.floor(Math.min(maxRow, listHeight[props.format] / rows))
     // El ancho es el mismo en los tres formatos: escudo, marcador y nombre tienen tope por ancho
@@ -141,6 +197,9 @@ export function useResultMetrics(
         const word = Math.max(1, ...n.split(/\s+/).map((w) => w.length))
         return Math.round(name * Math.max(0.66, Math.min(1, cap / Math.max(1, n.length), (opts.nameChars ?? 11) / word)))
       },
+      columns: 1,
+      cardRows: rows,
+      line: rowH,
     }
   })
 }

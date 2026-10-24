@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import UrbanBlackBackdrop from './UrbanBlackBackdrop.vue'
 import { URBAN_BLACK } from './tokens'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Urban Black — Resultados de la jornada. La cabecera del cartel de partido; cada resultado en una
@@ -23,6 +24,8 @@ const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.tit
 const eyebrow = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Anton', nameWeight: 400, ink: '#ffffff', lost: '#a3a3a3', scoreFont: 'Anton', scoreBg: '#ffffff', scoreInk: '#0a0a0a', scoreClip: 'polygon(10% 0, 100% 0, 90% 100%, 0 100%)', card: 'rgb(255 255 255 / 0.05)', cardBorder: '1px solid rgb(255 255 255 / 0.12)', detail: '#d4d4d4', crestShape: 'shield', crestFont: 'Anton' }
 </script>
 
 <template>
@@ -41,21 +44,27 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       </div>
     </header>
 
-    <section class="ubr-list">
-      <div v-for="r in data.rows" :key="r.id" class="ubr-row" :style="{ height: `${m.rowH}px` }">
-        <div class="ubr-team ubr-home" :class="{ 'ubr-lost': r.winner === 'away' }">
-          <span class="ubr-name" :class="{ 'ubr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-          <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Anton" />
+    <section class="ubr-list" :class="{ 'ubr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="ubr-row" :style="{ height: `${m.rowH}px` }">
+          <div class="ubr-team ubr-home" :class="{ 'ubr-lost': r.winner === 'away' }">
+            <span class="ubr-name" :class="{ 'ubr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="shield" font="Anton" />
+          </div>
+          <div class="ubr-score" :style="{ fontSize: `${m.score}px` }">
+            <span class="ubr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+            <small v-if="r.detail">{{ r.detail }}</small>
+          </div>
+          <div class="ubr-team ubr-away" :class="{ 'ubr-lost': r.winner === 'home' }">
+            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Anton" />
+            <span class="ubr-name" :class="{ 'ubr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+          </div>
         </div>
-        <div class="ubr-score" :style="{ fontSize: `${m.score}px` }">
-          <span class="ubr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-          <small v-if="r.detail">{{ r.detail }}</small>
-        </div>
-        <div class="ubr-team ubr-away" :class="{ 'ubr-lost': r.winner === 'home' }">
-          <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="shield" font="Anton" />
-          <span class="ubr-name" :class="{ 'ubr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
-        </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <p v-if="meta" class="ubr-meta" :style="{ fontSize: `${s.meta}px` }">{{ meta }}</p>
@@ -259,5 +268,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   letter-spacing: 0.24em;
   color: #fff;
   opacity: 0.85;
+}
+.ubr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>

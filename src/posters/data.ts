@@ -373,8 +373,11 @@ export interface ResultsBuildInput {
   overrides?: { title?: string; season?: string; roundLabel?: string }
 }
 
-/** Resultados legibles por imagen; con más partidos se reparten en varias. */
-export const MAX_RESULTS: Record<PosterFormat, number> = { story: 10, portrait: 7, square: 5 }
+/**
+ * Resultados por imagen. Con más de los que caben en una columna, la imagen se divide en dos
+ * columnas (ver `SINGLE_COLUMN` en layout.ts); solo pasado este máximo se reparten en varias.
+ */
+export const MAX_RESULTS: Record<PosterFormat, number> = { story: 20, portrait: 14, square: 10 }
 
 /** Un resultado publicable: partido finalizado con marcador capturado. */
 const isResult = (m: ResultMatch) => m.status === 'finished' && m.homeScore !== null && m.awayScore !== null

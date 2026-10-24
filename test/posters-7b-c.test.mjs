@@ -34,12 +34,14 @@ test('fecha solo si todos se jugaron el mismo día', () => {
   assert.equal(d.buildResultPages(input([m('1'), m('2', { date: '2026-10-26' })]))[0].dateLabel, null)
 })
 
-test('páginas parejas por formato, textos ajustables y nombre de archivo', () => {
+test('una sola imagen hasta el máximo (dos columnas); pasado el máximo, páginas parejas', () => {
   const ten = Array.from({ length: 10 }, (_, i) => m(String(i)))
   assert.deepEqual(d.buildResultPages(input(ten, { format: 'story' })).map((p) => p.rows.length), [10])
-  assert.deepEqual(d.buildResultPages(input(ten, { format: 'portrait' })).map((p) => p.rows.length), [5, 5])
-  const sq = d.buildResultPages(input(ten, { format: 'square', overrides: { title: ' Copa Barrio ', roundLabel: 'Clásico' } }))
-  assert.deepEqual(sq.map((p) => p.rows.length), [5, 5])
+  assert.deepEqual(d.buildResultPages(input(ten, { format: 'portrait' })).map((p) => p.rows.length), [10])
+  const many = Array.from({ length: 24 }, (_, i) => m(String(i)))
+  assert.deepEqual(d.buildResultPages(input(many, { format: 'portrait' })).map((p) => p.rows.length), [12, 12])
+  const sq = d.buildResultPages(input([...ten, m('x')], { format: 'square', overrides: { title: ' Copa Barrio ', roundLabel: 'Clásico' } }))
+  assert.deepEqual(sq.map((p) => p.rows.length), [6, 5])
   assert.equal(sq[1].tournamentName, 'Copa Barrio')
   assert.equal(sq[1].roundLabel, 'Clásico')
   assert.equal(d.resultsFileNameOf(sq[1], 'urban-black'), 'resultados-copa-barrio-j10-urban-black-2de2.png')

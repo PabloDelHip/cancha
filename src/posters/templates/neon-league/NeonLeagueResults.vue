@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import NeonLeagueBackdrop from './NeonLeagueBackdrop.vue'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Neon League — Resultados de la jornada. El «J10» en contorno neón de la tabla; cada resultado en
@@ -26,6 +27,8 @@ const big = computed(() => {
 const kicker = computed(() => (big.value.text === props.data.roundLabel ? 'Resultados' : `Resultados · ${props.data.roundLabel}`))
 const subtitle = computed(() => (props.data.leagueName ? withSeason(props.data.tournamentName, props.data.season) : props.data.season))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Rajdhani', ink: '#eafff2', lost: '#8fbfa3', scoreFont: 'Orbitron', scoreWeight: 900, scoreBg: '#39ff88', scoreInk: '#031a0c', scoreClip: 'polygon(14% 0, 100% 0, 86% 100%, 0 100%)', card: 'linear-gradient(90deg, rgb(57 255 136 / 0.16), rgb(3 8 6 / 0.9) 60%)', cardBorder: '1px solid rgb(57 255 136 / 0.35)', detail: '#39ff88', crestShape: 'hex', crestFont: 'Orbitron' }
 </script>
 
 <template>
@@ -44,23 +47,29 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       </div>
     </header>
 
-    <section class="nlr-list">
-      <div v-for="r in data.rows" :key="r.id" class="nlr-slot" :style="{ height: `${m.rowH}px` }">
-        <div class="nlr-row">
-          <div class="nlr-team nlr-home" :class="{ 'nlr-lost': r.winner === 'away' }">
-            <span class="nlr-name" :class="{ 'nlr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Orbitron" />
-          </div>
-          <div class="nlr-score" :style="{ fontSize: `${Math.round(m.score * 0.82)}px` }">
-            <span class="nlr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
-          </div>
-          <div class="nlr-team" :class="{ 'nlr-lost': r.winner === 'home' }">
-            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Orbitron" />
-            <span class="nlr-name" :class="{ 'nlr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+    <section class="nlr-list" :class="{ 'nlr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="nlr-slot" :style="{ height: `${m.rowH}px` }">
+          <div class="nlr-row">
+            <div class="nlr-team nlr-home" :class="{ 'nlr-lost': r.winner === 'away' }">
+              <span class="nlr-name" :class="{ 'nlr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+              <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Orbitron" />
+            </div>
+            <div class="nlr-score" :style="{ fontSize: `${Math.round(m.score * 0.82)}px` }">
+              <span class="nlr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+              <small v-if="r.detail">{{ r.detail }}</small>
+            </div>
+            <div class="nlr-team" :class="{ 'nlr-lost': r.winner === 'home' }">
+              <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Orbitron" />
+              <span class="nlr-name" :class="{ 'nlr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <footer class="nlr-foot" :style="{ height: `${s.foot}px`, fontSize: `${({ story: 24, portrait: 20, square: 17 })[format]}px` }">
@@ -263,5 +272,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   font-weight: 900;
   letter-spacing: 0.24em;
   color: #39ff88;
+}
+.nlr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>

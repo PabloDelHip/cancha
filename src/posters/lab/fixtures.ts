@@ -115,7 +115,7 @@ export function fixtureMatch(opts: { home?: number; away?: number; pending?: boo
 /** 7B-C: jornada con `count` resultados (marcadores fijos, uno con penales y uno en grupo) y `pending` por jugar. */
 export function fixtureResults(format: PosterFormat, count: number, opts: { pending?: number; noLogo?: boolean; twoDays?: boolean } = {}): ResultsPosterData[] {
   const SCORES: [number, number][] = [[3, 1], [0, 0], [2, 2], [1, 4], [5, 0], [2, 1], [1, 1], [0, 2], [3, 3], [4, 2], [1, 0], [2, 3]]
-  const n = Math.min(count, 12)
+  const n = Math.min(count, 20)
   const matches = Array.from({ length: n + (opts.pending ?? 0) }, (_, i) => {
     const [hs, as] = SCORES[i % SCORES.length]!
     const played = i < n

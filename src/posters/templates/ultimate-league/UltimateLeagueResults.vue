@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import ResultCard from '../../parts/ResultCard.vue'
 import UltimateLeagueBackdrop from './UltimateLeagueBackdrop.vue'
 import { withSeason } from '../../data'
-import { useResultMetrics, type ResultsPosterProps } from '../../layout'
+import { useResultMetrics, type ResultCardTheme, type ResultsPosterProps } from '../../layout'
 
 /**
  * Ultimate League — Resultados de la jornada. Panal de hexágonos y título metálico; cada resultado
@@ -21,6 +22,8 @@ const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.tit
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
 const subtitle = computed(() => (props.data.leagueName ? props.data.tournamentName : ''))
 const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props.data.page.total > 1 ? `${props.data.page.index + 1} de ${props.data.page.total}` : null].filter(Boolean).join(' · '))
+/** Tarjeta compacta (imagen en dos columnas) con los colores y formas de la familia. */
+const CARD: ResultCardTheme = { nameFont: 'Chakra Petch', ink: '#f3ecff', lost: '#b9a8e6', scoreFont: 'Russo One', scoreBg: 'linear-gradient(160deg, #ff3df5, #8a1bd6)', scoreInk: '#ffffff', scoreClip: 'polygon(20% 0, 80% 0, 100% 50%, 80% 100%, 20% 100%, 0 50%)', card: 'linear-gradient(90deg, rgb(255 255 255 / 0.1), rgb(255 61 245 / 0.12))', cardClip: 'polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%)', detail: '#3dd6ff', crestShape: 'hex', crestFont: 'Russo One' }
 </script>
 
 <template>
@@ -39,23 +42,29 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
       </div>
     </header>
 
-    <section class="ulr-list">
-      <div v-for="r in data.rows" :key="r.id" class="ulr-slot" :style="{ height: `${m.rowH}px` }">
-        <div class="ulr-row">
-          <div class="ulr-team ulr-home" :class="{ 'ulr-lost': r.winner === 'away' }">
-            <span class="ulr-name" :class="{ 'ulr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
-            <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Russo One" />
-          </div>
-          <div class="ulr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
-            <span class="ulr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
-            <small v-if="r.detail">{{ r.detail }}</small>
-          </div>
-          <div class="ulr-team" :class="{ 'ulr-lost': r.winner === 'home' }">
-            <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Russo One" />
-            <span class="ulr-name" :class="{ 'ulr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+    <section class="ulr-list" :class="{ 'ulr-cols': m.columns === 2 }" :style="m.columns === 2 ? { gridTemplateRows: `repeat(${m.cardRows}, ${m.rowH}px)` } : undefined">
+      <template v-if="m.columns === 1">
+        <div v-for="r in data.rows" :key="r.id" class="ulr-slot" :style="{ height: `${m.rowH}px` }">
+          <div class="ulr-row">
+            <div class="ulr-team ulr-home" :class="{ 'ulr-lost': r.winner === 'away' }">
+              <span class="ulr-name" :class="{ 'ulr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.home.name)}px` }">{{ r.home.name }}</span>
+              <Crest :src="r.home.crest" :initials="r.home.initials" :colors="r.home.colors" :size="m.crest" shape="hex" font="Russo One" />
+            </div>
+            <div class="ulr-score" :style="{ fontSize: `${Math.round(m.score * 0.86)}px` }">
+              <span class="ulr-box">{{ r.homeScore }}<i>-</i>{{ r.awayScore }}</span>
+              <small v-if="r.detail">{{ r.detail }}</small>
+            </div>
+            <div class="ulr-team" :class="{ 'ulr-lost': r.winner === 'home' }">
+              <Crest :src="r.away.crest" :initials="r.away.initials" :colors="r.away.colors" :size="m.crest" shape="hex" font="Russo One" />
+              <span class="ulr-name" :class="{ 'ulr-two': m.nameLines === 2 }" :style="{ fontSize: `${m.nameOf(r.away.name)}px` }">{{ r.away.name }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </template>
+      <!-- Muchos partidos: la imagen se divide en dos columnas de tarjetas compactas -->
+      <template v-else>
+        <ResultCard v-for="r in data.rows" :key="r.id" :row="r" :m="m" :theme="CARD" />
+      </template>
     </section>
 
     <p v-if="meta" class="ulr-meta" :style="{ fontSize: `${s.meta}px` }">{{ meta }}</p>
@@ -259,5 +268,11 @@ const meta = computed(() => [props.data.dateLabel, props.data.pendingNote, props
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.ulr-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
 }
 </style>
