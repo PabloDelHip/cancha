@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import RetroFootballBackdrop from './retro-football/RetroFootballBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -16,35 +17,11 @@ const badge = computed(() => ({ story: 200, portrait: 150, square: 120 })[props.
 const stacked = computed(() => props.format === 'story')
 const grid = computed(() => statGrid(m.value, Math.round(m.value.rowH * 0.82), m.value.crest + 18))
 const page = computed(() => pageLabel(props.data))
-const STRIPES = ['#c2410c', '#e0a526', '#2f5d50', '#7c3a12']
-/** Franjas que bajan en curva desde la esquina superior derecha. */
-const bands = computed(() => {
-  const w = m.value.width
-  const h = head.value
-  return STRIPES.map((c, i) => ({ c, d: `M${w * 0.7 + i * 42} -10 C${w * 0.76 + i * 42} ${h * 0.22}, ${w * 0.86 + i * 26} ${h * 0.34}, ${w + 20} ${h * 0.3 + i * 40}`, w: 38 }))
-})
 </script>
 
 <template>
   <div class="rf" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="rf-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <pattern id="rf-dots" width="18" height="18" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="9" cy="9" r="3.4" fill="#7c3a12" /></pattern>
-        <linearGradient id="rf-fade" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#fff" stop-opacity="1" />
-          <stop offset="0.45" stop-color="#fff" stop-opacity="0" />
-        </linearGradient>
-        <mask id="rf-mask"><rect width="100%" height="100%" fill="url(#rf-fade)" /></mask>
-        <filter id="rf-paper"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" stitchTiles="stitch" /><feColorMatrix values="0 0 0 0 0.45  0 0 0 0 0.3  0 0 0 0 0.15  0 0 0 0.12 0" /></filter>
-      </defs>
-      <rect width="100%" height="100%" fill="#f1e3c3" />
-      <rect width="100%" height="100%" fill="url(#rf-dots)" mask="url(#rf-mask)" opacity="0.18" />
-      <path v-for="b in bands" :key="b.c" :d="b.d" :stroke="b.c" :stroke-width="b.w" fill="none" />
-      <g :transform="`translate(0 ${m.height - foot / 2})`">
-        <rect v-for="(c, i) in STRIPES" :key="c" :y="i * (foot / 8)" :width="m.width" :height="foot / 8" :fill="c" />
-      </g>
-      <rect width="100%" height="100%" filter="url(#rf-paper)" />
-    </svg>
+    <RetroFootballBackdrop :width="m.width" :height="m.height" :head="head" :foot="foot" />
 
     <header class="rf-head" :class="{ 'rf-stacked': stacked }" :style="{ height: `${head}px` }">
       <div class="rf-badge" :style="{ width: `${badge}px`, height: `${badge}px` }">
@@ -88,12 +65,6 @@ const bands = computed(() => {
   background: #f1e3c3;
   color: #3b2314;
   font-family: 'Oswald', sans-serif;
-}
-.rf-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .rf-head {
   position: relative;

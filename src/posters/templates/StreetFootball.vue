@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import StreetFootballBackdrop from './street-football/StreetFootballBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -22,23 +23,7 @@ const tape = computed(() => ({ y: head.value - ({ story: 56, portrait: 44, squar
 
 <template>
   <div class="sf" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="sf-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <filter id="sf-concrete"><feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="4" seed="3" /><feColorMatrix values="0 0 0 0 0.6  0 0 0 0 0.6  0 0 0 0 0.6  0 0 0 0.22 0" /></filter>
-        <filter id="sf-stain"><feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="11" /><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0" /></filter>
-        <pattern id="sf-hazard" width="60" height="60" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="30" height="60" fill="#ffd400" /><rect x="30" width="30" height="60" fill="#111" /></pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="#2b2b2b" />
-      <rect width="100%" height="100%" filter="url(#sf-stain)" />
-      <rect width="100%" height="100%" filter="url(#sf-concrete)" />
-      <!-- Juntas del muro -->
-      <g stroke="#000" stroke-opacity="0.35" stroke-width="3">
-        <line v-for="k in 6" :key="k" x1="0" :y1="(m.height / 6) * k" :x2="m.width" :y2="(m.height / 6) * k" />
-      </g>
-      <g :transform="`rotate(-3 ${m.width / 2} ${tape.y})`">
-        <rect x="-40" :y="tape.y - tape.h / 2" :width="m.width + 80" :height="tape.h" fill="url(#sf-hazard)" />
-      </g>
-    </svg>
+    <StreetFootballBackdrop :width="m.width" :height="m.height" :tape="tape" />
 
     <header class="sf-head" :class="{ 'sf-stacked': stacked }" :style="{ height: `${head}px`, paddingBottom: `${tape.h + 20}px` }">
       <div class="sf-badge" :style="{ width: `${badge}px`, height: `${badge}px` }">
@@ -82,12 +67,6 @@ const tape = computed(() => ({ y: head.value - ({ story: 56, portrait: 44, squar
   background: #2b2b2b;
   color: #f5f5f0;
   font-family: 'Barlow Condensed', sans-serif;
-}
-.sf-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .sf-head {
   position: relative;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import ChampionsGoldBackdrop from './champions-gold/ChampionsGoldBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -15,32 +16,11 @@ const medal = computed(() => ({ story: 210, portrait: 120, square: 96 })[props.f
 const title = computed(() => ({ story: 120, portrait: 84, square: 64 })[props.format])
 const grid = computed(() => statGrid(m.value, Math.round(m.value.rowH * 0.72), m.value.crest + 18))
 const page = computed(() => pageLabel(props.data))
-/** Estrellas fijas (pseudoaleatorias deterministas): misma imagen siempre. */
-const stars = Array.from({ length: 60 }, (_, i) => ({ x: ((i * 0.6180339) % 1) * 100, y: ((i * 0.7548777 + 0.13) % 1) * 24, r: 0.6 + ((i * 7) % 5) * 0.35, o: 0.15 + ((i * 3) % 7) * 0.08 }))
 </script>
 
 <template>
   <div class="cg" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="cg-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <radialGradient id="cg-glow" cx="50%" cy="0%" r="90%">
-          <stop offset="0%" stop-color="#1e3a7a" />
-          <stop offset="55%" stop-color="#0b1736" />
-          <stop offset="100%" stop-color="#040915" />
-        </radialGradient>
-        <linearGradient id="cg-gold" x1="0" x2="1">
-          <stop offset="0%" stop-color="#8a6a1f" />
-          <stop offset="50%" stop-color="#f3d27a" />
-          <stop offset="100%" stop-color="#8a6a1f" />
-        </linearGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#cg-glow)" />
-      <circle v-for="(s, i) in stars" :key="i" :cx="`${s.x}%`" :cy="`${s.y}%`" :r="s.r * 1.6" fill="#f3d27a" :opacity="s.o" />
-      <circle :cx="m.width / 2" :cy="head * 0.42" :r="m.width * 0.42" fill="none" stroke="#d4af37" stroke-opacity="0.08" stroke-width="2" />
-      <circle :cx="m.width / 2" :cy="head * 0.42" :r="m.width * 0.36" fill="none" stroke="#d4af37" stroke-opacity="0.06" stroke-width="1.5" />
-      <rect x="22" y="22" :width="m.width - 44" :height="m.height - 44" fill="none" stroke="url(#cg-gold)" stroke-width="3" />
-      <rect x="34" y="34" :width="m.width - 68" :height="m.height - 68" fill="none" stroke="#d4af37" stroke-opacity="0.35" stroke-width="1.5" />
-    </svg>
+    <ChampionsGoldBackdrop :width="m.width" :height="m.height" :head="head" />
 
     <header class="cg-head" :style="{ height: `${head}px` }">
       <div class="cg-medal" :style="{ width: `${medal}px`, height: `${medal}px` }">
@@ -83,12 +63,6 @@ const stars = Array.from({ length: 60 }, (_, i) => ({ x: ((i * 0.6180339) % 1) *
   color: #f8f1dc;
   font-family: 'Montserrat', sans-serif;
   background: #0b1736;
-}
-.cg-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .cg-head {
   position: relative;

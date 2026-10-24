@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import NeonLeagueBackdrop from './neon-league/NeonLeagueBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -15,40 +16,11 @@ const big = computed(() => ({ story: 290, portrait: 190, square: 130 })[props.fo
 const grid = computed(() => statGrid(m.value, Math.round(m.value.font * 1.9), m.value.crest + 20))
 const page = computed(() => pageLabel(props.data))
 const number = computed(() => (props.data.roundNumber ? String(props.data.roundNumber).padStart(2, '0') : '00'))
-/** Líneas del piso en perspectiva (fijas). */
-const floor = computed(() => {
-  const w = m.value.width
-  const h = m.value.height
-  const top = h * 0.62
-  const lines: string[] = []
-  for (let i = -10; i <= 10; i++) lines.push(`M${w / 2 + i * 26} ${top} L${w / 2 + i * 220} ${h + 40}`)
-  for (let k = 0; k < 9; k++) {
-    const y = top + (h - top) * Math.pow(k / 8, 1.8)
-    lines.push(`M-40 ${y} L${w + 40} ${y}`)
-  }
-  return lines.join(' ')
-})
 </script>
 
 <template>
   <div class="nl" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="nl-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="nl-fade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stop-color="#39ff88" stop-opacity="0" />
-          <stop offset="1" stop-color="#39ff88" stop-opacity="0.55" />
-        </linearGradient>
-        <radialGradient id="nl-halo" cx="85%" cy="10%" r="60%">
-          <stop offset="0" stop-color="#39ff88" stop-opacity="0.22" />
-          <stop offset="1" stop-color="#39ff88" stop-opacity="0" />
-        </radialGradient>
-        <pattern id="nl-scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity="0.35" /></pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="#030605" />
-      <rect width="100%" height="100%" fill="url(#nl-halo)" />
-      <path :d="floor" stroke="url(#nl-fade)" stroke-width="2" fill="none" />
-      <rect width="100%" height="100%" fill="url(#nl-scan)" />
-    </svg>
+    <NeonLeagueBackdrop :width="m.width" :height="m.height" />
 
     <header class="nl-head" :style="{ height: `${head}px` }">
       <span class="nl-big" :style="{ fontSize: `${data.roundNumber ? big : Math.round(big * 0.62)}px` }">{{ data.roundNumber ? `J${number}` : 'INICIO' }}</span>
@@ -94,12 +66,6 @@ const floor = computed(() => {
   background: #030605;
   color: #eafff2;
   font-family: 'Rajdhani', sans-serif;
-}
-.nl-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .nl-head {
   position: relative;

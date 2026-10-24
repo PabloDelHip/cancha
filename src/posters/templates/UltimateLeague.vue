@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../parts/Crest.vue'
+import UltimateLeagueBackdrop from './ultimate-league/UltimateLeagueBackdrop.vue'
 import { STAT_COLUMNS, pageLabel, statGrid, useMetrics, type PosterProps } from '../layout'
 import { signed, withSeason } from '../data'
 
@@ -15,44 +16,11 @@ const title = computed(() => ({ story: 140, portrait: 96, square: 76 })[props.fo
 const badge = computed(() => ({ story: 220, portrait: 130, square: 100 })[props.format])
 const grid = computed(() => statGrid(m.value, Math.round(m.value.font * 1.8), m.value.crest + 18))
 const page = computed(() => pageLabel(props.data))
-/** Panal fijo: hexágonos en la parte alta, cada vez más tenues. */
-const hexes = computed(() => {
-  const r = 46
-  const w = Math.sqrt(3) * r
-  const out: { d: string; o: number }[] = []
-  for (let row = 0; row < Math.ceil(head.value / (r * 1.5)) + 1; row++) {
-    for (let col = -1; col < m.value.width / w + 1; col++) {
-      const cx = col * w + (row % 2 ? w / 2 : 0)
-      const cy = row * r * 1.5
-      const pts = Array.from({ length: 6 }, (_, k) => {
-        const a = (Math.PI / 3) * k + Math.PI / 6
-        return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`
-      })
-      out.push({ d: `M${pts.join(' L')} Z`, o: Math.max(0, 0.32 - (cy / head.value) * 0.3) })
-    }
-  }
-  return out
-})
 </script>
 
 <template>
   <div class="ul" :style="{ width: `${m.width}px`, height: `${m.height}px` }">
-    <svg class="ul-bg" :viewBox="`0 0 ${m.width} ${m.height}`" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <radialGradient id="ul-glow-a" cx="10%" cy="5%" r="70%">
-          <stop offset="0" stop-color="#ff3df5" stop-opacity="0.45" />
-          <stop offset="1" stop-color="#ff3df5" stop-opacity="0" />
-        </radialGradient>
-        <radialGradient id="ul-glow-b" cx="95%" cy="40%" r="60%">
-          <stop offset="0" stop-color="#3dd6ff" stop-opacity="0.3" />
-          <stop offset="1" stop-color="#3dd6ff" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="#1a0b3b" />
-      <rect width="100%" height="100%" fill="url(#ul-glow-a)" />
-      <rect width="100%" height="100%" fill="url(#ul-glow-b)" />
-      <path v-for="(h, i) in hexes" :key="i" :d="h.d" fill="none" stroke="#c9a6ff" stroke-width="2" :stroke-opacity="h.o" />
-    </svg>
+    <UltimateLeagueBackdrop :width="m.width" :height="m.height" :head="head" />
 
     <header class="ul-head" :style="{ height: `${head}px` }">
       <div class="ul-badge" :style="{ width: `${badge}px`, height: `${Math.round(badge * 1.1)}px` }">
@@ -96,12 +64,6 @@ const hexes = computed(() => {
   background: #1a0b3b;
   color: #f3ecff;
   font-family: 'Chakra Petch', sans-serif;
-}
-.ul-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
 }
 .ul-head {
   position: relative;
