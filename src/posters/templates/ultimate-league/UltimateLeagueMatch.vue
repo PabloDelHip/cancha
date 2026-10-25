@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import FinalEvents from '../../parts/FinalEvents.vue'
 import UltimateLeagueBackdrop from './UltimateLeagueBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import type { MatchPosterProps } from '../../layout'
+import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Ultimate League — Próximo partido. El lenguaje de la tabla: panal de hexágonos, título metálico,
  * cada escudo en el hexágono de metal con brillo magenta del logo, el VS con el degradado de la
  * marca y la programación en una fila de esquinas cortadas con la hora en el hexágono de los puntos.
+ * 7B-E — Resultado final: la misma pieza con el marcador en lugar del VS y, debajo, goleadores y
+ * tarjetas (los escudos se achican para dejarles lugar).
  */
 const props = defineProps<MatchPosterProps>()
 const SIZES = {
@@ -16,7 +19,17 @@ const SIZES = {
   portrait: { head: 340, foot: 90, hex: 290, name: 40, vs: 100, title: 90, badge: 116, info: 34 },
   square: { head: 262, foot: 74, hex: 206, name: 32, vs: 80, title: 70, badge: 74, info: 28 },
 } as const
-const s = computed(() => SIZES[props.format])
+/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
+const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+const final = computed(() => props.data.final)
+const s = computed(() => {
+  const b = SIZES[props.format]
+  return final.value ? { ...b, hex: Math.round(b.hex * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+})
+const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
+const vs = computed(() => (final.value ? scoreText(final.value) : null))
+const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
+const EVENTS: FinalEventsTheme = { font: 'Chakra Petch', charWidth: 0.66, weight: 600, ink: '#f5edff', muted: '#b9a3dd', accent: '#ff3df5', line: 'rgb(255 61 245 / 0.3)', detailFont: 'Russo One', detailWeight: 400, detailBg: 'linear-gradient(90deg, #7c3aed, #ff3df5)', detailInk: '#ffffff' }
 const dims = computed(() => FORMATS[props.format])
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 10) / Math.max(10, props.data.roundLabel.length))))
 const kicker = computed(() => withSeason(props.data.leagueName ?? props.data.tournamentName, props.data.season))
@@ -36,7 +49,7 @@ const teams = computed(() => [
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.66)" shape="hex" :colors="{ primary: '#2a1260', secondary: '#ff3df5' }" font="Russo One" />
       </div>
       <div class="ulm-titles">
-        <p class="ulm-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">Próximo partido</p>
+        <p class="ulm-tag" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ tag }}</p>
         <p class="ulm-kicker" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ kicker }}</p>
         <h1 class="ulm-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
         <p v-if="subtitle" class="ulm-sub" :style="{ fontSize: `${Math.round(s.title * 0.19)}px` }">{{ subtitle }}</p>
@@ -47,7 +60,7 @@ const teams = computed(() => [
     <section class="ulm-duel">
       <div class="ulm-pair">
         <template v-for="(x, i) in teams" :key="x.side">
-          <div class="ulm-team">
+          <div class="ulm-team" :class="{ 'ulm-lost': final?.winner && final.winner !== x.side }">
             <div class="ulm-glow">
               <div class="ulm-hex" :style="{ width: `${s.hex}px`, height: `${Math.round(s.hex * 1.1)}px` }">
                 <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="Math.round(s.hex * 0.7)" shape="hex" font="Russo One" />
@@ -56,10 +69,13 @@ const teams = computed(() => [
             <span class="ulm-side" :style="{ fontSize: `${Math.round(s.name * 0.46)}px` }">{{ x.label }}</span>
             <span class="ulm-name" :style="{ fontSize: `${s.name}px` }">{{ x.t.name }}</span>
           </div>
-          <div v-if="i === 0" class="ulm-vs" :style="{ fontSize: `${s.vs}px`, marginTop: `${Math.round((s.hex * 1.1 - s.vs) / 2)}px` }">VS</div>
+          <div v-if="i === 0" class="ulm-vs" :class="{ 'ulm-score': final }" :style="{ fontSize: `${vsSize}px`, marginTop: `${Math.round((s.hex * 1.1 - vsSize) / 2)}px` }">{{ vs ?? 'VS' }}</div>
         </template>
       </div>
     </section>
+
+    <!-- 7B-E: goleadores y tarjetas -->
+    <FinalEvents v-if="final" class="ulm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="ulm-info" :style="{ fontSize: `${s.info}px` }">
@@ -291,5 +307,19 @@ const teams = computed(() => [
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* 7B-E: resultado final */
+.ulm-score {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ulm-lost .ulm-name {
+  opacity: 0.6;
+}
+.ulm-events {
+  position: relative;
+  flex: none;
+  margin: 0 40px 24px;
 }
 </style>

@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import FinalEvents from '../../parts/FinalEvents.vue'
 import UrbanBlackBackdrop from './UrbanBlackBackdrop.vue'
 import { URBAN_BLACK } from './tokens'
 import { FORMATS, withSeason } from '../../data'
-import type { MatchPosterProps } from '../../layout'
+import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Urban Black — Próximo partido. Mismo lenguaje que la tabla de la familia: fondo negro con grano y
  * brochazos, Anton con degradado blanco, escudos en placas blancas inclinadas, bloques blancos
  * invertidos y el filo blanco a la izquierda. Los escudos mandan; en historia se apilan.
+ * 7B-E — Resultado final: la misma pieza con el marcador en lugar del VS y, debajo, goleadores y
+ * tarjetas (las placas se achican para dejarles lugar).
  */
 const props = defineProps<MatchPosterProps>()
 const SIZES = {
@@ -17,7 +20,16 @@ const SIZES = {
   portrait: { head: 290, foot: 90, plate: 370, name: 54, vs: 160, title: 104, badge: 104, info: 38 },
   square: { head: 230, foot: 80, plate: 270, name: 44, vs: 140, title: 84, badge: 86, info: 32 },
 } as const
-const s = computed(() => SIZES[props.format])
+/** 7B-E: cuánto se achican las placas en el resultado final y el alto que queda para goles y tarjetas. */
+const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+const final = computed(() => props.data.final)
+const s = computed(() => {
+  const b = SIZES[props.format]
+  return final.value ? { ...b, plate: Math.round(b.plate * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+})
+const vs = computed(() => (final.value ? scoreText(final.value) : 'VS'))
+const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
+const EVENTS: FinalEventsTheme = { font: 'Barlow Condensed', weight: 700, ink: '#ffffff', muted: '#a3a3a3', accent: '#ffffff', line: 'rgb(255 255 255 / 0.18)', detailFont: 'Anton', detailWeight: 400, detailInk: '#0a0a0a' }
 const dims = computed(() => FORMATS[props.format])
 const stacked = computed(() => props.format === 'story')
 /** Títulos largos (jornadas con nombre propio) se achican en vez de salirse. */
@@ -41,7 +53,7 @@ const teams = computed(() => [
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.76)" shape="circle" :colors="URBAN_BLACK.crest" font="Anton" />
       </div>
       <div class="ubm-titles">
-        <p class="ubm-tag" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }">Próximo partido</p>
+        <p class="ubm-tag" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }">{{ final ? 'Resultado final' : 'Próximo partido' }}</p>
         <h1 class="ubm-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
         <p class="ubm-eyebrow" :style="{ fontSize: `${Math.round(s.title * 0.2)}px` }">{{ eyebrow }}</p>
         <p v-if="subtitle" class="ubm-sub" :style="{ fontSize: `${Math.round(s.title * 0.17)}px` }">{{ subtitle }}</p>
@@ -51,7 +63,7 @@ const teams = computed(() => [
     <!-- Duelo -->
     <section class="ubm-duel">
       <template v-for="(x, i) in teams" :key="x.side">
-        <div class="ubm-team" :class="`ubm-${x.side}`">
+        <div class="ubm-team" :class="[`ubm-${x.side}`, { 'ubm-lost': final && final.winner && final.winner !== x.side }]">
           <div class="ubm-plate" :style="{ width: `${s.plate}px`, height: `${s.plate}px` }">
             <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="Math.round(s.plate * 0.78)" shape="shield" font="Anton" />
           </div>
@@ -60,12 +72,15 @@ const teams = computed(() => [
             <span class="ubm-name" :style="{ fontSize: `${s.name}px` }">{{ x.t.name }}</span>
           </div>
         </div>
-        <div v-if="i === 0" class="ubm-vs" :style="{ fontSize: `${s.vs}px` }">
-          <span class="ubm-vs-ghost" aria-hidden="true">VS</span>
-          <span class="ubm-vs-text">VS</span>
+        <div v-if="i === 0" class="ubm-vs" :class="{ 'ubm-score': final }" :style="{ fontSize: `${vsSize}px` }">
+          <span class="ubm-vs-ghost" aria-hidden="true">{{ vs }}</span>
+          <span class="ubm-vs-text">{{ vs }}</span>
         </div>
       </template>
     </section>
+
+    <!-- 7B-E: goleadores y tarjetas -->
+    <FinalEvents v-if="final" class="ubm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="ubm-info" :style="{ fontSize: `${s.info}px` }">
@@ -254,6 +269,22 @@ const teams = computed(() => [
   color: #fff;
   text-shadow: 6px 6px 0 rgb(255 255 255 / 0.18);
   transform: skewX(-8deg);
+}
+
+.ubm-score .ubm-vs-ghost {
+  font-size: 1.3em;
+}
+.ubm-score .ubm-vs-text {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ubm-lost .ubm-name {
+  color: #a3a3a3;
+}
+.ubm-events {
+  position: relative;
+  flex: none;
+  margin: 0 40px 28px;
 }
 
 /* Historia: los equipos se apilan, cada uno con su nombre al lado */

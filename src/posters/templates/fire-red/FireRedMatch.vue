@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import FinalEvents from '../../parts/FinalEvents.vue'
 import FireRedBackdrop from './FireRedBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import type { MatchPosterProps } from '../../layout'
+import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Fire Red — Próximo partido. El lenguaje de la tabla: brasa y cortes diagonales, Teko itálica con
  * el número en rojo, cada equipo en un escalón del podio (filo rojo arriba) en espejo, el VS en el
  * corte del logo y la hora en el bloque rojo de los puntos. En historia los equipos se apilan.
+ * 7B-E — Resultado final: la misma pieza con el marcador en lugar del VS y, debajo, goleadores y
+ * tarjetas (los escudos se achican para dejarles lugar).
  */
 const props = defineProps<MatchPosterProps>()
 const SIZES = {
@@ -16,7 +19,17 @@ const SIZES = {
   portrait: { head: 220, foot: 84, crest: 250, name: 44, vs: 104, title: 112, badge: 118, info: 38 },
   square: { head: 180, foot: 68, crest: 190, name: 36, vs: 86, title: 88, badge: 94, info: 32 },
 } as const
-const s = computed(() => SIZES[props.format])
+/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
+const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+const final = computed(() => props.data.final)
+const s = computed(() => {
+  const b = SIZES[props.format]
+  return final.value ? { ...b, crest: Math.round(b.crest * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+})
+const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
+const vs = computed(() => (final.value ? scoreText(final.value) : null))
+const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
+const EVENTS: FinalEventsTheme = { font: 'Oswald', weight: 600, ink: '#fff4f0', muted: '#c9a49b', accent: '#ff3b1f', line: 'rgb(255 106 77 / 0.3)', detailFont: 'Teko', detailWeight: 700, detailBg: 'linear-gradient(135deg, #ff3b1f, #8f0d04)', detailInk: '#ffffff' }
 const dims = computed(() => FORMATS[props.format])
 const stacked = computed(() => props.format === 'story')
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 11) / Math.max(11, props.data.roundLabel.length))))
@@ -39,7 +52,7 @@ const teams = computed(() => [
 
     <header class="frm-head" :style="{ height: `${s.head}px` }">
       <div class="frm-titles">
-        <p class="frm-tag" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">Próximo partido</p>
+        <p class="frm-tag" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">{{ tag }}</p>
         <h1 class="frm-title" :style="{ fontSize: `${titleSize}px` }">{{ title.text }} <span v-if="title.num">{{ title.num }}</span></h1>
         <p class="frm-kicker" :style="{ fontSize: `${Math.round(s.title * 0.15)}px` }">{{ kicker }}</p>
         <p v-if="subtitle" class="frm-sub" :style="{ fontSize: `${Math.round(s.title * 0.13)}px` }">{{ subtitle }}</p>
@@ -51,15 +64,18 @@ const teams = computed(() => [
 
     <!-- Duelo: un escalón por equipo, en espejo -->
     <section class="frm-duel">
-      <div v-for="x in teams" :key="x.side" class="frm-team" :class="`frm-${x.side}`">
+      <div v-for="x in teams" :key="x.side" class="frm-team" :class="[`frm-${x.side}`, { 'frm-lost': final?.winner && final.winner !== x.side }]">
         <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="s.crest" shape="shield" font="Teko" />
         <div class="frm-who">
           <span class="frm-side" :style="{ fontSize: `${Math.round(s.name * 0.62)}px` }">{{ x.label }}</span>
           <span class="frm-name" :style="{ fontSize: `${s.name}px` }">{{ x.t.name }}</span>
         </div>
       </div>
-      <div class="frm-vs" :style="{ fontSize: `${s.vs}px` }"><span>VS</span></div>
+      <div class="frm-vs" :class="{ 'frm-score': final }" :style="{ fontSize: `${vsSize}px` }"><span>{{ vs ?? 'VS' }}</span></div>
     </section>
+
+    <!-- 7B-E: goleadores y tarjetas -->
+    <FinalEvents v-if="final" class="frm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="frm-info" :style="{ fontSize: `${s.info}px` }">
@@ -333,5 +349,19 @@ const teams = computed(() => [
   font-size: 1.5em;
   letter-spacing: 0.24em;
   color: #ff3b1f;
+}
+
+/* 7B-E: resultado final */
+.frm-score {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.frm-lost .frm-name {
+  opacity: 0.6;
+}
+.frm-events {
+  position: relative;
+  flex: none;
+  margin: 0 40px 24px;
 }
 </style>

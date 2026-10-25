@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { TEMPLATES, componentOf, templateOf, type PosterKind } from '../templates/registry'
-import { fixtureMatch, fixturePages, fixtureResults } from './fixtures'
+import { fixtureFinal, fixtureMatch, fixturePages, fixtureResults } from './fixtures'
 import { loadFonts } from '../fonts'
 import { renderPng, blobToDataUrl } from '../export'
 import { FORMATS, type PosterFormat } from '../data'
@@ -9,6 +9,7 @@ import { FORMATS, type PosterFormat } from '../data'
 /**
  * Banco visual (solo desarrollo): ?template=urban-black&format=portrait&teams=16&page=0&empty=0
  * Partido (7B-B1): ?kind=match&template=urban-black&format=story&teams=0,4&pending=0&novenue=0
+ * Resultado final (7B-E): ?kind=final&template=urban-black&format=story&goals=normal|many|none|pens
  * Resultados (7B-C): ?kind=results&template=urban-black&format=story&count=6&pending=1&twodays=0
  * Horarios (7B-D): ?kind=fixtures&… (los mismos parámetros; `pending` = pospuestos sin horario)
  * Pinta la publicación a tamaño real con datos de prueba y expone `window.__exportPoster()`, que
@@ -23,7 +24,9 @@ const [home, away] = (q.get('teams') ?? '0,4').split(',').map(Number)
 const pages =
   kind === 'match'
     ? [fixtureMatch({ home, away, pending: q.get('pending') === '1', noVenue: q.get('novenue') === '1', noLogo: q.get('nologo') === '1' })]
-    : kind === 'results' || kind === 'fixtures'
+    : kind === 'final'
+      ? [fixtureFinal({ home, away, goals: q.get('goals') ?? 'normal', noLogo: q.get('nologo') === '1' })]
+      : kind === 'results' || kind === 'fixtures'
       ? fixtureResults(format, Number(q.get('count') ?? 6), { pending: Number(q.get('pending') ?? 0), noLogo: q.get('nologo') === '1', twoDays: q.get('twodays') === '1', fixtures: kind === 'fixtures' })
       : fixturePages(format, Number(q.get('teams') ?? 16), { empty: q.get('empty') === '1', noLogo: q.get('nologo') === '1' })
 const page = Math.min(Number(q.get('page') ?? 0), pages.length - 1)

@@ -6,11 +6,12 @@ import { leagueService } from '@/services'
 import { useMatchesStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import { formatDate, plural } from '@/utils/format'
+import { shortName } from '@/utils/players'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppButton from '@/components/common/AppButton.vue'
 import FormField from '@/components/common/FormField.vue'
 import { componentOf, templateOf, templatesFor } from '@/posters/templates/registry'
-import { buildFixturePages, buildMatchPoster, buildPosterPages, buildResultPages, fileNameOf, fixturesFileNameOf, FORMATS, lastPlayed, matchFileNameOf, resultsFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat, type RoundPosterData } from '@/posters/data'
+import { buildFixturePages, buildMatchPoster, isFinal, buildPosterPages, buildResultPages, fileNameOf, fixturesFileNameOf, FORMATS, lastPlayed, matchFileNameOf, resultsFileNameOf, tableOptions, type MatchPosterData, type PosterData, type PosterFormat, type RoundPosterData } from '@/posters/data'
 import { loadFonts } from '@/posters/fonts'
 import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/posters/export'
 
@@ -20,6 +21,7 @@ import { canShareFiles, downloadFile, renderPng, sharePngs, toDataUrl } from '@/
  * estructura del torneo (los mismos de la tabla del panel); solo los textos del título se pueden
  * ajustar, como texto plano.
  * 7B-B1 — con `match`, el cartel de ese partido (solo las familias que ya tienen ese tipo).
+ * 7B-E — si ese partido ya terminó, su resultado final: marcador, goleadores y tarjetas del acta.
  * 7B-C/7B-D — con `round`, la jornada: sus resultados o sus horarios (`round.kind`).
  */
 const props = defineProps<{ open: boolean; tournamentId: ID; structure?: TournamentStructure | null; match?: Match | null; round?: { number: number; kind: 'results' | 'fixtures' } | null }>()
@@ -32,7 +34,7 @@ const rounds = useRoundsStore()
 const names = useHistoricalNamesStore()
 const toast = useToast()
 
-const kind = computed(() => (props.match ? 'match' : (props.round?.kind ?? 'standings')))
+const kind = computed(() => (props.match ? (isFinal(props.match) ? 'final' : 'match') : (props.round?.kind ?? 'standings')))
 const templates = computed(() => templatesFor(kind.value))
 const templateId = ref(templatesFor(kind.value)[0]!.id)
 const format = ref<PosterFormat>('portrait')
@@ -60,6 +62,12 @@ const matchPoster = computed<MatchPosterData | null>(() => {
   if (!t || !m) return null
   return buildMatchPoster({
     match: m,
+    stats: matches.statsOf(m.id),
+    // Nombre corto («J. Hernández»), con el nombre con que se jugó en un torneo finalizado (10C).
+    playerName: (id) => {
+      const p = names.player(props.tournamentId, id)
+      return p ? shortName(p) : null
+    },
     home: names.team(props.tournamentId, m.homeTeamId),
     away: names.team(props.tournamentId, m.awayTeamId),
     crests: { home: crests.value[m.homeTeamId] ?? null, away: crests.value[m.awayTeamId] ?? null },
@@ -196,7 +204,7 @@ async function share() {
   try {
     const files = await renderAll()
     const p = page.value
-    const title = p && 'home' in p ? `${p.home.name} vs ${p.away.name} · ${p.roundLabel}` : p && 'mode' in p ? `${p.mode === 'results' ? 'Resultados' : 'Horarios'} · ${p.roundLabel} · ${p.tournamentName}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
+    const title = p && 'home' in p ? (p.final ? `${p.home.name} ${p.final.homeScore}-${p.final.awayScore} ${p.away.name} · ${p.roundLabel}` : `${p.home.name} vs ${p.away.name} · ${p.roundLabel}`) : p && 'mode' in p ? `${p.mode === 'results' ? 'Resultados' : 'Horarios'} · ${p.roundLabel} · ${p.tournamentName}` : `${p?.tournamentName ?? ''} · ${p?.roundLabel ?? ''}`
     const result = await sharePngs(files, title.trim())
     if (result === 'unsupported') {
       for (const f of files) downloadFile(f, f.name)
@@ -211,12 +219,14 @@ async function share() {
 const HINTS = {
   standings: 'Las posiciones y números no se pueden editar',
   match: 'Los equipos, la fecha, la hora y la sede no se pueden editar',
+  final: 'El marcador, los goles y las tarjetas no se pueden editar',
   results: 'Los equipos y los marcadores no se pueden editar',
   fixtures: 'Los equipos, los horarios y las canchas no se pueden editar',
 }
 const DESCRIPTIONS = {
   standings: 'La tabla de posiciones lista para compartir en redes y WhatsApp.',
   match: 'El próximo partido listo para compartir en redes y WhatsApp.',
+  final: 'El resultado final del partido listo para compartir en redes y WhatsApp.',
   results: 'Los resultados de la jornada listos para compartir en redes y WhatsApp.',
   fixtures: 'Los horarios de la jornada listos para compartir en redes y WhatsApp.',
 }

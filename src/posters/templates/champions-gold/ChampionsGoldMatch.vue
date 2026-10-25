@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import FinalEvents from '../../parts/FinalEvents.vue'
 import ChampionsGoldBackdrop from './ChampionsGoldBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import type { MatchPosterProps } from '../../layout'
+import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Champions Gold — Próximo partido. La simetría de la tabla: medallón del torneo arriba, Cinzel
  * dorado, cada escudo en un medallón dorado como el del logo y la programación entre filetes
  * dorados, con la hora en el medallón de los clasificados.
+ * 7B-E — Resultado final: la misma pieza con el marcador en lugar del VS y, debajo, goleadores y
+ * tarjetas (los escudos se achican para dejarles lugar).
  */
 const props = defineProps<MatchPosterProps>()
 const SIZES = {
@@ -16,7 +19,17 @@ const SIZES = {
   portrait: { head: 340, foot: 96, medal: 280, name: 38, vs: 92, title: 80, badge: 104, info: 34 },
   square: { head: 262, foot: 78, medal: 210, name: 31, vs: 76, title: 62, badge: 84, info: 28 },
 } as const
-const s = computed(() => SIZES[props.format])
+/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
+const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+const final = computed(() => props.data.final)
+const s = computed(() => {
+  const b = SIZES[props.format]
+  return final.value ? { ...b, medal: Math.round(b.medal * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+})
+const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
+const vs = computed(() => (final.value ? scoreText(final.value) : null))
+const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
+const EVENTS: FinalEventsTheme = { font: 'Montserrat', charWidth: 0.72, weight: 600, ink: '#f8f1dc', muted: '#b9a67a', accent: '#d4af37', line: 'rgb(212 175 55 / 0.3)', detailFont: 'Cinzel', detailWeight: 700, detailBg: '#d4af37', detailInk: '#0b1736' }
 const dims = computed(() => FORMATS[props.format])
 const titleSize = computed(() => Math.round(Math.min(s.value.title, (s.value.title * 11) / Math.max(11, props.data.roundLabel.length))))
 /** Como la tabla: liga (o torneo) con temporada; abajo, torneo y grupo. */
@@ -36,7 +49,7 @@ const teams = computed(() => [
       <div class="cgm-badge" :style="{ width: `${s.badge}px`, height: `${s.badge}px` }">
         <Crest :src="data.logo" :initials="data.logoInitials" :size="Math.round(s.badge * 0.68)" shape="circle" :colors="{ primary: '#0b1736', secondary: '#d4af37' }" font="Cinzel" />
       </div>
-      <p class="cgm-kicker" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }"><span class="cgm-rule" />Próximo partido<span class="cgm-rule" /></p>
+      <p class="cgm-kicker" :style="{ fontSize: `${Math.round(s.title * 0.24)}px` }"><span class="cgm-rule" />{{ tag }}<span class="cgm-rule" /></p>
       <h1 class="cgm-title" :style="{ fontSize: `${titleSize}px` }">{{ data.roundLabel }}</h1>
       <p class="cgm-sub" :style="{ fontSize: `${Math.round(s.title * 0.22)}px` }">{{ eyebrow }}</p>
       <p v-if="subtitle" class="cgm-sub cgm-sub2" :style="{ fontSize: `${Math.round(s.title * 0.18)}px` }">{{ subtitle }}</p>
@@ -46,17 +59,20 @@ const teams = computed(() => [
     <section class="cgm-duel">
       <div class="cgm-pair">
         <template v-for="(x, i) in teams" :key="x.side">
-          <div class="cgm-team">
+          <div class="cgm-team" :class="{ 'cgm-lost': final?.winner && final.winner !== x.side }">
             <div class="cgm-medal" :style="{ width: `${s.medal}px`, height: `${s.medal}px` }">
               <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="Math.round(s.medal * 0.72)" shape="circle" font="Cinzel" />
             </div>
             <span class="cgm-side" :style="{ fontSize: `${Math.round(s.name * 0.46)}px` }">{{ x.label }}</span>
             <span class="cgm-name" :style="{ fontSize: `${s.name}px` }">{{ x.t.name }}</span>
           </div>
-          <div v-if="i === 0" class="cgm-vs" :style="{ fontSize: `${s.vs}px`, marginTop: `${Math.round((s.medal - s.vs) / 2)}px` }">VS</div>
+          <div v-if="i === 0" class="cgm-vs" :class="{ 'cgm-score': final }" :style="{ fontSize: `${vsSize}px`, marginTop: `${Math.round((s.medal - vsSize) / 2)}px` }">{{ vs ?? 'VS' }}</div>
         </template>
       </div>
     </section>
+
+    <!-- 7B-E: goleadores y tarjetas -->
+    <FinalEvents v-if="final" class="cgm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="cgm-info" :style="{ fontSize: `${s.info}px` }">
@@ -297,5 +313,19 @@ const teams = computed(() => [
   font-size: 1.3em;
   color: #d4af37;
   letter-spacing: 0.3em;
+}
+
+/* 7B-E: resultado final */
+.cgm-score {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.cgm-lost .cgm-name {
+  opacity: 0.6;
+}
+.cgm-events {
+  position: relative;
+  flex: none;
+  margin: 0 40px 24px;
 }
 </style>

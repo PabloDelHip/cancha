@@ -245,10 +245,71 @@ export interface MatchPosterData {
   scheduleNote: string | null
   logo: string | null
   logoInitials: string
+  /** 7B-E: el partido ya terminó (null = cartel de próximo partido). */
+  final: FinalResult | null
+}
+
+/** 7B-E: un goleador en el cartel de resultado final. `own`: autogol (suma al otro equipo). */
+export interface FinalGoal {
+  name: string
+  count: number
+  own: boolean
+}
+
+/** 7B-E: amonestado o expulsado (un rectángulo por tarjeta, en el orden en que se ven). */
+export interface FinalCard {
+  name: string
+  yellow: number
+  red: number
+}
+
+export interface FinalSide {
+  goals: FinalGoal[]
+  cards: FinalCard[]
+}
+
+export interface FinalResult {
+  homeScore: number
+  awayScore: number
+  /** Quién ganó (por marcador o, igualado, por penales); null = empate. */
+  winner: 'home' | 'away' | null
+  /** «Penales 4-3» o «Tiempo extra» (null = nada que aclarar). */
+  detail: string | null
+  home: FinalSide
+  away: FinalSide
+  /** Renglones del lado más largo (goles + tarjetas): con él cada plantilla ajusta la letra. */
+  lines: number
+}
+
+/** Estadística de un jugador en el partido, tal como la guarda el acta. */
+export interface FinalStat {
+  playerId: ID
+  teamId: ID
+  goals: number
+  ownGoals?: number
+  yellowCards: number
+  redCards: number
 }
 
 export interface MatchBuildInput {
-  match: { round: number; date: string; time: string; venue: string | null; status: string; pendingSchedule?: boolean; stage?: { group: string | null } | null }
+  match: {
+    round: number
+    date: string
+    time: string
+    venue: string | null
+    status: string
+    pendingSchedule?: boolean
+    stage?: { group: string | null } | null
+    homeTeamId?: ID
+    awayTeamId?: ID
+    homeScore?: number | null
+    awayScore?: number | null
+    penalties?: { home: number; away: number } | null
+    extraTime?: boolean
+  }
+  /** 7B-E: estadísticas del partido terminado y el nombre corto de cada jugador (null = no se muestra). */
+  stats?: FinalStat[]
+  playerName?: (playerId: ID) => string | null
   home: { name: string; shortName?: string | null; colors?: TeamColors } | undefined
   away: { name: string; shortName?: string | null; colors?: TeamColors } | undefined
   crests: { home: string | null; away: string | null }
@@ -281,7 +342,8 @@ export function matchDayLabel(iso: string): string {
  */
 export function buildMatchPoster(input: MatchBuildInput): MatchPosterData {
   const { match } = input
-  const confirmed = match.status === 'scheduled' && !match.pendingSchedule
+  const final = isFinal(match) ? buildFinal(input) : null
+  const confirmed = (match.status === 'scheduled' && !match.pendingSchedule) || final !== null
   const time = confirmed && /^\d{2}:\d{2}$/.test(match.time) ? match.time : null
   const group = match.stage?.group ? `Grupo ${match.stage.group}` : null
   const base = input.overrides?.roundLabel?.trim() || input.roundLabel
@@ -295,12 +357,50 @@ export function buildMatchPoster(input: MatchBuildInput): MatchPosterData {
     home: posterTeam(input.home, input.crests.home),
     away: posterTeam(input.away, input.crests.away),
     dateLabel: confirmed && match.date ? matchDayLabel(match.date) : null,
-    timeLabel: time,
+    // Ya jugado: el día basta (la hora de inicio no aporta al resultado).
+    timeLabel: final ? null : time,
     venue: match.venue?.trim() || null,
-    scheduleNote: confirmed ? (time ? null : 'Hora por confirmar') : 'Fecha y hora por confirmar',
+    scheduleNote: final ? null : confirmed ? (time ? null : 'Hora por confirmar') : 'Fecha y hora por confirmar',
     logo: input.logo,
     logoInitials: initialsOf(input.tournament.name),
+    final,
   }
+}
+
+/** 7B-E: partido que admite el cartel de resultado final: finalizado y con marcador capturado. */
+export const isFinal = (m: { status: string; homeScore?: number | null; awayScore?: number | null }) =>
+  m.status === 'finished' && m.homeScore != null && m.awayScore != null
+
+/**
+ * 7B-E: marcador, goleadores y tarjetas, tal como están en el acta. Los autogoles van del lado del
+ * equipo al que sumaron. Sin minutos (el acta no los guarda) y sin inventar: un jugador sin nombre
+ * no se muestra y, si el acta no tiene el detalle, solo queda el marcador.
+ */
+function buildFinal(input: MatchBuildInput): FinalResult {
+  const m = input.match
+  const hs = m.homeScore!
+  const as = m.awayScore!
+  const pens = m.penalties ?? null
+  const winner = hs > as ? 'home' : as > hs ? 'away' : pens && pens.home !== pens.away ? (pens.home > pens.away ? 'home' : 'away') : null
+  const side = (): FinalSide => ({ goals: [], cards: [] })
+  const sides = { home: side(), away: side() }
+  for (const st of input.stats ?? []) {
+    const own = st.teamId === m.homeTeamId ? 'home' : st.teamId === m.awayTeamId ? 'away' : null
+    const name = own ? input.playerName?.(st.playerId)?.trim() : null
+    if (!own || !name) continue
+    const other = own === 'home' ? 'away' : 'home'
+    if (st.goals > 0) sides[own].goals.push({ name, count: st.goals, own: false })
+    if ((st.ownGoals ?? 0) > 0) sides[other].goals.push({ name, count: st.ownGoals!, own: true })
+    if (st.yellowCards > 0 || st.redCards > 0) sides[own].cards.push({ name, yellow: st.yellowCards, red: st.redCards })
+  }
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es')
+  for (const x of [sides.home, sides.away]) {
+    // Más goles primero; los autogoles al final. Expulsados antes que amonestados.
+    x.goals.sort((a, b) => Number(a.own) - Number(b.own) || b.count - a.count || byName(a, b))
+    x.cards.sort((a, b) => b.red - a.red || b.yellow - a.yellow || byName(a, b))
+  }
+  const lines = Math.max(...[sides.home, sides.away].map((x) => x.goals.length + x.cards.length))
+  return { homeScore: hs, awayScore: as, winner, detail: pens ? `Penales ${pens.home}-${pens.away}` : m.extraTime ? 'Tiempo extra' : null, ...sides, lines }
 }
 
 const slugOf = (s: string, max = 40) =>
@@ -314,7 +414,7 @@ const slugOf = (s: string, max = 40) =>
 
 /** «partido-halcones-vs-leones-j9-urban-black.png». */
 export const matchFileNameOf = (d: MatchPosterData, template: string) =>
-  `partido-${slugOf(d.home.name, 24) || 'local'}-vs-${slugOf(d.away.name, 24) || 'visita'}-j${d.roundNumber}-${template}.png`
+  `${d.final ? 'resultado' : 'partido'}-${slugOf(d.home.name, 24) || 'local'}-vs-${slugOf(d.away.name, 24) || 'visita'}-j${d.roundNumber}-${template}.png`
 
 // ─── 7B-C: resultados de la jornada ──────────────────────────────────────────
 

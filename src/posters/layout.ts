@@ -17,6 +17,36 @@ export interface MatchPosterProps {
   format: PosterFormat
 }
 
+/** 7B-E: cómo viste cada familia los goleadores y tarjetas del resultado final. */
+export interface FinalEventsTheme {
+  font: string
+  /** Solo las fuentes que tienen ese peso. Por defecto 600. */
+  weight?: number
+  uppercase?: boolean
+  /** Ancho medio de una letra (en em): las letras anchas (Inter, Exo 2…) achican antes los nombres largos. */
+  charWidth?: number
+  ink: string
+  muted: string
+  /** Balón y «×2». */
+  accent: string
+  /** Separador entre local y visita. */
+  line: string
+  /** Etiqueta de «Penales 4-3» / «Tiempo extra» (por defecto, el acento con letra negra). */
+  detailBg?: string
+  detailInk?: string
+  detailFont?: string
+  detailRadius?: string
+  /** Peso de esa letra (Anton, Bebas… solo tienen 400). */
+  detailWeight?: number
+}
+
+/**
+ * 7B-E: en el resultado final el VS se vuelve el marcador («3 - 1» ocupa más que «VS»): la letra se
+ * achica con las cifras para que no empuje a los equipos.
+ */
+export const scoreText = (f: { homeScore: number; awayScore: number }) => `${f.homeScore}-${f.awayScore}`
+export const scoreSize = (vs: number, f: { homeScore: number; awayScore: number }) => Math.round(vs * Math.min(1, 3 / scoreText(f).length) * 1.15)
+
 export interface Metrics {
   width: number
   height: number

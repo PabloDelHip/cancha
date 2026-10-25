@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Crest from '../../parts/Crest.vue'
+import FinalEvents from '../../parts/FinalEvents.vue'
 import NeonLeagueBackdrop from './NeonLeagueBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import type { MatchPosterProps } from '../../layout'
+import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Neon League — Próximo partido. El lenguaje de la tabla: número de jornada enorme en contorno
  * neón, escudos hexagonales, paneles inclinados con el filo verde y la hora en el bloque neón de
  * los puntos, sobre el piso de rejilla.
+ * 7B-E — Resultado final: la misma pieza con el marcador en lugar del VS y, debajo, goleadores y
+ * tarjetas (los escudos se achican para dejarles lugar).
  */
 const props = defineProps<MatchPosterProps>()
 const SIZES = {
@@ -16,7 +19,17 @@ const SIZES = {
   portrait: { head: 340, foot: 96, crest: 260, name: 40, vs: 120, big: 180, info: 34 },
   square: { head: 250, foot: 78, crest: 196, name: 32, vs: 96, big: 128, info: 28 },
 } as const
-const s = computed(() => SIZES[props.format])
+/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
+const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+const final = computed(() => props.data.final)
+const s = computed(() => {
+  const b = SIZES[props.format]
+  return final.value ? { ...b, crest: Math.round(b.crest * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+})
+const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
+const vs = computed(() => (final.value ? scoreText(final.value) : null))
+const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
+const EVENTS: FinalEventsTheme = { font: 'Rajdhani', charWidth: 0.6, weight: 700, ink: '#e9fff2', muted: '#7fa892', accent: '#39ff88', line: 'rgb(57 255 136 / 0.25)', detailFont: 'Orbitron', detailWeight: 700, detailBg: '#39ff88', detailInk: '#04120a' }
 const dims = computed(() => FORMATS[props.format])
 /** «J10» en grande, como la tabla, si la jornada se llama así; un nombre propio va entero. */
 const big = computed(() => {
@@ -24,7 +37,7 @@ const big = computed(() => {
   if (d.roundNumber && d.roundLabel === `Jornada ${d.roundNumber}`) return { text: `J${String(d.roundNumber).padStart(2, '0')}`, size: s.value.big }
   return { text: d.roundLabel, size: Math.round(Math.min(s.value.big * 0.5, (s.value.big * 4.4) / Math.max(8, d.roundLabel.length))) }
 })
-const kicker = computed(() => (big.value.text === props.data.roundLabel ? 'Próximo partido' : `Próximo partido · ${props.data.roundLabel}`))
+const kicker = computed(() => (big.value.text === props.data.roundLabel ? tag.value : `${tag.value} · ${props.data.roundLabel}`))
 const subtitle = computed(() => [props.data.leagueName ? withSeason(props.data.tournamentName, props.data.season) : props.data.season, props.data.groupLabel].filter(Boolean).join(' · '))
 const teams = computed(() => [
   { side: 'home', label: 'Local', t: props.data.home },
@@ -52,15 +65,18 @@ const teams = computed(() => [
     <section class="nlm-duel">
       <div class="nlm-pair">
         <template v-for="(x, i) in teams" :key="x.side">
-          <div class="nlm-team">
+          <div class="nlm-team" :class="{ 'nlm-lost': final?.winner && final.winner !== x.side }">
             <Crest :src="x.t.crest" :initials="x.t.initials" :colors="x.t.colors" :size="s.crest" shape="hex" font="Orbitron" />
             <span class="nlm-side" :style="{ fontSize: `${Math.round(s.name * 0.5)}px` }">{{ x.label }}</span>
             <span class="nlm-team-name" :style="{ fontSize: `${s.name}px` }">{{ x.t.name }}</span>
           </div>
-          <div v-if="i === 0" class="nlm-vs" :style="{ fontSize: `${s.vs}px`, marginTop: `${Math.round((s.crest - s.vs) / 2 + 30)}px` }">VS</div>
+          <div v-if="i === 0" class="nlm-vs" :class="{ 'nlm-score': final }" :style="{ fontSize: `${vsSize}px`, marginTop: `${Math.round((s.crest - vsSize) / 2 + 30)}px` }">{{ vs ?? 'VS' }}</div>
         </template>
       </div>
     </section>
+
+    <!-- 7B-E: goleadores y tarjetas -->
+    <FinalEvents v-if="final" class="nlm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="nlm-info" :style="{ fontSize: `${s.info}px` }">
@@ -76,7 +92,7 @@ const teams = computed(() => [
 
     <footer class="nlm-foot" :style="{ height: `${s.foot}px`, fontSize: `${({ story: 24, portrait: 20, square: 17 })[format]}px` }">
       <span class="nlm-live">●</span>
-      <span>Próximo partido</span>
+      <span>{{ tag }}</span>
       <span class="nlm-mark">KISOKAR</span>
     </footer>
   </div>
@@ -300,5 +316,19 @@ const teams = computed(() => [
   font-weight: 900;
   letter-spacing: 0.24em;
   color: #39ff88;
+}
+
+/* 7B-E: resultado final */
+.nlm-score {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.nlm-lost .nlm-name {
+  opacity: 0.6;
+}
+.nlm-events {
+  position: relative;
+  flex: none;
+  margin: 0 40px 24px;
 }
 </style>

@@ -112,6 +112,38 @@ export function fixtureMatch(opts: { home?: number; away?: number; pending?: boo
   })
 }
 
+/**
+ * 7B-E — resultado final de prueba. `goals`: 'normal' (3-1 con doblete y autogol), 'many' (7-4, para
+ * ver el ajuste de letra), 'none' (marcador sin detalle en el acta) o 'pens' (1-1 y penales 4-3).
+ */
+export function fixtureFinal(opts: { home?: number; away?: number; goals?: string; noLogo?: boolean } = {}): MatchPosterData {
+  const [h, a] = [opts.home ?? 0, opts.away ?? 4]
+  const team = (i: number) => ({ name: TEAMS[i]![0], shortName: null, colors: { primary: TEAMS[i]![1], secondary: TEAMS[i]![2] } })
+  const crest = (i: number) => (TEAMS[i]![3] ? crestSvg(TEAMS[i]![0], TEAMS[i]![1], TEAMS[i]![2], i) : null)
+  const NAMES = ['J. Hernández', 'L. Ñúñez', 'A. Castañeda', 'R. Villaseñor', 'M. Ibáñez', 'E. Zúñiga', 'O. Peña', 'S. Quintero', 'D. Montoya Altamirano', 'F. Ríos', 'C. Beltrán', 'G. Ochoa', 'H. Lugo', 'I. Sauceda']
+  type S = [number, 'H' | 'A', number, number, number, number]
+  const sets: Record<string, { score: [number, number]; stats: S[]; pens?: { home: number; away: number } }> = {
+    normal: { score: [3, 1], stats: [[0, 'H', 2, 0, 1, 0], [1, 'H', 0, 0, 1, 0], [2, 'A', 1, 0, 0, 0], [3, 'A', 0, 1, 2, 1], [4, 'A', 0, 0, 0, 1]] },
+    many: { score: [7, 4], stats: [[0, 'H', 3, 0, 0, 0], [1, 'H', 1, 0, 1, 0], [2, 'H', 1, 0, 0, 0], [8, 'H', 1, 0, 1, 0], [9, 'A', 2, 0, 1, 0], [10, 'A', 1, 0, 0, 0], [11, 'A', 0, 1, 0, 0], [12, 'A', 1, 0, 2, 1], [13, 'H', 0, 0, 0, 1], [3, 'A', 0, 0, 1, 0], [4, 'A', 0, 0, 1, 0]] },
+    none: { score: [2, 2], stats: [] },
+    pens: { score: [1, 1], stats: [[0, 'H', 1, 0, 0, 0], [5, 'A', 1, 0, 1, 0]], pens: { home: 4, away: 3 } },
+  }
+  const set = sets[opts.goals ?? 'normal'] ?? sets.normal!
+  const ids = { H: 'h', A: 'a' }
+  return buildMatchPoster({
+    match: { round: 10, date: '2026-10-25', time: '16:00', venue: 'Unidad Deportiva Peñasco · Cancha 2', status: 'finished', homeTeamId: 'h', awayTeamId: 'a', homeScore: set.score[0], awayScore: set.score[1], penalties: set.pens ?? null },
+    stats: set.stats.map(([n, t, goals, ownGoals, yellowCards, redCards]) => ({ playerId: String(n), teamId: ids[t], goals, ownGoals, yellowCards, redCards })),
+    playerName: (id) => NAMES[Number(id)] ?? null,
+    home: team(h),
+    away: team(a),
+    crests: { home: crest(h), away: crest(a) },
+    tournament: { name: 'Liga Municipal de Fútbol 7 · Apertura', startDate: '2026-08-01', endDate: null },
+    leagueName: 'Liga Peñasco Interbarrios',
+    logo: opts.noLogo ? null : LEAGUE_LOGO,
+    roundLabel: 'Jornada 10',
+  })
+}
+
 /** 7B-C: jornada con `count` resultados (marcadores fijos, uno con penales y uno en grupo) y `pending` por jugar. */
 export function fixtureResults(format: PosterFormat, count: number, opts: { pending?: number; noLogo?: boolean; twoDays?: boolean; fixtures?: boolean } = {}): ResultsPosterData[] {
   const SCORES: [number, number][] = [[3, 1], [0, 0], [2, 2], [1, 4], [5, 0], [2, 1], [1, 1], [0, 2], [3, 3], [4, 2], [1, 0], [2, 3]]

@@ -8,14 +8,14 @@ import { USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { matchStatusBadge } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
-import { canAnnounce } from '@/posters/data'
+import { canAnnounce, isFinal } from '@/posters/data'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import AppButton from '@/components/common/AppButton.vue'
 
 /** `can*`: permisos del usuario en el torneo (RBAC); el servidor los vuelve a validar. */
 /** `context`: torneo y jornada, cuando la fila se muestra fuera de su torneo (Agenda). */
-/** `allowPoster`: ofrece «Crear imagen» del partido (7B-B1) en los programados y pospuestos. */
+/** `allowPoster`: ofrece «Crear imagen» del partido: próximo partido (7B-B1) en los programados y pospuestos; resultado final (7B-E) en los finalizados con marcador. */
 const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allowPostpone?: boolean; allowPoster?: boolean; canSchedule?: boolean; canAssign?: boolean; canCapture?: boolean; context?: string }>(), {
   readOnly: false,
   canSchedule: true,
@@ -50,6 +50,7 @@ const actions = computed<ActionItem[]>(() => {
     if (!USE_MOCKS && m.status !== 'suspended') list.push({ key: 'incidents', label: 'Incidencias', hint: 'Registrar o revisar incidencias', icon: AlertTriangle, group: 'Partido' })
   }
   if (props.allowPoster && canAnnounce(m)) list.push({ key: 'poster', label: 'Crear imagen para redes', hint: 'Cartel del partido para compartir', icon: ImageDown, group: 'Otros' })
+  else if (props.allowPoster && isFinal(m)) list.push({ key: 'poster', label: 'Crear imagen del resultado', hint: 'Marcador, goles y tarjetas para compartir', icon: ImageDown, group: 'Otros' })
   if (!props.readOnly && !USE_MOCKS) list.push({ key: 'history', label: 'Historial de cambios', hint: 'Quién cambió qué y cuándo', icon: History, group: 'Otros' })
   return list
 })
