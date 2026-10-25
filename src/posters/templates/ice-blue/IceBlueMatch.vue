@@ -4,7 +4,7 @@ import Crest from '../../parts/Crest.vue'
 import FinalEvents from '../../parts/FinalEvents.vue'
 import IceBlueBackdrop from './IceBlueBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
+import { finalFit, scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Ice Blue — Próximo partido. Claro y helado como la tabla: cada equipo en su propia tarjeta
@@ -19,12 +19,12 @@ const SIZES = {
   portrait: { head: 300, foot: 84, crest: 250, name: 40, vs: 116, title: 100, badge: 140, info: 34 },
   square: { head: 226, foot: 70, crest: 186, name: 32, vs: 92, title: 80, badge: 112, info: 28 },
 } as const
-/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
-const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+/** 7B-E: los escudos se achican según cuántos goles y tarjetas hay que mostrar. */
+const fit = computed(() => finalFit(props.format, props.data.final))
 const final = computed(() => props.data.final)
 const s = computed(() => {
   const b = SIZES[props.format]
-  return final.value ? { ...b, crest: Math.round(b.crest * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+  return final.value ? { ...b, crest: Math.round(b.crest * fit.value.k), name: Math.round(b.name * 0.86) } : b
 })
 const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
 const vs = computed(() => (final.value ? scoreText(final.value) : null))
@@ -72,7 +72,7 @@ const teams = computed(() => [
     </section>
 
     <!-- 7B-E: goleadores y tarjetas -->
-    <FinalEvents v-if="final" class="ibm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
+    <FinalEvents v-if="final" class="ibm-events" :final="final" :theme="EVENTS" :font="s.info" :height="fit.events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="ibm-info" :style="{ fontSize: `${s.info}px` }">

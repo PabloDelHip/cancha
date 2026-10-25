@@ -4,7 +4,7 @@ import Crest from '../../parts/Crest.vue'
 import FinalEvents from '../../parts/FinalEvents.vue'
 import StreetFootballBackdrop from './StreetFootballBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
+import { finalFit, scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Street Football — Próximo partido. El muro de la tabla: cinta de precaución bajo la cabecera,
@@ -19,12 +19,12 @@ const SIZES = {
   portrait: { head: 340, foot: 92, sheet: 300, name: 42, vs: 130, title: 100, badge: 140, info: 34, tape: 44 },
   square: { head: 250, foot: 76, sheet: 236, name: 34, vs: 104, title: 80, badge: 110, info: 28, tape: 36 },
 } as const
-/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
-const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+/** 7B-E: los escudos se achican según cuántos goles y tarjetas hay que mostrar. */
+const fit = computed(() => finalFit(props.format, props.data.final))
 const final = computed(() => props.data.final)
 const s = computed(() => {
   const b = SIZES[props.format]
-  return final.value ? { ...b, sheet: Math.round(b.sheet * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+  return final.value ? { ...b, sheet: Math.round(b.sheet * fit.value.k), name: Math.round(b.name * 0.86) } : b
 })
 const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
 const vs = computed(() => (final.value ? scoreText(final.value) : null))
@@ -80,7 +80,7 @@ const teams = computed(() => [
     </section>
 
     <!-- 7B-E: goleadores y tarjetas -->
-    <FinalEvents v-if="final" class="sfm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
+    <FinalEvents v-if="final" class="sfm-events" :final="final" :theme="EVENTS" :font="s.info" :height="fit.events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="sfm-info" :style="{ fontSize: `${s.info}px` }">

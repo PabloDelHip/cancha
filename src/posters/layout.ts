@@ -44,6 +44,21 @@ export interface FinalEventsTheme {
  * 7B-E: en el resultado final el VS se vuelve el marcador («3 - 1» ocupa más que «VS»): la letra se
  * achica con las cifras para que no empuje a los equipos.
  */
+/**
+ * 7B-E: cuánto se achican los escudos en el resultado final (`k`) y el alto que se reserva a goles y
+ * tarjetas, según los renglones que hay: con pocos goles los escudos casi no se achican; solo un
+ * partido con muchos goles y tarjetas los lleva al mínimo.
+ */
+export function finalFit(format: PosterFormat, final: { lines: number; detail: string | null } | null) {
+  const rows = (final?.lines ?? 0) + (final?.detail ? 1 : 0)
+  const MIN = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } }[format]
+  if (rows === 0) return { k: 0.92, events: 0 }
+  if (rows <= 2) return { k: 0.86, events: Math.round(MIN.events * 0.42) }
+  if (rows <= 4) return { k: 0.78, events: Math.round(MIN.events * 0.66) }
+  if (rows <= 6) return { k: 0.7, events: Math.round(MIN.events * 0.85) }
+  return MIN
+}
+
 export const scoreText = (f: { homeScore: number; awayScore: number }) => `${f.homeScore}-${f.awayScore}`
 export const scoreSize = (vs: number, f: { homeScore: number; awayScore: number }) => Math.round(vs * Math.min(1, 3 / scoreText(f).length) * 1.15)
 

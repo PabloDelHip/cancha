@@ -4,7 +4,7 @@ import Crest from '../../parts/Crest.vue'
 import FinalEvents from '../../parts/FinalEvents.vue'
 import StadiumLightsBackdrop from './StadiumLightsBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
+import { finalFit, scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Stadium Lights — Próximo partido. El mismo estadio de noche de la tabla: los reflectores cruzan
@@ -19,12 +19,12 @@ const SIZES = {
   portrait: { head: 330, foot: 88, disc: 300, name: 44, vs: 120, title: 112, badge: 96, info: 36 },
   square: { head: 230, foot: 72, disc: 236, name: 36, vs: 100, title: 92, badge: 120, info: 30 },
 } as const
-/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
-const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+/** 7B-E: los escudos se achican según cuántos goles y tarjetas hay que mostrar. */
+const fit = computed(() => finalFit(props.format, props.data.final))
 const final = computed(() => props.data.final)
 const s = computed(() => {
   const b = SIZES[props.format]
-  return final.value ? { ...b, disc: Math.round(b.disc * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+  return final.value ? { ...b, disc: Math.round(b.disc * fit.value.k), name: Math.round(b.name * 0.86) } : b
 })
 const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
 const vs = computed(() => (final.value ? scoreText(final.value) : null))
@@ -73,7 +73,7 @@ const teams = computed(() => [
     </section>
 
     <!-- 7B-E: goleadores y tarjetas -->
-    <FinalEvents v-if="final" class="slm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
+    <FinalEvents v-if="final" class="slm-events" :final="final" :theme="EVENTS" :font="s.info" :height="fit.events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="slm-card" :style="{ fontSize: `${s.info}px` }">

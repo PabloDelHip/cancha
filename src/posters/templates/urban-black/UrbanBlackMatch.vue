@@ -5,7 +5,7 @@ import FinalEvents from '../../parts/FinalEvents.vue'
 import UrbanBlackBackdrop from './UrbanBlackBackdrop.vue'
 import { URBAN_BLACK } from './tokens'
 import { FORMATS, withSeason } from '../../data'
-import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
+import { finalFit, scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Urban Black — Próximo partido. Mismo lenguaje que la tabla de la familia: fondo negro con grano y
@@ -20,12 +20,12 @@ const SIZES = {
   portrait: { head: 290, foot: 90, plate: 370, name: 54, vs: 160, title: 104, badge: 104, info: 38 },
   square: { head: 230, foot: 80, plate: 270, name: 44, vs: 140, title: 84, badge: 86, info: 32 },
 } as const
-/** 7B-E: cuánto se achican las placas en el resultado final y el alto que queda para goles y tarjetas. */
-const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+/** 7B-E: los escudos se achican según cuántos goles y tarjetas hay que mostrar. */
+const fit = computed(() => finalFit(props.format, props.data.final))
 const final = computed(() => props.data.final)
 const s = computed(() => {
   const b = SIZES[props.format]
-  return final.value ? { ...b, plate: Math.round(b.plate * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+  return final.value ? { ...b, plate: Math.round(b.plate * fit.value.k), name: Math.round(b.name * 0.86) } : b
 })
 const vs = computed(() => (final.value ? scoreText(final.value) : 'VS'))
 const vsSize = computed(() => (final.value ? scoreSize(s.value.vs, final.value) : s.value.vs))
@@ -80,7 +80,7 @@ const teams = computed(() => [
     </section>
 
     <!-- 7B-E: goleadores y tarjetas -->
-    <FinalEvents v-if="final" class="ubm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
+    <FinalEvents v-if="final" class="ubm-events" :final="final" :theme="EVENTS" :font="s.info" :height="fit.events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="ubm-info" :style="{ fontSize: `${s.info}px` }">

@@ -114,7 +114,7 @@ export function fixtureMatch(opts: { home?: number; away?: number; pending?: boo
 
 /**
  * 7B-E — resultado final de prueba. `goals`: 'normal' (3-1 con doblete y autogol), 'many' (7-4, para
- * ver el ajuste de letra), 'none' (marcador sin detalle en el acta) o 'pens' (1-1 y penales 4-3).
+ * ver el ajuste de letra), 'none' (marcador sin detalle en el acta), 'simple' (1-0 con un gol y una amarilla) o 'pens' (1-1 y penales 4-3).
  */
 export function fixtureFinal(opts: { home?: number; away?: number; goals?: string; noLogo?: boolean } = {}): MatchPosterData {
   const [h, a] = [opts.home ?? 0, opts.away ?? 4]
@@ -126,6 +126,7 @@ export function fixtureFinal(opts: { home?: number; away?: number; goals?: strin
     normal: { score: [3, 1], stats: [[0, 'H', 2, 0, 1, 0], [1, 'H', 0, 0, 1, 0], [2, 'A', 1, 0, 0, 0], [3, 'A', 0, 1, 2, 1], [4, 'A', 0, 0, 0, 1]] },
     many: { score: [7, 4], stats: [[0, 'H', 3, 0, 0, 0], [1, 'H', 1, 0, 1, 0], [2, 'H', 1, 0, 0, 0], [8, 'H', 1, 0, 1, 0], [9, 'A', 2, 0, 1, 0], [10, 'A', 1, 0, 0, 0], [11, 'A', 0, 1, 0, 0], [12, 'A', 1, 0, 2, 1], [13, 'H', 0, 0, 0, 1], [3, 'A', 0, 0, 1, 0], [4, 'A', 0, 0, 1, 0]] },
     none: { score: [2, 2], stats: [] },
+    simple: { score: [1, 0], stats: [[0, 'H', 1, 0, 0, 0], [3, 'A', 0, 0, 1, 0]] },
     pens: { score: [1, 1], stats: [[0, 'H', 1, 0, 0, 0], [5, 'A', 1, 0, 1, 0]], pens: { home: 4, away: 3 } },
   }
   const set = sets[opts.goals ?? 'normal'] ?? sets.normal!

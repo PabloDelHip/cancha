@@ -4,7 +4,7 @@ import Crest from '../../parts/Crest.vue'
 import FinalEvents from '../../parts/FinalEvents.vue'
 import NeonLeagueBackdrop from './NeonLeagueBackdrop.vue'
 import { FORMATS, withSeason } from '../../data'
-import { scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
+import { finalFit, scoreSize, scoreText, type FinalEventsTheme, type MatchPosterProps } from '../../layout'
 
 /**
  * Neon League — Próximo partido. El lenguaje de la tabla: número de jornada enorme en contorno
@@ -19,12 +19,12 @@ const SIZES = {
   portrait: { head: 340, foot: 96, crest: 260, name: 40, vs: 120, big: 180, info: 34 },
   square: { head: 250, foot: 78, crest: 196, name: 32, vs: 96, big: 128, info: 28 },
 } as const
-/** 7B-E: cuánto se achican los escudos en el resultado final y el alto que queda para goles y tarjetas. */
-const FINAL = { story: { k: 0.62, events: 470 }, portrait: { k: 0.6, events: 330 }, square: { k: 0.56, events: 250 } } as const
+/** 7B-E: los escudos se achican según cuántos goles y tarjetas hay que mostrar. */
+const fit = computed(() => finalFit(props.format, props.data.final))
 const final = computed(() => props.data.final)
 const s = computed(() => {
   const b = SIZES[props.format]
-  return final.value ? { ...b, crest: Math.round(b.crest * FINAL[props.format].k), name: Math.round(b.name * 0.86) } : b
+  return final.value ? { ...b, crest: Math.round(b.crest * fit.value.k), name: Math.round(b.name * 0.86) } : b
 })
 const tag = computed(() => (final.value ? 'Resultado final' : 'Próximo partido'))
 const vs = computed(() => (final.value ? scoreText(final.value) : null))
@@ -76,7 +76,7 @@ const teams = computed(() => [
     </section>
 
     <!-- 7B-E: goleadores y tarjetas -->
-    <FinalEvents v-if="final" class="nlm-events" :final="final" :theme="EVENTS" :font="s.info" :height="FINAL[format].events" />
+    <FinalEvents v-if="final" class="nlm-events" :final="final" :theme="EVENTS" :font="s.info" :height="fit.events" />
 
     <!-- Programación: solo lo que el partido tiene -->
     <section class="nlm-info" :style="{ fontSize: `${s.info}px` }">
