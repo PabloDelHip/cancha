@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Ban, UserPlus, Users } from 'lucide-vue-next'
+import { Ban, Goal, UserPlus, Users } from 'lucide-vue-next'
 import type { SendOff, Team } from '@/types'
 import { fullName } from '@/utils/players'
 import { POSITION_SHORT } from '@/utils/labels'
@@ -70,6 +70,10 @@ function toggleRed(row: CaptureRow) {
   else Object.assign(row, { redCards: 1, sendOff: 'direct' })
   touch(row)
 }
+/** Texto visible bajo cada control: dice qué es y en qué estado está (antes solo «G», «A», «AG» y colores). */
+const ownGoalLabel = (row: CaptureRow) => (row.ownGoals > 1 ? `${row.ownGoals} autogoles` : 'Autogol')
+const yellowLabel = (row: CaptureRow) => (row.yellowCards > 1 ? '2 amarillas' : 'Amarilla')
+const redLabel = (row: CaptureRow) => (row.sendOff === 'second_yellow' ? 'Doble amarilla' : 'Roja')
 /** Clasificar una expulsión de una captura anterior. */
 function classify(row: CaptureRow, sendOff: SendOff) {
   if (sendOff === 'second_yellow') Object.assign(row, { yellowCards: 2, redCards: 1, sendOff })
@@ -111,9 +115,10 @@ function classify(row: CaptureRow, sendOff: SendOff) {
     </EmptyState>
 
     <template v-else>
-      <div class="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-4 py-2 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
-        <button type="button" class="link normal-case tracking-normal" @click="toggleAll">
-          {{ allPlayed ? 'Desmarcar todos' : 'Marcar todos como convocados' }}
+      <div class="space-y-1 border-b border-zinc-100 bg-zinc-50 px-4 py-2 text-xs text-zinc-600">
+        <p>Marca la casilla de cada jugador que <strong class="font-semibold text-zinc-800">jugó</strong> y súmale sus goles, asistencias y tarjetas. Dos amarillas al mismo jugador cuentan como expulsión.</p>
+        <button type="button" class="link text-xs font-semibold" @click="toggleAll">
+          {{ allPlayed ? 'Desmarcar a todos' : 'Marcar que jugaron todos' }}
         </button>
       </div>
       <ul class="divide-y divide-zinc-100">
@@ -146,28 +151,40 @@ function classify(row: CaptureRow, sendOff: SendOff) {
               </span>
             </span>
           </label>
-          <div class="ml-auto flex items-center gap-1.5" :class="!row.played && 'opacity-50'">
-            <span class="text-[10px] font-bold text-zinc-400" aria-hidden="true">G</span>
-            <NumberStepper v-model="row.goals" :label="`goles de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
-            <span class="text-[10px] font-bold text-zinc-400" aria-hidden="true">A</span>
-            <NumberStepper v-model="row.assists" :label="`asistencias de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
-            <button
-              type="button"
-              class="relative grid size-8 place-items-center rounded-lg border text-[10px] font-bold transition"
-              :class="row.ownGoals ? 'border-red-300 bg-red-50 text-red-700' : 'border-zinc-200 text-zinc-300 hover:bg-zinc-100'"
-              :aria-label="`Autogoles de ${fullName(row.player)}: ${row.ownGoals}`"
-              title="Autogol (suma al rival). Toca para sumar; vuelve a 0 después de 3."
-              @click="cycleOwnGoal(row)"
-            >
-              AG
-              <span v-if="row.ownGoals > 1" class="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">{{ row.ownGoals }}</span>
-            </button>
+          <!-- Dos grupos (goles y asistencias; autogol y tarjetas): en móvil, uno por renglón. Cada control lleva su nombre debajo. -->
+          <div class="flex w-full flex-wrap items-start justify-between gap-x-3 gap-y-2 sm:ml-auto sm:w-auto sm:justify-end" :class="!row.played && 'opacity-50'">
+            <div class="flex items-start gap-1.5">
+              <div class="flex flex-col items-center gap-0.5">
+                <NumberStepper v-model="row.goals" :label="`goles de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
+                <span class="text-[10px] leading-tight font-semibold whitespace-nowrap" :class="row.goals ? 'text-zinc-900' : 'text-zinc-500'" aria-hidden="true">Goles</span>
+              </div>
+              <div class="flex flex-col items-center gap-0.5">
+                <NumberStepper v-model="row.assists" :label="`asistencias de ${fullName(row.player)}`" :max="15" @update:model-value="touch(row)" />
+                <span class="text-[10px] leading-tight font-semibold whitespace-nowrap" :class="row.assists ? 'text-zinc-900' : 'text-zinc-500'" aria-hidden="true">Asistencias</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-1.5">
+            <div class="flex flex-col items-center gap-0.5">
+              <button
+                type="button"
+                class="relative grid size-8 place-items-center rounded-lg border transition"
+                :class="row.ownGoals ? 'border-red-300 bg-red-50 text-red-700' : 'border-zinc-200 text-zinc-400 hover:bg-zinc-100'"
+                :aria-label="`Autogoles de ${fullName(row.player)}: ${row.ownGoals}`"
+                title="Autogol: gol en su propia portería, suma al rival. Toca para sumar; vuelve a 0 después de 3."
+                @click="cycleOwnGoal(row)"
+              >
+                <Goal class="size-4" aria-hidden="true" />
+                <span v-if="row.ownGoals > 1" class="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">{{ row.ownGoals }}</span>
+              </button>
+              <span class="text-[10px] leading-tight font-semibold whitespace-nowrap" :class="row.ownGoals ? 'text-red-700' : 'text-zinc-500'" aria-hidden="true">{{ ownGoalLabel(row) }}</span>
+            </div>
             <template v-if="needsSendOffReview(row)">
               <span class="text-[11px] font-semibold text-amber-800">Expulsión sin clasificar:</span>
               <button type="button" class="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100" @click="classify(row, 'direct')">Roja directa</button>
               <button type="button" class="h-8 rounded-lg border border-amber-300 bg-amber-50 px-2 text-[11px] font-semibold text-amber-900 hover:bg-amber-100" @click="classify(row, 'second_yellow')">Doble amarilla</button>
             </template>
             <template v-else>
+            <div class="flex flex-col items-center gap-0.5">
             <button
               type="button"
               class="relative grid size-8 place-items-center rounded-lg border transition"
@@ -175,9 +192,12 @@ function classify(row: CaptureRow, sendOff: SendOff) {
               :aria-label="`Amarillas de ${fullName(row.player)}: ${row.yellowCards}`"
               @click="cycleYellow(row)"
             >
-              <CardIcon color="yellow" :class="!row.yellowCards && 'opacity-30'" />
+              <CardIcon color="yellow" :class="!row.yellowCards && 'opacity-40'" />
               <span v-if="row.yellowCards > 1" class="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-zinc-900 text-[10px] font-bold text-white">2</span>
             </button>
+            <span class="text-[10px] leading-tight font-semibold whitespace-nowrap" :class="row.yellowCards ? 'text-zinc-900' : 'text-zinc-500'" aria-hidden="true">{{ yellowLabel(row) }}</span>
+            </div>
+            <div class="flex flex-col items-center gap-0.5">
             <button
               type="button"
               class="relative grid size-8 place-items-center rounded-lg border transition"
@@ -187,10 +207,13 @@ function classify(row: CaptureRow, sendOff: SendOff) {
               :title="row.sendOff === 'second_yellow' ? 'Expulsión por doble amarilla. Toca para dejar solo una amarilla.' : 'Roja directa'"
               @click="toggleRed(row)"
             >
-              <CardIcon color="red" :class="!row.redCards && 'opacity-30'" />
+              <CardIcon color="red" :class="!row.redCards && 'opacity-40'" />
               <span v-if="row.sendOff === 'second_yellow'" class="absolute -right-1.5 -bottom-1.5 rounded bg-yellow-400 px-0.5 text-[9px] leading-tight font-bold text-zinc-900">2A</span>
             </button>
+            <span class="text-[10px] leading-tight font-semibold whitespace-nowrap" :class="row.redCards ? 'text-red-700' : 'text-zinc-500'" aria-hidden="true">{{ redLabel(row) }}</span>
+            </div>
             </template>
+            </div>
           </div>
         </li>
       </ul>
