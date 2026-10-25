@@ -4,8 +4,9 @@ import {
   usePlayersStore,
   useRoundsStore,
   useStandingsStore,
-  useTeamsStore,
   useTournamentsStore,
+  useHistoricalNamesStore,
+  useTournamentDataStore,
 } from '@/stores'
 import { computeTopScorers, POINTS } from '@/utils/stats'
 import { isOpen } from '@/utils/matches'
@@ -16,16 +17,18 @@ import type { ID } from '@/types'
  */
 export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>) {
   const tournaments = useTournamentsStore()
-  const teams = useTeamsStore()
+  const names = useHistoricalNamesStore()
   const matches = useMatchesStore()
   const players = usePlayersStore()
   const roundsStore = useRoundsStore()
   const standingsStore = useStandingsStore()
+  const tournamentData = useTournamentDataStore()
 
   const tournament = computed(() => tournaments.get(toValue(tournamentId)))
   const teamIds = computed(() => tournaments.teamIdsOf(toValue(tournamentId)))
   const tournamentTeams = computed(() =>
-    teamIds.value.map((id) => teams.get(id)).filter((t) => t !== undefined).sort((a, b) => a.name.localeCompare(b.name)),
+    // 10C: en un torneo finalizado, cada equipo con el nombre con que se jugó.
+    teamIds.value.map((id) => names.team(toValue(tournamentId), id)).filter((t) => t !== undefined).sort((a, b) => a.name.localeCompare(b.name)),
   )
   const tournamentMatches = computed(() => matches.ofTournament(toValue(tournamentId)))
   const playedCount = computed(() => tournamentMatches.value.filter((m) => m.status === 'finished').length)
@@ -39,8 +42,9 @@ export function useTournamentStats(tournamentId: MaybeRefOrGetter<ID>) {
    * finalizados (marcador, equipos, fecha) o la puntuación del torneo.
    */
   const standingsVersion = computed(() => standingsStore.versionOf(toValue(tournamentId)))
-  // Se espera a tener torneos y partidos: antes, la versión cambiaría varias veces seguidas.
-  const dataReady = computed(() => tournaments.loaded && matches.loaded)
+  // Se espera a tener torneos y partidos (todos, o los de este torneo con la carga por torneo de B1):
+  // antes, la versión cambiaría varias veces seguidas.
+  const dataReady = computed(() => (tournaments.loaded && matches.loaded) || tournamentData.isLoaded(toValue(tournamentId)))
   watch(
     [() => toValue(tournamentId), standingsVersion, dataReady],
     ([id, version, ready]) => {

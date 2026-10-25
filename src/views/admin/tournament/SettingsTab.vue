@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Archive, Flag, Play } from 'lucide-vue-next'
+import { Archive, CalendarPlus, Flag, Play } from 'lucide-vue-next'
 import type { Tournament, TournamentInput, UploadProgress } from '@/types'
 import { useMatchesStore, useTournamentsStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -22,7 +22,9 @@ const props = defineProps<{ id: string }>()
 const tournaments = useTournamentsStore()
 const matches = useMatchesStore()
 const { tournament, readOnly } = useTournamentWorkspace(() => props.id)
-const { start, askFinish } = useTournamentLifecycle()
+const { start, askFinish, askNextSeason } = useTournamentLifecycle()
+/** 10B: la siguiente temporada solo la crea el propietario (el servidor lo valida). */
+const isOwner = computed(() => tournaments.roleOf(props.id) === 'OWNER')
 const toast = useToast()
 const { confirm } = useConfirm()
 const rounds = useRoundsStore()
@@ -141,6 +143,12 @@ const steps = [
           <p v-else class="flex items-start gap-2 text-sm text-zinc-600">
             <Archive class="mt-0.5 size-4 shrink-0 text-sky-600" aria-hidden="true" /> Finalizado. Consulta su historial desde las pestañas.
           </p>
+          <div v-if="isOwner && tournament.status !== 'draft'" class="mt-4 border-t border-zinc-100 pt-4">
+            <p class="mb-3 text-xs text-zinc-500">Prepara la siguiente edición con la misma configuración y los equipos que elijas. Nace en borrador; este torneo no cambia.</p>
+            <AppButton variant="secondary" class="w-full" @click="askNextSeason(tournament.id)">
+              <CalendarPlus class="size-4" aria-hidden="true" /> Crear siguiente temporada
+            </AppButton>
+          </div>
         </div>
       </section>
     </aside>

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { CalendarClock, CalendarRange, CheckCircle2, History, ImageDown, Pencil, Plus, Trash2, Wand2 } from 'lucide-vue-next'
 import { hasFixtures, hasResults } from '@/posters/data'
 import type { Match, MatchStatus, Team } from '@/types'
-import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore, type RoundView } from '@/stores'
+import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore, type RoundView, useHistoricalNamesStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
@@ -37,6 +37,8 @@ type View = 'rounds' | 'upcoming' | 'finished' | 'postponed' | 'suspended' | 'pe
 const matches = useMatchesStore()
 const roundsStore = useRoundsStore()
 const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const stats = useTournamentStats(() => props.id)
 const { tournament, readOnly, can } = useTournamentWorkspace(() => props.id)
@@ -76,7 +78,7 @@ const all = computed(() => stats.matches.value)
 const tournamentTeams = computed(() =>
   tournaments
     .teamIdsOf(props.id)
-    .map((teamId) => teams.get(teamId))
+    .map((teamId) => names.team(props.id, teamId))
     .filter((t): t is Team => Boolean(t))
     .sort((a, b) => a.name.localeCompare(b.name)),
 )

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { ChevronRight, Clock, MapPin } from 'lucide-vue-next'
 import type { Match } from '@/types'
-import { useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { MATCH_STATUS, matchStatusBadge } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
@@ -16,11 +16,12 @@ const props = withDefaults(defineProps<{ match: Match; showTournament?: boolean;
   highlightTeamId: undefined,
 })
 
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const rounds = useRoundsStore()
-const home = computed(() => teams.get(props.match.homeTeamId))
-const away = computed(() => teams.get(props.match.awayTeamId))
+const home = computed(() => names.team(props.match.tournamentId, props.match.homeTeamId))
+const away = computed(() => names.team(props.match.tournamentId, props.match.awayTeamId))
 const hasScore = computed(() => props.match.homeScore !== null && props.match.awayScore !== null)
 const finished = computed(() => props.match.status === 'finished' && hasScore.value)
 const live = computed(() => props.match.status === 'live')

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { ClipboardEdit } from 'lucide-vue-next'
 import type { Match } from '@/types'
-import { useRoundsStore, useTeamsStore } from '@/stores'
+import { useRoundsStore, useHistoricalNamesStore } from '@/stores'
 import { isPendingCapture } from '@/utils/matches'
 import { MATCH_STATUS } from '@/utils/labels'
 import { formatMatchDay } from '@/utils/format'
@@ -12,10 +12,11 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 /** Fila compacta para el resumen del torneo: jornada, equipos, marcador y acción. */
 const props = defineProps<{ match: Match; readOnly?: boolean }>()
 
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const rounds = useRoundsStore()
-const home = computed(() => teams.get(props.match.homeTeamId))
-const away = computed(() => teams.get(props.match.awayTeamId))
+const home = computed(() => names.team(props.match.tournamentId, props.match.homeTeamId))
+const away = computed(() => names.team(props.match.tournamentId, props.match.awayTeamId))
 const pending = computed(() => isPendingCapture(props.match))
 const hasScore = computed(() => props.match.homeScore !== null && props.match.awayScore !== null)
 </script>

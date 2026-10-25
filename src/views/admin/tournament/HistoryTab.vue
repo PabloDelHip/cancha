@@ -4,7 +4,7 @@ import { useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import { ChevronLeft, ChevronRight, History, Server, X } from 'lucide-vue-next'
 import type { ID, RosterEventAction, RosterHistoryPage, Team } from '@/types'
 import { getErrorMessage, ROSTER_HISTORY_REQUIRES_SERVER, rosterHistoryService, USE_MOCKS } from '@/services'
-import { usePlayersStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { usePlayersStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { fullName } from '@/utils/players'
 import { formatDate, plural, toISODate } from '@/utils/format'
 import { eventAuthor, eventSummary, eventTags, eventTitle, ROSTER_ACTION_FILTERS } from '@/utils/rosterHistory'
@@ -26,7 +26,8 @@ const PAGE_SIZE = 50
 const route = useRoute()
 const router = useRouter()
 const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 
 const param = (key: string) => (typeof route.query[key] === 'string' ? (route.query[key] as string) : '')
@@ -78,14 +79,14 @@ watch([() => props.id, filters], load, { immediate: true, deep: true })
 // llega por URL con alguien que ya no figura (p. ej. de un equipo quitado), se agrega con su nombre.
 const playerOptions = computed(() => {
   const ids = new Set(players.memberships.filter((m) => m.tournamentId === props.id).map((m) => m.playerId))
-  const list = [...ids].map((id) => ({ id, name: players.get(id) ? fullName(players.get(id)!) : (page.value?.refs.players[id] ?? 'Jugador') }))
+  const list = [...ids].map((id) => ({ id, name: names.player(props.id, id) ? fullName(names.player(props.id, id)!) : (page.value?.refs.players[id] ?? 'Jugador') }))
   if (filters.value.playerId && !ids.has(filters.value.playerId)) list.push({ id: filters.value.playerId, name: page.value?.refs.players[filters.value.playerId] ?? 'Jugador seleccionado' })
   return list.sort((a, b) => a.name.localeCompare(b.name))
 })
 const teamOptions = computed(() => {
   const list = tournaments
     .teamIdsOf(props.id)
-    .map((teamId) => teams.get(teamId))
+    .map((teamId) => names.team(props.id, teamId))
     .filter((t): t is Team => Boolean(t))
     .map((t) => ({ id: t.id, name: t.name }))
   if (filters.value.teamId && !list.some((t) => t.id === filters.value.teamId)) list.push({ id: filters.value.teamId, name: page.value?.refs.teams[filters.value.teamId] ?? 'Equipo seleccionado' })

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { ID, Team, TeamInput, UploadProgress } from '@/types'
 import { teamService } from '@/services'
 import { createLoader, createOwnership } from './loader'
+import { upsertById } from '@/utils/merge'
 
 export const useTeamsStore = defineStore('teams', () => {
   const items = ref<Team[]>([])
@@ -23,6 +24,11 @@ export const useTeamsStore = defineStore('teams', () => {
   }
   function nameOf(id: ID) {
     return byId.value.get(id)?.name ?? 'Equipo'
+  }
+
+  /** B1: fichas actuales que llegan con la carga de un torneo. */
+  function upsert(list: Team[]) {
+    items.value = upsertById(items.value, list)
   }
 
   async function create(input: TeamInput) {
@@ -61,6 +67,7 @@ export const useTeamsStore = defineStore('teams', () => {
     resetMine: ownership.resetMine,
     get,
     nameOf,
+    upsert,
     create,
     update,
     setLogo,

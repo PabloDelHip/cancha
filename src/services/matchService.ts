@@ -16,6 +16,10 @@ export interface MatchService {
   reschedulePreview(id: ID, input: Pick<MatchInput, 'date' | 'time' | 'fieldId' | 'status'>): Promise<ReschedulePreview>
   /** Estadísticas individuales (todas o de un partido). */
   listStats(matchId?: ID): Promise<PlayerMatchStats[]>
+  /** B1: partidos de un torneo (GET /tournaments/:id/matches). */
+  listByTournament(tournamentId: ID): Promise<Match[]>
+  /** B1: estadísticas de los partidos de un torneo. */
+  listStatsByTournament(tournamentId: ID): Promise<PlayerMatchStats[]>
   /** Captura marcador + estadísticas. Reemplaza las estadísticas previas del partido. */
   saveResult(id: ID, result: MatchResultInput): Promise<{ match: Match; stats: PlayerMatchStats[] }>
   /** Elimina un partido sin resultado ni estadísticas (p. ej. mal programado). */
@@ -71,6 +75,14 @@ const http: MatchService = {
       ? (await api.get<ApiPlayerMatchStats[]>(`/matches/${matchId}/stats`)).data
       : await fetchAll<ApiPlayerMatchStats>('/player-match-stats')
     return toPlayerMatchStats(rows)
+  },
+  async listByTournament(tournamentId) {
+    // Mismo orden que GET /matches (fecha, hora, id): el de la jornada no desempata igual los partidos simultáneos.
+    const rows = (await api.get<ApiMatch[]>(`/tournaments/${tournamentId}/matches`)).data
+    return rows.sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`) || a.id.localeCompare(b.id)).map(toMatch)
+  },
+  async listStatsByTournament(tournamentId) {
+    return toPlayerMatchStats(await fetchAll<ApiPlayerMatchStats>('/player-match-stats', { tournamentId }))
   },
   async saveResult(id, result) {
     const { data } = await api.put<{ match: ApiMatch; playerStats: ApiPlayerMatchStats[] }>(`/matches/${id}/result`, {
@@ -168,6 +180,12 @@ const mock: MatchService = {
   listStats(matchId) {
     const all = getDb().playerMatchStats
     return delay(matchId ? all.filter((s) => s.matchId === matchId) : all)
+  },
+  listByTournament: (tournamentId) => delay(getDb().matches.filter((m) => m.tournamentId === tournamentId)),
+  listStatsByTournament(tournamentId) {
+    const db = getDb()
+    const ids = new Set(db.matches.filter((m) => m.tournamentId === tournamentId).map((m) => m.id))
+    return delay(db.playerMatchStats.filter((s) => ids.has(s.matchId)))
   },
   saveResult(id, result) {
     const check = () => {

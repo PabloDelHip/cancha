@@ -2156,3 +2156,60 @@ export interface ReportFilters {
   status: ReportMatchStatus[]
   includeInactive: boolean
 }
+
+// ─── 10A/10B: cierre y temporadas ─────────────────────────────────────────────
+
+/** Bloqueante o advertencia del cierre (GET /tournaments/:id/closure). `code` es estable; `message`, en español. */
+export interface ClosureIssue {
+  code: string
+  message: string
+  count?: number
+}
+
+/** Vista previa del cierre: solo lectura, propietario y administradores (LIFECYCLE). */
+export interface ClosurePreview {
+  tournamentId: ID
+  status: TournamentStatus
+  canFinish: boolean
+  /** Con partidos sin jugar, el cierre exige confirmarlo. */
+  requiresConfirmation: boolean
+  blockers: ClosureIssue[]
+  warnings: ClosureIssue[]
+  teams: { enrolled: number; withdrawn: number }
+  matches: { total: number; finished: number; scheduled: number; live: number; postponed: number; pendingSchedule: number; suspended: number; cancelled: number; pending: number }
+  rounds: { total: number; incomplete: { round: number; label: string; pending: number; total: number }[] }
+  champion: { teamId: ID; name: string } | null
+  runnerUp: { teamId: ID; name: string } | null
+  topScorers: { position: number; playerId: ID; name: string; team: string; goals: number; matches: number }[]
+  /** Solo en torneos ya cerrados (null en los cerrados antes de 10A). */
+  finished: { at: ISODateTime | null; by: ID | null; role: TournamentRole | null; pendingAtFinish: number | null } | null
+}
+
+/** POST /tournaments/:id/next-season (solo el propietario). */
+export interface NextSeasonInput {
+  name: string
+  startDate: ISODate
+  endDate: ISODate | null
+  season: string
+  teamIds: ID[]
+}
+export interface NextSeasonResult {
+  tournament: Tournament
+  teams: { enrolled: number; notEnrolled: number; missing: number }
+  copied: string[]
+  notCopied: string[]
+}
+
+/**
+ * 10C: nombres con que se jugó un torneo finalizado (GET /tournaments/:id/identity).
+ * `historical: false` en un finalizado = se cerró antes de 10C y se muestran los nombres actuales.
+ */
+export interface TournamentIdentity {
+  tournamentId: ID
+  historical: boolean
+  takenAt: ISODateTime | null
+  leagueName: string | null
+  corrections: number
+  teams: { id: ID; name: string; shortName: string; logoUrl: string | null; colors: TeamColors }[]
+  players: { id: ID; firstName: string; lastName: string; nickname: string | null }[]
+}

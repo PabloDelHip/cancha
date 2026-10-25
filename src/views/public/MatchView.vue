@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { CalendarDays, CalendarX, ChevronLeft, Clock, Goal, Handshake, MapPin, Star, UserRound, Users } from 'lucide-vue-next'
 import type { ID, PlayerMatchStats, TeamRef } from '@/types'
-import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, usePlayersStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useLeagueData } from '@/composables/useLeagueData'
 import { usePageTitle } from '@/composables/usePageTitle'
 import { trackViewOnce } from '@/services/analytics'
@@ -26,14 +26,15 @@ const props = defineProps<{ id: string }>()
 
 const { loading, error, reload } = useLeagueData()
 const matches = useMatchesStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const players = usePlayersStore()
 const tournaments = useTournamentsStore()
 const rounds = useRoundsStore()
 
 const match = computed(() => matches.get(props.id))
-const home = computed(() => teams.get(match.value?.homeTeamId))
-const away = computed(() => teams.get(match.value?.awayTeamId))
+const home = computed(() => names.team(match.value?.tournamentId, match.value?.homeTeamId))
+const away = computed(() => names.team(match.value?.tournamentId, match.value?.awayTeamId))
 const tournament = computed(() => (match.value ? tournaments.get(match.value.tournamentId) : undefined))
 const hasScore = computed(() => match.value?.homeScore != null && match.value?.awayScore != null)
 usePageTitle(() => (home.value && away.value ? `${home.value.name} vs ${away.value.name}` : undefined))
@@ -52,7 +53,7 @@ type Row = PlayerMatchStats & { player: ReturnType<typeof players.get>; shirt: n
 function side(teamId: ID | undefined) {
   const rows: Row[] = stats.value
     .filter((s) => s.teamId === teamId)
-    .map((s) => ({ ...s, player: players.get(s.playerId), shirt: match.value ? (players.membershipIn(match.value.tournamentId, s.playerId)?.shirtNumber ?? null) : null }))
+    .map((s) => ({ ...s, player: names.player(match.value?.tournamentId, s.playerId), shirt: match.value ? (players.membershipIn(match.value.tournamentId, s.playerId)?.shirtNumber ?? null) : null }))
   const sum = (k: 'goals' | 'assists' | 'yellowCards' | 'redCards') => rows.reduce((n, r) => n + r[k], 0)
   return {
     lineup: [...rows].sort((a, b) => (a.shirt ?? 99) - (b.shirt ?? 99) || b.goals - a.goals),
@@ -72,7 +73,7 @@ const mvp = computed(() => {
   if (match.value?.status !== 'finished') return null
   const best = [...stats.value].sort((a, b) => b.goals + b.assists - (a.goals + a.assists) || b.goals - a.goals)[0]
   if (!best || best.goals + best.assists === 0) return null
-  return { ...best, player: players.get(best.playerId), team: teams.get(best.teamId) }
+  return { ...best, player: names.player(match.value?.tournamentId, best.playerId), team: names.team(match.value?.tournamentId, best.teamId) }
 })
 
 const comparison = computed(() => {

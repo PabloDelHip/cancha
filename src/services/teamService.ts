@@ -12,6 +12,8 @@ import { MockHttpError } from '@/mocks/session'
 
 export interface TeamService {
   list(): Promise<Team[]>
+  /** B1: equipos inscritos en un torneo, con su ficha ACTUAL (los nombres históricos los pone el store de nombres). */
+  listByTournament(tournamentId: ID): Promise<Team[]>
   /** Equipos inscritos en mis torneos + fichas que registré (canEdit = puedo editar la ficha). */
   listMine(): Promise<AdminRef[]>
   get(id: ID): Promise<Team>
@@ -38,6 +40,9 @@ export interface TeamService {
 const http: TeamService = {
   async list() {
     return (await fetchAll<ApiTeam>('/teams')).map(toTeam)
+  },
+  async listByTournament(tournamentId) {
+    return (await fetchAll<ApiTeam>('/teams', { tournamentId })).map(toTeam)
   },
   async listMine() {
     return (await fetchAll<ApiTeam & { canEdit: boolean }>('/admin/teams')).map((t) => ({ id: t.id, canEdit: t.canEdit }))
@@ -80,6 +85,11 @@ const http: TeamService = {
 
 const mock: TeamService = {
   list: () => delay(getDb().teams),
+  listByTournament(tournamentId) {
+    const db = getDb()
+    const ids = new Set(db.tournamentTeams.filter((tt) => tt.tournamentId === tournamentId).map((tt) => tt.teamId))
+    return delay(db.teams.filter((t) => ids.has(t.id)))
+  },
   listMine: () =>
     guard(requireMockUser, () => {
       const db = getDb()

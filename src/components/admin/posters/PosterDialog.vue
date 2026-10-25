@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, Download, Share2 } from 'lucide-vue-next'
 import type { ID, Match, TournamentStructure } from '@/types'
 import { leagueService } from '@/services'
-import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import { formatDate, plural } from '@/utils/format'
 import BaseModal from '@/components/common/BaseModal.vue'
@@ -28,7 +28,8 @@ const emit = defineEmits<{ close: [] }>()
 const tournaments = useTournamentsStore()
 const matches = useMatchesStore()
 const rounds = useRoundsStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const toast = useToast()
 
 const kind = computed(() => (props.match ? 'match' : (props.round?.kind ?? 'standings')))
@@ -59,8 +60,8 @@ const matchPoster = computed<MatchPosterData | null>(() => {
   if (!t || !m) return null
   return buildMatchPoster({
     match: m,
-    home: teams.get(m.homeTeamId),
-    away: teams.get(m.awayTeamId),
+    home: names.team(props.tournamentId, m.homeTeamId),
+    away: names.team(props.tournamentId, m.awayTeamId),
     crests: { home: crests.value[m.homeTeamId] ?? null, away: crests.value[m.awayTeamId] ?? null },
     tournament: { name: t.name, startDate: t.startDate, endDate: t.endDate },
     leagueName: leagueName.value,
@@ -76,7 +77,7 @@ const roundPages = computed<RoundPosterData[]>(() => {
   if (!t || !props.round) return []
   return (props.round.kind === 'results' ? buildResultPages : buildFixturePages)({
     matches: roundMatches.value,
-    teams: Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)])),
+    teams: Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, names.team(props.tournamentId, id)])),
     crests: crests.value,
     tournament: { name: t.name, startDate: t.startDate, endDate: t.endDate },
     leagueName: leagueName.value,
@@ -132,9 +133,9 @@ watch(
     texts.value = { title: '', season: '', roundLabel: '' }
     // Escudos y logo como data URL (si alguno no se puede leer, se usa el de iniciales).
     const logos: Record<ID, string | null | undefined> = props.match
-      ? { [props.match.homeTeamId]: teams.get(props.match.homeTeamId)?.logoUrl, [props.match.awayTeamId]: teams.get(props.match.awayTeamId)?.logoUrl }
+      ? { [props.match.homeTeamId]: names.team(props.tournamentId, props.match.homeTeamId)?.logoUrl, [props.match.awayTeamId]: names.team(props.tournamentId, props.match.awayTeamId)?.logoUrl }
       : props.round
-        ? Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, teams.get(id)?.logoUrl]))
+        ? Object.fromEntries(roundMatches.value.flatMap((m) => [m.homeTeamId, m.awayTeamId]).map((id) => [id, names.team(props.tournamentId, id)?.logoUrl]))
         : Object.fromEntries(Object.entries(props.structure?.teams ?? {}).map(([id, t]) => [id, t?.logoUrl]))
     const entries = await Promise.all(Object.entries(logos).map(async ([id, url]) => [id, await toDataUrl(url)] as const))
     crests.value = Object.fromEntries(entries)
@@ -144,7 +145,7 @@ watch(
     if (leagueId) {
       const league = (await leagueService.mine().catch(() => [])).find((l) => l.id === leagueId)
       // La liga por defecto la crea el sistema: su nombre no es de la liga real.
-      leagueName.value = league && !league.isDefault ? league.name : null
+      leagueName.value = league && !league.isDefault ? (names.of(props.tournamentId)?.leagueName ?? league.name) : null
     }
   },
   { immediate: true },

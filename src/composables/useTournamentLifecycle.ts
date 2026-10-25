@@ -8,6 +8,8 @@ import { plural } from '@/utils/format'
 
 /** Torneo cuyo cierre se está confirmando (un único diálogo montado en el workspace). */
 const finishing = ref<ID | null>(null)
+/** 10B: torneo del que se está creando la siguiente temporada (NextSeasonDialog, también en el workspace). */
+const nextSeasonOf = ref<ID | null>(null)
 
 /**
  * Ciclo de vida del torneo: borrador → en curso → finalizado.
@@ -45,5 +47,8 @@ export function useTournamentLifecycle() {
     start,
     askFinish: (tournamentId: ID) => (finishing.value = tournamentId),
     closeFinish: () => (finishing.value = null),
+    nextSeasonOf,
+    askNextSeason: (tournamentId: ID) => (nextSeasonOf.value = tournamentId),
+    closeNextSeason: () => (nextSeasonOf.value = null),
   }
 }

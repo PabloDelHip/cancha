@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { AlertTriangle, Archive, ArrowLeft, Ban, CalendarClock, CalendarX, CheckCircle2, ExternalLink, Lock, Save } from 'lucide-vue-next'
 import type { ID, MatchEligibility, MatchStatus, Player, PlayerMatchStatsInput } from '@/types'
-import { useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, usePlayersStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -32,7 +32,8 @@ const props = defineProps<{ id: string }>()
 const { loading, error, reload } = useAdminData()
 const matches = useMatchesStore()
 const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const rounds = useRoundsStore()
 const { confirm } = useConfirm()
@@ -40,8 +41,8 @@ const toast = useToast()
 const sameDate = useSameDateOverride(() => match.value?.tournamentId)
 
 const match = computed(() => matches.get(props.id))
-const home = computed(() => teams.get(match.value?.homeTeamId))
-const away = computed(() => teams.get(match.value?.awayTeamId))
+const home = computed(() => names.team(match.value?.tournamentId, match.value?.homeTeamId))
+const away = computed(() => names.team(match.value?.tournamentId, match.value?.awayTeamId))
 const tournament = computed(() => (match.value ? tournaments.get(match.value.tournamentId) : undefined))
 /** Torneo finalizado: el resultado se consulta pero ya no se modifica. */
 const finished = computed(() => tournament.value?.status === 'finished')

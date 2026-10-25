@@ -111,7 +111,7 @@ const quickActions = computed(() => [
         <RouterLink :to="{ name: 'admin-tournament-standings', params }" class="link text-sm">Completa</RouterLink>
       </div>
       <div class="card overflow-hidden">
-        <StandingsTable :standings="stats.standings.value.slice(0, 5)" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
+        <StandingsTable :standings="stats.standings.value.slice(0, 5)" :tournament-id="id" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
       </div>
     </section>
   </div>

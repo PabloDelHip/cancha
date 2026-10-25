@@ -7,6 +7,7 @@ import { usePlayersStore } from './players'
 import { useTeamsStore } from './teams'
 import { useTournamentsStore } from './tournaments'
 import { useHomeStore } from './home'
+import { useTournamentDataStore } from './tournamentData'
 import { identifyUser as identifyAnalytics, resetAnalytics } from '@/services/analytics'
 
 /**
@@ -75,6 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
     useTeamsStore().resetMine()
     usePlayersStore().resetMine()
     useHomeStore().reset()
+    useTournamentDataStore().reset()
   }
 
   async function run(action: () => Promise<void>) {

@@ -2,7 +2,7 @@
 import { computed, ref, watchEffect } from 'vue'
 import { CalendarClock, CheckCircle2, ClipboardEdit, NotebookPen, Plus, RotateCcw, Trophy, Users } from 'lucide-vue-next'
 import type { ID } from '@/types'
-import { ensureAdminData, useAuthStore, useHomeStore, useMatchesStore, usePlayersStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { ensureAdminData, useAuthStore, useHomeStore, useMatchesStore, usePlayersStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useAdminData } from '@/composables/useLeagueData'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -27,7 +27,8 @@ const auth = useAuthStore()
 /** El panel se adapta a lo que la cuenta puede hacer: organizar torneos y/o administrar equipos. */
 const home = useHomeStore()
 const tournaments = useTournamentsStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const players = usePlayersStore()
 const matches = useMatchesStore()
 const rounds = useRoundsStore()
@@ -177,11 +178,11 @@ async function resetDemo() {
           <ul v-if="pending.length" class="card divide-y divide-zinc-100 overflow-hidden">
             <li v-for="m in pending" :key="m.id" class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3">
               <div class="flex -space-x-1.5">
-                <TeamLogo :team="teams.get(m.homeTeamId)" size="sm" />
-                <TeamLogo :team="teams.get(m.awayTeamId)" size="sm" />
+                <TeamLogo :team="names.team(m.tournamentId, m.homeTeamId)" size="sm" />
+                <TeamLogo :team="names.team(m.tournamentId, m.awayTeamId)" size="sm" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-semibold">{{ teams.nameOf(m.homeTeamId) }} vs {{ teams.nameOf(m.awayTeamId) }}</p>
+                <p class="truncate text-sm font-semibold">{{ names.team(m.tournamentId, m.homeTeamId)?.name }} vs {{ names.team(m.tournamentId, m.awayTeamId)?.name }}</p>
                 <p class="truncate text-xs text-zinc-500">{{ tournaments.get(m.tournamentId)?.name }} · {{ rounds.labelOf(m.tournamentId, m.round) }} · {{ formatMatchDay(m.date) }} {{ m.time }}</p>
               </div>
               <span v-if="m.status === 'live'" class="hidden sm:block"><StatusBadge v-bind="MATCH_STATUS.live" pulse /></span>
@@ -205,15 +206,15 @@ async function resetDemo() {
                 <p class="tabular text-sm font-bold">{{ m.time }}</p>
               </div>
               <div class="flex min-w-0 flex-1 items-center gap-2 text-sm">
-                <TeamLogo :team="teams.get(m.homeTeamId)" size="xs" />
+                <TeamLogo :team="names.team(m.tournamentId, m.homeTeamId)" size="xs" />
                 <span class="truncate font-semibold">
-                  <span class="sm:hidden">{{ teams.get(m.homeTeamId)?.shortName }}</span><span class="hidden sm:inline">{{ teams.nameOf(m.homeTeamId) }}</span>
+                  <span class="sm:hidden">{{ names.team(m.tournamentId, m.homeTeamId)?.shortName }}</span><span class="hidden sm:inline">{{ names.team(m.tournamentId, m.homeTeamId)?.name }}</span>
                 </span>
                 <span class="shrink-0 text-zinc-400">vs</span>
                 <span class="truncate font-semibold">
-                  <span class="sm:hidden">{{ teams.get(m.awayTeamId)?.shortName }}</span><span class="hidden sm:inline">{{ teams.nameOf(m.awayTeamId) }}</span>
+                  <span class="sm:hidden">{{ names.team(m.tournamentId, m.awayTeamId)?.shortName }}</span><span class="hidden sm:inline">{{ names.team(m.tournamentId, m.awayTeamId)?.name }}</span>
                 </span>
-                <TeamLogo :team="teams.get(m.awayTeamId)" size="xs" />
+                <TeamLogo :team="names.team(m.tournamentId, m.awayTeamId)" size="xs" />
               </div>
               <span class="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold text-zinc-600">J{{ m.round }}</span>
             </li>

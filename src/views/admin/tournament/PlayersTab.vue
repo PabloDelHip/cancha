@@ -3,7 +3,7 @@ import { computed, onMounted, ref, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeftRight, Lock, Pencil, Search, UserMinus, UserPlus, Users, Ban, History } from 'lucide-vue-next'
 import type { ID, Player, PlayerInput, Team } from '@/types'
-import { usePlayersStore, useTeamsStore, useTournamentsStore, type RosterEntry } from '@/stores'
+import { usePlayersStore, useTournamentsStore, type RosterEntry, useHistoricalNamesStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useEditor } from '@/composables/useEditor'
 import { useRosterActions } from '@/composables/useRosterActions'
@@ -26,7 +26,8 @@ const props = defineProps<{ id: string }>()
 const PAGE_SIZE = 30
 
 const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const { readOnly, can } = useTournamentWorkspace(() => props.id)
 const { unregister, toggleBlock } = useRosterActions(() => props.id)
@@ -50,7 +51,7 @@ onMounted(() => {
 const tournamentTeams = computed(() =>
   tournaments
     .teamIdsOf(props.id)
-    .map((teamId) => teams.get(teamId))
+    .map((teamId) => names.team(props.id, teamId))
     .filter((t): t is Team => Boolean(t))
     .sort((a, b) => a.name.localeCompare(b.name)),
 )
@@ -58,7 +59,7 @@ const participants = computed(() => players.participantsOf(props.id))
 const rows = computed(() => {
   const q = normalizeText(query.value)
   return participants.value
-    .map((entry) => ({ ...entry, team: teams.get(entry.membership.teamId) }))
+    .map((entry) => ({ ...entry, team: names.team(props.id, entry.membership.teamId) }))
     .filter((r) => !q || normalizeText(fullName(r.player)).includes(q))
     .filter((r) => !teamFilter.value || r.membership.teamId === teamFilter.value)
     .sort(

@@ -2,7 +2,7 @@
 import { computed, defineAsyncComponent, ref } from 'vue'
 import { GitBranch, ImageDown } from 'lucide-vue-next'
 import type { Team, TournamentStructure } from '@/types'
-import { useMatchesStore, useRoundsStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, useRoundsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { useTournamentStructure } from '@/composables/useTournamentStructure'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
@@ -29,13 +29,14 @@ const advancing = ref(false)
 const posterOpen = ref(false)
 const PosterDialog = defineAsyncComponent(() => import('@/components/admin/posters/PosterDialog.vue'))
 const hasTable = computed(() => !!structure.value?.phases.some((p) => (p.type === 'league' && p.table.length) || (p.type === 'groups' && p.groups.some((g) => g.table.length))))
-const teamsStore = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const { confirm } = useConfirm()
 const enrolled = computed(() =>
   tournaments
     .teamIdsOf(props.id)
-    .map((id) => teamsStore.get(id))
+    .map((id) => names.team(props.id, id))
     .filter((t): t is Team => !!t)
     .sort((a, b) => a.name.localeCompare(b.name)),
 )

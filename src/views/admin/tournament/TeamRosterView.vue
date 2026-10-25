@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import { ArrowLeftRight, ChevronLeft, ExternalLink, History, Lock, Pencil, Shield, UserMinus, UserPlus, Users, Ban } from 'lucide-vue-next'
 import type { Player, PlayerInput, Team } from '@/types'
-import { usePlayersStore, useTeamsStore, useTournamentsStore, type RosterEntry } from '@/stores'
+import { usePlayersStore, useTeamsStore, useTournamentsStore, type RosterEntry, useHistoricalNamesStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useEditor } from '@/composables/useEditor'
 import { useRosterActions } from '@/composables/useRosterActions'
@@ -26,6 +26,8 @@ import ParticipationDialog from '@/components/admin/workspace/ParticipationDialo
 const props = defineProps<{ id: string; teamId: string }>()
 
 const players = usePlayersStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const teams = useTeamsStore()
 const tournaments = useTournamentsStore()
 const { tournament, readOnly, can } = useTournamentWorkspace(() => props.id)
@@ -34,12 +36,12 @@ const { unregister, toggleBlock } = useRosterActions(() => props.id)
 onMounted(() => players.ensureBlocks(props.id).catch(() => undefined))
 const editor = useEditor<Player>({ openOnNew: false })
 
-const team = computed(() => teams.get(props.teamId))
+const team = computed(() => names.team(props.id, props.teamId))
 const enrolled = computed(() => tournaments.teamIdsOf(props.id).includes(props.teamId))
 const tournamentTeams = computed(() =>
   tournaments
     .teamIdsOf(props.id)
-    .map((teamId) => teams.get(teamId))
+    .map((teamId) => names.team(props.id, teamId))
     .filter((t): t is Team => Boolean(t))
     .sort((a, b) => a.name.localeCompare(b.name)),
 )
@@ -49,7 +51,7 @@ const former = computed(() =>
   players.memberships
     .filter((m) => m.tournamentId === props.id && m.teamId === props.teamId && m.status === 'ended')
     .filter((m) => !roster.value.some((e) => e.player.id === m.playerId))
-    .map((membership) => ({ membership, player: players.get(membership.playerId) }))
+    .map((membership) => ({ membership, player: names.player(props.id, membership.playerId) }))
     .filter((e): e is RosterEntry => Boolean(e.player))
     .sort((a, b) => (b.membership.endDate ?? '').localeCompare(a.membership.endDate ?? '')),
 )

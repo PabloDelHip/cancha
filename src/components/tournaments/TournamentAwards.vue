@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { Hand, Target, Trophy } from 'lucide-vue-next'
 import type { TournamentStructure } from '@/types'
-import { useMatchesStore, usePlayersStore, useTeamsStore } from '@/stores'
+import { useMatchesStore, useHistoricalNamesStore } from '@/stores'
 import { useTournamentChampion } from '@/composables/useTournamentChampion'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { fullName } from '@/utils/players'
@@ -21,8 +21,8 @@ const props = defineProps<{ structure: TournamentStructure }>()
 const { champion, detail } = useTournamentChampion(() => props.structure)
 const stats = useTournamentStats(() => props.structure.tournamentId)
 const matchesStore = useMatchesStore()
-const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 
 const finished = computed(() => props.structure.status === 'finished' && !!champion.value)
 const matchStats = computed(() => {
@@ -36,13 +36,13 @@ const scorers = computed(() => {
   return rows.filter((r) => r.goals === best).sort((a, b) => a.matches - b.matches)
 })
 const keeper = computed(() => {
-  const rows = keeperTotals(stats.matches.value, matchStats.value, (id) => players.get(id)?.position)
+  const rows = keeperTotals(stats.matches.value, matchStats.value, (id) => names.player(props.structure.tournamentId, id)?.position)
   const most = Math.max(0, ...rows.map((r) => r.matches))
   return rows
     .filter((r) => r.matches >= Math.max(1, Math.ceil(most / 2)))
     .sort((a, b) => a.concededPerMatch - b.concededPerMatch || b.cleanSheets - a.cleanSheets || b.matches - a.matches)[0] ?? null
 })
-const person = (id: string) => players.get(id)
+const person = (id: string) => names.player(props.structure.tournamentId, id)
 </script>
 
 <template>
@@ -79,7 +79,7 @@ const person = (id: string) => players.get(id)
             {{ person(s.playerId) ? fullName(person(s.playerId)!) : 'Jugador' }}
           </RouterLink>
           <span class="block text-sm font-semibold opacity-80">
-            <span class="font-display text-2xl">{{ scorers[0]!.goals }}</span> goles<template v-if="scorers.length === 1"> · {{ teams.get(scorers[0]!.teamId)?.name }}</template>
+            <span class="font-display text-2xl">{{ scorers[0]!.goals }}</span> goles<template v-if="scorers.length === 1"> · {{ names.team(props.structure.tournamentId, scorers[0]!.teamId)?.name }}</template>
           </span>
         </span>
       </template>
@@ -99,7 +99,7 @@ const person = (id: string) => players.get(id)
           <span class="block text-sm text-zinc-600">
             <span class="font-display text-2xl font-bold text-zinc-950">{{ fmtAvg(keeper.concededPerMatch) }}</span> recibidos por partido
           </span>
-          <span class="block text-xs text-zinc-500">{{ keeper.cleanSheets }} en cero · {{ keeper.matches }} PJ · {{ teams.get(keeper.teamId)?.shortName }}</span>
+          <span class="block text-xs text-zinc-500">{{ keeper.cleanSheets }} en cero · {{ keeper.matches }} PJ · {{ names.team(props.structure.tournamentId, keeper.teamId)?.shortName }}</span>
         </span>
       </template>
       <span v-else class="relative text-sm text-zinc-500">Sin porteros registrados en partidos jugados</span>

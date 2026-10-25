@@ -17,6 +17,8 @@ import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import FinishTournamentDialog from '@/components/admin/workspace/FinishTournamentDialog.vue'
+import NextSeasonDialog from '@/components/admin/workspace/NextSeasonDialog.vue'
+import HistoricalNamesNote from '@/components/tournaments/HistoricalNamesNote.vue'
 
 /**
  * Workspace del torneo: el contexto principal del panel. Todo lo que el organizador hace
@@ -100,6 +102,7 @@ const forbidden = computed(() => !allowed(String(route.name ?? '')))
         <div class="min-w-0">
           <div class="mb-2 flex flex-wrap items-center gap-2">
             <StatusBadge v-bind="TOURNAMENT_STATUS[tournament.status]" :pulse="tournament.status === 'active'" />
+            <StatusBadge v-if="readOnly" label="Solo lectura" tone="blue" />
             <span class="text-xs font-semibold text-zinc-500">
               {{ MODALITY_LABELS[tournament.modality] }} · {{ tournament.category }} · {{ formatDateRange(tournament.startDate, tournament.endDate) }}
             </span>
@@ -126,6 +129,7 @@ const forbidden = computed(() => !allowed(String(route.name ?? '')))
         </p>
       </div>
 
+      <HistoricalNamesNote :tournament-id="id" class="mb-4" />
       <TabNav :tabs="tabs" label="Secciones del torneo" class="mb-6" />
       <EmptyState
         v-if="forbidden"
@@ -136,6 +140,7 @@ const forbidden = computed(() => !allowed(String(route.name ?? '')))
       />
       <RouterView v-else />
       <FinishTournamentDialog />
+      <NextSeasonDialog />
     </template>
   </div>
 </template>

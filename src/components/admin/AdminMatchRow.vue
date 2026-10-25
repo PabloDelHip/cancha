@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { AlertTriangle, CalendarClock, CalendarOff, ClipboardEdit, Eye, FileText, History, ImageDown, Lock, MapPin, Pencil, Siren, UserRound } from 'lucide-vue-next'
 import ActionMenu, { type ActionItem } from '@/components/common/ActionMenu.vue'
 import type { Match } from '@/types'
-import { useTeamsStore } from '@/stores'
+import { useHistoricalNamesStore } from '@/stores'
 import { USE_MOCKS } from '@/services'
 import { isPendingCapture } from '@/utils/matches'
 import { matchStatusBadge } from '@/utils/labels'
@@ -27,9 +27,10 @@ const props = withDefaults(defineProps<{ match: Match; readOnly?: boolean; allow
 })
 const emit = defineEmits<{ edit: []; postpone: []; reschedule: []; referees: []; history: []; incidents: []; poster: [] }>()
 
-const teams = useTeamsStore()
-const home = computed(() => teams.get(props.match.homeTeamId))
-const away = computed(() => teams.get(props.match.awayTeamId))
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
+const home = computed(() => names.team(props.match.tournamentId, props.match.homeTeamId))
+const away = computed(() => names.team(props.match.tournamentId, props.match.awayTeamId))
 const pending = computed(() => !props.readOnly && props.canCapture && isPendingCapture(props.match))
 const hasScore = computed(() => props.match.homeScore !== null && props.match.awayScore !== null)
 const inactive = computed(() => props.match.status === 'cancelled' || props.match.status === 'postponed')

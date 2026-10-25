@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-vue-next'
+import { Archive, ArrowLeft, ArrowRight, Plus } from 'lucide-vue-next'
 import type { Tournament, TournamentInput } from '@/types'
 import { useHomeStore, useTournamentsStore } from '@/stores'
 import { leagueService, USE_MOCKS } from '@/services'
@@ -66,6 +66,7 @@ const groups = computed(() => {
       title: key === 'none' ? 'Sin liga' : (leagueNames.value.get(key) ?? 'Liga'),
       items: [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || b.startDate.localeCompare(a.startDate)),
     }))
+    .map((g) => ({ ...g, current: g.items.filter((t) => t.status !== 'finished'), finished: g.items.filter((t) => t.status === 'finished') }))
     .sort((a, b) => (b.items[0]?.startDate ?? '').localeCompare(a.items[0]?.startDate ?? ''))
 })
 /** "Nuevo torneo" dentro de una liga: abre el alta con esa liga elegida. */
@@ -134,7 +135,7 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
           <RouterLink v-if="g.leagueId" :to="{ name: 'league', params: { id: g.leagueId } }" class="text-sm font-semibold text-pitch-700 hover:text-pitch-900">Ver liga →</RouterLink>
         </div>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <AdminTournamentCard v-for="t in g.items" :key="t.id" :tournament="t" />
+          <AdminTournamentCard v-for="t in g.current" :key="t.id" :tournament="t" />
           <button
             type="button"
             class="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-300 text-sm font-semibold text-zinc-500 transition hover:border-pitch-400 hover:bg-pitch-50/50 hover:text-pitch-700"
@@ -144,6 +145,15 @@ function onSubmit(input: TournamentInput, image: Blob | null) {
             Nuevo torneo en {{ g.title }}
           </button>
         </div>
+        <!-- 10B: temporadas finalizadas de la liga (historial de solo lectura), después de las vigentes. -->
+        <template v-if="g.finished.length">
+          <h3 :id="`history-${g.key}`" class="mt-5 mb-3 flex items-center gap-1.5 text-sm font-semibold text-zinc-500">
+            <Archive class="size-4" aria-hidden="true" /> Temporadas finalizadas · {{ g.finished.length }}
+          </h3>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" :aria-labelledby="`history-${g.key}`" role="group">
+            <AdminTournamentCard v-for="t in g.finished" :key="t.id" :tournament="t" />
+          </div>
+        </template>
       </section>
     </div>
 

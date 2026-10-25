@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import type { TopScorer } from '@/types'
-import { usePlayersStore, useTeamsStore } from '@/stores'
+import type { ID, TopScorer } from '@/types'
+import { useHistoricalNamesStore } from '@/stores'
 import { fullName } from '@/utils/players'
 import PlayerAvatar from '@/components/players/PlayerAvatar.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 
-withDefaults(defineProps<{ scorers: TopScorer[]; showAssists?: boolean }>(), { showAssists: false })
+/** `tournamentId` (10C): en un torneo finalizado, los nombres con que se jugó. */
+withDefaults(defineProps<{ scorers: TopScorer[]; showAssists?: boolean; tournamentId?: ID | null }>(), { showAssists: false, tournamentId: null })
 
-const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 </script>
 
 <template>
@@ -27,14 +28,14 @@ const teams = useTeamsStore()
         <td class="py-3 pl-4 font-semibold text-zinc-500">{{ row.position }}</td>
         <th scope="row" class="py-2 pr-2 text-left font-normal">
           <RouterLink :to="{ name: 'player', params: { id: row.playerId } }" class="group flex items-center gap-3">
-            <PlayerAvatar :player="players.get(row.playerId)" :color="teams.get(row.teamId)?.colors.primary" size="sm" decorative />
+            <PlayerAvatar :player="names.player(tournamentId, row.playerId)" :color="names.team(tournamentId, row.teamId)?.colors.primary" size="sm" decorative />
             <span class="min-w-0">
               <span class="block truncate font-semibold text-zinc-900 group-hover:text-pitch-700">
-                {{ players.get(row.playerId) ? fullName(players.get(row.playerId)!) : 'Jugador' }}
+                {{ names.player(tournamentId, row.playerId) ? fullName(names.player(tournamentId, row.playerId)!) : 'Jugador' }}
               </span>
               <span class="flex items-center gap-1 text-xs text-zinc-500">
-                <TeamLogo :team="teams.get(row.teamId)" size="xs" />
-                <span class="truncate">{{ teams.get(row.teamId)?.name }}</span>
+                <TeamLogo :team="names.team(tournamentId, row.teamId)" size="xs" />
+                <span class="truncate">{{ names.team(tournamentId, row.teamId)?.name }}</span>
               </span>
             </span>
           </RouterLink>

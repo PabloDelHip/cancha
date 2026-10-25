@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ID, Standing } from '@/types'
-import { useTeamsStore } from '@/stores'
+import { useHistoricalNamesStore } from '@/stores'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import TeamLogo from '@/components/teams/TeamLogo.vue'
 import FormGuide from '@/components/teams/FormGuide.vue'
@@ -22,11 +22,14 @@ const props = withDefaults(
      * alguno se retirara después. Sin él, la zona sale de `qualifyCount` saltando a los retirados.
      */
     qualified?: ID[] | null
+    /** 10C: torneo de la tabla (en uno finalizado, los nombres con que se jugó). */
+    tournamentId?: ID | null
   }>(),
-  { qualifyCount: 4, highlightTeamId: undefined, withdrawn: () => [], qualified: null },
+  { qualifyCount: 4, highlightTeamId: undefined, withdrawn: () => [], qualified: null, tournamentId: null },
 )
 
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 /** Zona de clasificación entre los elegibles: el siguiente ocupa el lugar del retirado. */
 const qualifies = computed(() => {
   if (props.qualified) return new Set(props.qualified)
@@ -82,12 +85,12 @@ const qualifies = computed(() => {
           </td>
           <th scope="row" class="sticky left-10 z-10 py-2 pr-3 text-left font-normal shadow-[6px_0_6px_-6px_rgb(0_0_0/0.15)]" :class="row.teamId === highlightTeamId ? 'bg-lime-50' : 'bg-white'">
             <RouterLink :to="{ name: 'team', params: { id: row.teamId } }" class="group flex items-center gap-2.5">
-              <TeamLogo :team="teams.get(row.teamId)" size="sm" />
+              <TeamLogo :team="names.team(tournamentId, row.teamId)" size="sm" />
               <!-- Móvil: abreviatura y, debajo, el nombre completo pequeño (cortado si no cabe): la columna fija ocupa poco. -->
               <span class="min-w-0 group-hover:text-pitch-700">
-                <span class="block font-semibold text-zinc-900 sm:hidden">{{ teams.get(row.teamId)?.shortName }}</span>
-                <span class="block w-[5.5rem] truncate text-[11px] leading-tight text-zinc-500 sm:hidden">{{ teams.get(row.teamId)?.name }}</span>
-                <span class="hidden font-semibold whitespace-nowrap text-zinc-900 sm:inline">{{ teams.get(row.teamId)?.name }}</span>
+                <span class="block font-semibold text-zinc-900 sm:hidden">{{ names.team(tournamentId, row.teamId)?.shortName }}</span>
+                <span class="block w-[5.5rem] truncate text-[11px] leading-tight text-zinc-500 sm:hidden">{{ names.team(tournamentId, row.teamId)?.name }}</span>
+                <span class="hidden font-semibold whitespace-nowrap text-zinc-900 sm:inline">{{ names.team(tournamentId, row.teamId)?.name }}</span>
               </span>
               <StatusBadge v-if="withdrawn.includes(row.teamId)" label="Retirado" tone="red" />
             </RouterLink>

@@ -1,4 +1,4 @@
-import type { AdvancePhaseInput, AdvancePreview, ID, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, UploadProgress } from '@/types'
+import type { AdvancePhaseInput, AdvancePreview, ClosurePreview, ID, TournamentIdentity, NextSeasonInput, NextSeasonResult, Standing, TieInput, Tournament, TournamentInput, TournamentStructure, TournamentTeam, UploadProgress } from '@/types'
 import { api, fetchAll, USE_MOCKS } from './api'
 import {
   fromTournamentInput,
@@ -50,6 +50,12 @@ export interface TournamentService {
    * `allowPendingMatches: true` (409 si no).
    */
   finish(id: ID, allowPendingMatches: boolean): Promise<{ tournament: Tournament; summary: TournamentSummary }>
+  /** 10A: vista previa del cierre (solo lectura; propietario y administradores). */
+  closure(id: ID): Promise<ClosurePreview>
+  /** 10A: siguiente temporada en borrador a partir de este torneo (solo el propietario). */
+  nextSeason(id: ID, input: NextSeasonInput): Promise<NextSeasonResult>
+  /** 10C: nombres con que se jugó un torneo finalizado (público, como las plantillas). */
+  identity(id: ID): Promise<TournamentIdentity>
   /**
    * Tabla de posiciones. Con backend real la calcula el servidor (GET /standings: puntuación
    * de Tournament.settings, desempate PTS → DG → GF); el frontend no la recalcula.
@@ -124,6 +130,18 @@ const http: TournamentService = {
       allowPendingMatches,
     })
     return { tournament: toTournament(data.tournament), summary: data.summary }
+  },
+  async closure(id) {
+    const { data } = await api.get<Omit<ClosurePreview, 'status'> & { status: string }>(`/tournaments/${id}/closure`)
+    return { ...data, status: data.status.toLowerCase() as ClosurePreview['status'] }
+  },
+  async identity(id) {
+    return (await api.get<TournamentIdentity>(`/tournaments/${id}/identity`)).data
+  },
+  async nextSeason(id, input) {
+    const body = { name: input.name, startDate: input.startDate, endDate: input.endDate, season: input.season || undefined, teamIds: input.teamIds }
+    const { data } = await api.post<Omit<NextSeasonResult, 'tournament'> & { tournament: ApiTournament }>(`/tournaments/${id}/next-season`, body)
+    return { ...data, tournament: toTournament(data.tournament) }
   },
   async standings(id) {
     return (await api.get<ApiStanding[]>(`/tournaments/${id}/standings`)).data.map(toStanding)
@@ -256,6 +274,74 @@ const mock: TournamentService = {
         return delay({ tournament: t, summary: summary() })
       }),
     )
+  },
+  closure(id) {
+    // Modo demo: mismas reglas que closure.ts del backend, sin disciplina ni finanzas.
+    return guard(() => assertTournamentOwner(id), async () => {
+      const db = getDb()
+      const t = db.tournaments.find((x) => x.id === id)!
+      const list = db.matches.filter((m) => m.tournamentId === id)
+      const by = (s: string) => list.filter((m) => m.status === s).length
+      const m = { total: list.length, finished: by('finished'), scheduled: by('scheduled'), live: by('live'), postponed: by('postponed'), pendingSchedule: 0, suspended: by('suspended'), cancelled: by('cancelled'), pending: 0 }
+      m.pending = m.scheduled + m.live + m.postponed + m.suspended
+      const blockers = [
+        ...(t.status === 'draft' ? [{ code: 'NOT_STARTED', message: 'Solo se puede finalizar un torneo en curso: inícialo primero' }] : []),
+        ...(t.status === 'finished' ? [{ code: 'ALREADY_FINISHED', message: 'El torneo ya está finalizado' }] : []),
+        ...(m.live ? [{ code: 'LIVE_MATCHES', count: m.live, message: `Hay ${m.live} ${m.live === 1 ? 'partido en juego' : 'partidos en juego'}: captura su resultado antes de finalizar` }] : []),
+      ]
+      const warnings = [
+        ...(m.scheduled ? [{ code: 'SCHEDULED_MATCHES', count: m.scheduled, message: `${m.scheduled} ${m.scheduled === 1 ? 'partido programado' : 'partidos programados'} sin jugar` }] : []),
+        ...(m.postponed ? [{ code: 'POSTPONED_MATCHES', count: m.postponed, message: `${m.postponed} ${m.postponed === 1 ? 'partido pospuesto' : 'partidos pospuestos'} sin nueva fecha jugada` }] : []),
+      ]
+      const structure = await mock.structure(id)
+      const champion = structure.championTeamId ? { teamId: structure.championTeamId, name: structure.teams[structure.championTeamId]?.name ?? 'Equipo' } : null
+      const enrolled = db.tournamentTeams.filter((e) => e.tournamentId === id)
+      return delay({
+        tournamentId: id,
+        status: t.status,
+        canFinish: !blockers.length,
+        requiresConfirmation: m.pending > 0,
+        blockers,
+        warnings,
+        teams: { enrolled: enrolled.length, withdrawn: enrolled.filter((e) => e.withdrawnAt).length },
+        matches: m,
+        rounds: { total: new Set(list.map((x) => x.round)).size, incomplete: [] },
+        champion,
+        runnerUp: null,
+        topScorers: [],
+        finished: t.status === 'finished' ? { at: t.updatedAt, by: t.organizerId ?? null, role: 'OWNER' as const, pendingAtFinish: null } : null,
+      })
+    })
+  },
+  identity(id) {
+    // Modo demo: no hay cierre con foto; siempre nombres actuales.
+    return delay({ tournamentId: id, historical: false, takenAt: null, leagueName: null, corrections: 0, teams: [], players: [] })
+  },
+  nextSeason(id, input) {
+    return guard(() => assertTournamentOwner(id), () => mutate((db) => {
+      const source = db.tournaments.find((x) => x.id === id)!
+      const inSource = new Set(db.tournamentTeams.filter((e) => e.tournamentId === id).map((e) => e.teamId))
+      if (input.teamIds.some((tid) => !inSource.has(tid))) throw new MockHttpError(400, 'Solo se pueden inscribir equipos que participaron en el torneo de origen')
+      const information = defaultTournamentInformation(source.information)
+      const created: Tournament = {
+        ...plain(source),
+        id: createId('t'),
+        name: input.name,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        status: 'draft',
+        logoUrl: null,
+        information: { ...information, season: input.season || null, enrollment: { ...information.enrollment, opensOn: null } },
+        registration: { ...source.registration, deadline: null, maxTeams: source.registration?.maxTeams ?? null },
+        trackedTeamIds: [],
+        organizerId: getMockUserId()!,
+        createdAt: now(),
+        updatedAt: now(),
+      }
+      db.tournaments.push(created)
+      for (const teamId of input.teamIds) db.tournamentTeams.push({ id: createId('tt'), tournamentId: created.id, teamId, joinedAt: now(), withdrawnAt: null })
+      return delay({ tournament: created, teams: { enrolled: input.teamIds.length, notEnrolled: inSource.size - input.teamIds.length, missing: 0 }, copied: [], notCopied: [] })
+    }))
   },
   standings(id) {
     // Sin servidor, el mock hace de backend: única copia local de las reglas de la tabla.

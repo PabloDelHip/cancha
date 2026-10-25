@@ -147,7 +147,7 @@ const topPlayers = computed(() => featuredStats.topScorers.value.slice(0, 4))
           <section v-if="featured" aria-label="Tabla de posiciones">
             <SectionHeader title="Tabla" link-label="Tabla completa" :to="{ name: 'tournament-standings', params: { id: featured.id } }" />
             <div class="card overflow-hidden">
-              <StandingsTable :standings="featuredStats.standings.value" compact />
+              <StandingsTable :standings="featuredStats.standings.value" :tournament-id="featured?.id" compact />
             </div>
           </section>
         </div>

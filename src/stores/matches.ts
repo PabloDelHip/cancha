@@ -6,6 +6,7 @@ import type { GenerateScheduleInput } from '@/services/matchService'
 import { useRoundsStore } from './rounds'
 import { compareMatchesAsc } from '@/utils/stats'
 import { createLoader } from './loader'
+import { replaceScope } from '@/utils/merge'
 
 export const useMatchesStore = defineStore('matches', () => {
   const items = ref<Match[]>([])
@@ -82,6 +83,13 @@ export const useMatchesStore = defineStore('matches', () => {
     items.value = items.value.map((m) => (m.id === id ? { ...m, ...changes } : m))
   }
 
+  /** B1: los partidos de un torneo y sus estadísticas, tal como los devolvió el servidor. */
+  function replaceTournament(tournamentId: ID, list: Match[], tournamentStats: PlayerMatchStats[]) {
+    const affected = new Set([...items.value.filter((m) => m.tournamentId === tournamentId).map((m) => m.id), ...list.map((m) => m.id)])
+    items.value = replaceScope(items.value, list, (m) => m.tournamentId === tournamentId)
+    stats.value = replaceScope(stats.value, tournamentStats, (s) => affected.has(s.matchId))
+  }
+
   async function remove(id: ID) {
     await matchService.remove(id)
     items.value = items.value.filter((m) => m.id !== id)
@@ -115,6 +123,7 @@ export const useMatchesStore = defineStore('matches', () => {
     remove,
     patch,
     replaceMany,
+    replaceTournament,
     generateSchedule,
   }
 })

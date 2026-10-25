@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { AlertTriangle, CalendarClock, ClipboardEdit, PlayCircle } from 'lucide-vue-next'
 import type { IncidentType, Match, MatchIncident, MatchIncidents, MatchStatus } from '@/types'
 import { getErrorMessage, incidentService } from '@/services'
-import { useMatchesStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import { formatDate, toISODate } from '@/utils/format'
 import { INCIDENT_TYPE, INCIDENT_TYPES, ROLE_LABEL, SUSPENSION_DECISION } from '@/utils/labels'
@@ -21,7 +21,8 @@ import LoadingState from '@/components/common/LoadingState.vue'
  */
 const props = defineProps<{ open: boolean; match: Match | null; canManage: boolean; canSchedule: boolean; canCapture: boolean; readOnly?: boolean }>()
 const emit = defineEmits<{ close: []; decide: [status: MatchStatus] }>()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const matches = useMatchesStore()
 const tournaments = useTournamentsStore()
 const toast = useToast()
@@ -56,7 +57,7 @@ watch(
   },
 )
 
-const title = computed(() => (props.match ? `${teams.get(props.match.homeTeamId)?.name ?? 'Local'} vs ${teams.get(props.match.awayTeamId)?.name ?? 'Visitante'}` : 'Incidencias'))
+const title = computed(() => (props.match ? `${names.team(props.match.tournamentId, props.match.homeTeamId)?.name ?? 'Local'} vs ${names.team(props.match.tournamentId, props.match.awayTeamId)?.name ?? 'Visitante'}` : 'Incidencias'))
 const editable = computed(() => props.canManage && !props.readOnly)
 const suspended = computed(() => props.match?.status === 'suspended')
 const hasScore = computed(() => props.match?.homeScore != null)

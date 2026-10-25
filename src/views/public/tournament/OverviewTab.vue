@@ -54,13 +54,13 @@ const { knockout } = useTournamentChampion(structure)
         <section aria-label="Tabla de posiciones">
           <SectionHeader :title="finished ? 'Tabla final' : 'Tabla'" link-label="Completa" :to="{ name: 'tournament-standings', params: { id } }" />
           <div class="card overflow-hidden">
-            <StandingsTable :standings="stats.standings.value" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
+            <StandingsTable :standings="stats.standings.value" :tournament-id="id" compact :withdrawn="tournaments.withdrawnTeamIdsOf(id)" />
           </div>
         </section>
         <section aria-label="Goleadores">
           <SectionHeader title="Goleadores" link-label="Estadísticas" :to="{ name: 'tournament-standings', params: { id }, hash: '#estadisticas' }" />
           <div class="card overflow-hidden">
-            <TopScorersTable v-if="stats.topScorers.value.length" :scorers="stats.topScorers.value.slice(0, 5)" />
+            <TopScorersTable v-if="stats.topScorers.value.length" :scorers="stats.topScorers.value.slice(0, 5)" :tournament-id="id" />
             <EmptyState v-else :icon="Goal" title="Aún no hay goles registrados" compact />
           </div>
         </section>

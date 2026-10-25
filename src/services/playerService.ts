@@ -66,6 +66,13 @@ export interface PlayerService {
   /** Quita la foto (y el servidor la borra de Cloudinary). */
   removePhoto(id: ID): Promise<PlayerDetails>
   listMemberships(playerId?: ID): Promise<TeamMembership[]>
+  /** B1: participaciones de un torneo, también las cerradas (la plantilla de un partido pasado las necesita). */
+  listMembershipsByTournament(tournamentId: ID): Promise<TeamMembership[]>
+  /**
+   * B1: jugadores con participación activa en el torneo (GET /tournaments/:id/players). En un torneo
+   * finalizado con foto (10C) llegan con el nombre con que jugaron, no con el actual.
+   */
+  listByTournament(tournamentId: ID): Promise<Player[]>
   /**
    * Registra al jugador (global) en un equipo de MI torneo, o lo cambia de equipo/dorsal
    * dentro de él. No toca sus participaciones en otros torneos. Devuelve su historial.
@@ -124,6 +131,12 @@ const http: PlayerService = {
       ? (await api.get<ApiMembership[]>(`/players/${playerId}/memberships`)).data
       : await fetchAll<ApiMembership>('/memberships')
     return rows.map(toMembership)
+  },
+  async listMembershipsByTournament(tournamentId) {
+    return (await fetchAll<ApiMembership>('/memberships', { tournamentId })).map(toMembership)
+  },
+  async listByTournament(tournamentId) {
+    return (await api.get<{ player: ApiPlayer }[]>(`/tournaments/${tournamentId}/players`)).data.map((r) => toPlayer(r.player))
   },
   async register(playerId, { tournamentId, teamId, shirtNumber, ...extra }) {
     const { data } = await api.put<ApiMembership[]>(`/tournaments/${tournamentId}/players/${playerId}`, {
@@ -230,6 +243,12 @@ const mock: PlayerService = {
   listMemberships(playerId) {
     const all = getDb().memberships
     return delay(playerId ? all.filter((m) => m.playerId === playerId) : all)
+  },
+  listMembershipsByTournament: (tournamentId) => delay(getDb().memberships.filter((m) => m.tournamentId === tournamentId)),
+  listByTournament(tournamentId) {
+    const db = getDb()
+    const ids = new Set(db.memberships.filter((m) => m.tournamentId === tournamentId && m.status === 'active').map((m) => m.playerId))
+    return delay(db.players.filter((p) => ids.has(p.id)).map(toPublicPlayer))
   },
   register(playerId, { tournamentId, teamId, shirtNumber, fromTeamId }) {
     const check = () => {

@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Trophy } from 'lucide-vue-next'
-import { useLeagueData } from '@/composables/useLeagueData'
+import { useTournamentData } from '@/composables/useLeagueData'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { usePageTitle } from '@/composables/usePageTitle'
 import { trackViewOnce } from '@/services/analytics'
 import TournamentHero from '@/components/tournaments/TournamentHero.vue'
 import { leagueService } from '@/services'
+import { useHistoricalNamesStore } from '@/stores'
+import HistoricalNamesNote from '@/components/tournaments/HistoricalNamesNote.vue'
 import TabNav from '@/components/common/TabNav.vue'
 import LoadingState from '@/components/common/LoadingState.vue'
 import ErrorState from '@/components/common/ErrorState.vue'
@@ -14,7 +16,8 @@ import EmptyState from '@/components/common/EmptyState.vue'
 
 const props = defineProps<{ id: string }>()
 
-const { loading, error, reload } = useLeagueData()
+// B1: solo los datos de este torneo (antes: las colecciones de toda la plataforma).
+const { loading, error, notFound, reload } = useTournamentData(() => props.id)
 
 const { tournament, teams, matches, playedCount, totalGoals, standings } = useTournamentStats(() => props.id)
 /** Liga del torneo (enlace en la portada). */
@@ -33,6 +36,9 @@ watch(
   },
   { immediate: true },
 )
+/** 10C: en un torneo finalizado, la liga con el nombre que tenía al cerrar. */
+const names = useHistoricalNamesStore()
+const shownLeague = computed(() => (league.value ? { ...league.value, name: names.of(props.id)?.leagueName ?? league.value.name } : null))
 /** Líder (o campeón) de la tabla: solo en liga, con cobertura completa y partidos jugados. */
 const leader = computed(() => {
   // Solo en curso: al finalizar, el campeón (con goleador y mejor portero) se muestra en las pestañas.
@@ -44,7 +50,7 @@ const leader = computed(() => {
 usePageTitle(() => tournament.value?.name)
 
 // Analítica: una vez por torneo cargado (no por pestaña ni re-render; nunca si no existe o falla).
-trackViewOnce('tournament_viewed', () => (!loading.value && !error.value && tournament.value ? tournament.value.id : null), () => ({
+trackViewOnce('tournament_viewed', () => (!loading.value && !error.value && !notFound.value && tournament.value ? tournament.value.id : null), () => ({
   tournament_id: tournament.value!.id,
   tournament_status: tournament.value!.status,
   competition_system: tournament.value!.settings.system,
@@ -66,7 +72,7 @@ const tabs = computed(() =>
 
 <template>
   <div>
-    <div v-if="loading || error || !tournament" class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+    <div v-if="loading || error || notFound || !tournament" class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <LoadingState v-if="loading" />
       <ErrorState v-else-if="error" :message="error" @retry="reload" />
       <EmptyState
@@ -81,9 +87,10 @@ const tabs = computed(() =>
     </div>
 
     <template v-else>
-      <TournamentHero :tournament="tournament" :teams="teams" :played="playedCount" :scheduled="matches.length" :goals="totalGoals" :leader="leader" :league="league" />
+      <TournamentHero :tournament="tournament" :teams="teams" :played="playedCount" :scheduled="matches.length" :goals="totalGoals" :leader="leader" :league="shownLeague" />
       <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
 
+        <HistoricalNamesNote :tournament-id="id" class="mb-4" />
         <TabNav :tabs="tabs" label="Secciones del torneo" class="mb-6" />
         <RouterView />
       </div>

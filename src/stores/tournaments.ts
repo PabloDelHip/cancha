@@ -1,9 +1,10 @@
 import { publicTournament } from '@/types/tournamentInformation'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ID, Tournament, TournamentInput, TournamentPermission, TournamentRole, TournamentTeam } from '@/types'
+import type { ID, NextSeasonInput, Tournament, TournamentInput, TournamentPermission, TournamentRole, TournamentTeam } from '@/types'
 import { leagueService, tournamentService } from '@/services'
 import { createLoader, createOwnership } from './loader'
+import { upsertById } from '@/utils/merge'
 import { useTeamsStore } from './teams'
 
 export const useTournamentsStore = defineStore('tournaments', () => {
@@ -97,6 +98,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     replace(tournament)
     return summary
   }
+  /** 10A: siguiente temporada (DRAFT) con sus equipos ya inscritos. */
+  async function nextSeason(sourceId: ID, input: NextSeasonInput) {
+    const result = await tournamentService.nextSeason(sourceId, input)
+    items.value.push(publicTournament(result.tournament))
+    ownership.markMine(result.tournament.id)
+    replaceEnrollments(result.tournament.id, await tournamentService.listTeams(result.tournament.id))
+    return result
+  }
   async function enrollTeam(tournamentId: ID, teamId: ID) {
     const created = await tournamentService.addTeam(tournamentId, teamId)
     if (!enrollments.value.some((e) => e.id === created.id)) enrollments.value.push(created)
@@ -114,6 +123,14 @@ export const useTournamentsStore = defineStore('tournaments', () => {
   /** 3D: retirar / reincorporar; el servidor devuelve las inscripciones del torneo. */
   function replaceEnrollments(tournamentId: ID, rows: TournamentTeam[]) {
     enrollments.value = [...enrollments.value.filter((e) => e.tournamentId !== tournamentId), ...rows]
+  }
+  /**
+   * B1: el torneo y sus inscripciones tal como los devolvió el servidor (carga por torneo). Llega de
+   * GET /tournaments/:id, la vista pública (sin el contacto privado), igual que el listado global.
+   */
+  function mergeTournament(tournament: Tournament, rows: TournamentTeam[]) {
+    items.value = upsertById(items.value, [tournament])
+    replaceEnrollments(tournament.id, rows)
   }
   async function withdrawTeam(tournamentId: ID, teamId: ID, reason: string) {
     replaceEnrollments(tournamentId, await tournamentService.withdrawTeam(tournamentId, teamId, reason))
@@ -144,9 +161,11 @@ export const useTournamentsStore = defineStore('tournaments', () => {
     tournamentsOfTeam,
     create,
     replace,
+    mergeTournament,
     update,
     start,
     finish,
+    nextSeason,
     enrollTeam,
     unenrollTeam,
     withdrawTeam,

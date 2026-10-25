@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
-import { ArrowRight, Check, Trophy } from 'lucide-vue-next'
+import { ArrowRight, Check } from 'lucide-vue-next'
+import FinishedTournamentCard from './FinishedTournamentCard.vue'
 import type { ID } from '@/types'
 import { usePlayersStore, useRoundsStore } from '@/stores'
 import { useTournamentStats } from '@/composables/useTournamentStats'
@@ -39,7 +40,7 @@ interface Step {
 }
 
 const p = computed(() => ({ id: props.tournamentId }))
-const steps = computed<Step[]>(() => [
+const allSteps = computed<Step[]>(() => [
   {
     key: 'teams',
     title: 'Equipos',
@@ -95,8 +96,10 @@ const steps = computed<Step[]>(() => [
   },
 ])
 
-const current = computed(() => steps.value.find((s) => !s.done))
-const champion = computed(() => (stats.playedCount.value ? stats.teams.value.find((team) => team.id === stats.standings.value[0]?.teamId) : undefined))
+/** Finalizado: todos los pasos quedan cumplidos (no hay nada más que hacer en el torneo). */
+const steps = computed(() => (t.value.status === 'finished' ? allSteps.value.map((s) => ({ ...s, done: true })) : allSteps.value))
+// Finalizado = sin pasos pendientes (un equipo retirado sin plantilla no reabre «Plantillas»).
+const current = computed(() => (t.value.status === 'finished' ? undefined : steps.value.find((s) => !s.done)))
 </script>
 
 <template>
@@ -138,16 +141,6 @@ const champion = computed(() => (stats.playedCount.value ? stats.teams.value.fin
         </template>
       </div>
     </div>
-    <div v-else class="flex items-center gap-3 p-5">
-      <Trophy class="size-6 shrink-0 text-amber-500" aria-hidden="true" />
-      <div class="min-w-0 flex-1">
-        <h2 id="guide-title" class="font-bold text-zinc-950">Torneo finalizado</h2>
-        <p class="text-sm text-zinc-600">
-          <template v-if="champion">Campeón: <strong>{{ champion.name }}</strong>. </template>
-          La tabla final y todos los resultados quedan como historial.
-        </p>
-      </div>
-      <RouterLink :to="{ name: 'admin-tournament-standings', params: p }" class="btn btn-secondary shrink-0">Tabla final</RouterLink>
-    </div>
+    <FinishedTournamentCard v-else :tournament-id="tournamentId" />
   </section>
 </template>

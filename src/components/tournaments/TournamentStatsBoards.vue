@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { BrickWall, Goal, Hand, Handshake, Percent, Shield, Siren, Target, TriangleAlert, Zap } from 'lucide-vue-next'
 import type { ID } from '@/types'
-import { useMatchesStore, usePlayersStore, useTeamsStore } from '@/stores'
+import { useMatchesStore, useHistoricalNamesStore } from '@/stores'
 import { useTournamentStats } from '@/composables/useTournamentStats'
 import { fullName } from '@/utils/players'
 import { formatDate } from '@/utils/format'
@@ -17,8 +17,8 @@ import RankingBoard, { type RankingRow } from '@/components/stats/RankingBoard.v
 const props = defineProps<{ tournamentId: ID }>()
 const stats = useTournamentStats(() => props.tournamentId)
 const matchesStore = useMatchesStore()
-const players = usePlayersStore()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 
 const matchStats = computed(() => {
   const ids = new Set(stats.matches.value.map((m) => m.id))
@@ -26,17 +26,17 @@ const matchStats = computed(() => {
 })
 const teamRows = computed(() => teamTotals(stats.teams.value.map((t) => t.id), stats.matches.value, matchStats.value))
 const playerRows = computed(() => playerTotals(stats.matches.value, matchStats.value))
-const keeperRows = computed(() => keeperTotals(stats.matches.value, matchStats.value, (id) => players.get(id)?.position))
+const keeperRows = computed(() => keeperTotals(stats.matches.value, matchStats.value, (id) => names.player(props.tournamentId, id)?.position))
 
-const byName = (id: ID) => teams.get(id)?.name ?? ''
-const team = (id: ID) => teams.get(id)
+const byName = (id: ID) => names.team(props.tournamentId, id)?.name ?? ''
+const team = (id: ID) => names.team(props.tournamentId, id)
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 function teamRow(teamId: ID, value: string, sub: string): RankingRow {
   return { key: teamId, name: byName(teamId), sub, team: team(teamId), to: { name: 'team', params: { id: teamId } }, value }
 }
 function playerRow(r: { playerId: ID; teamId: ID }, value: string, sub: string, details?: RankingRow['details']): RankingRow {
-  const p = players.get(r.playerId)
+  const p = names.player(props.tournamentId, r.playerId)
   return {
     key: r.playerId,
     name: p ? fullName(p) : 'Jugador',

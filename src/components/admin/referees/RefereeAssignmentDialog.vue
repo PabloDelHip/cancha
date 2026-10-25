@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { AlertTriangle, Ban, Undo2, UserMinus, UserX } from 'lucide-vue-next'
 import type { Match, MatchReferees, RefereeAssignment, RefereeContact, RefereeOption, RefereeRole } from '@/types'
 import { getErrorMessage, refereeService } from '@/services'
-import { useTeamsStore, useTournamentsStore } from '@/stores'
+import { useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useToast } from '@/composables/useToast'
 import { formatDate } from '@/utils/format'
 import { REFEREE_ROLE, REFEREE_ROLES } from '@/utils/labels'
@@ -22,7 +22,8 @@ import LoadingState from '@/components/common/LoadingState.vue'
  */
 const props = defineProps<{ open: boolean; match: Match | null; readOnly?: boolean; canCorrect?: boolean }>()
 const emit = defineEmits<{ close: []; changed: [value: MatchReferees] }>()
-const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const toast = useToast()
 
 const state = ref<MatchReferees | null>(null)
@@ -93,7 +94,7 @@ function correct() {
     correction.id = null
   })
 }
-const title = computed(() => (props.match ? `${teams.get(props.match.homeTeamId)?.name ?? 'Local'} vs ${teams.get(props.match.awayTeamId)?.name ?? 'Visitante'}` : 'Árbitros'))
+const title = computed(() => (props.match ? `${names.team(props.match.tournamentId, props.match.homeTeamId)?.name ?? 'Local'} vs ${names.team(props.match.tournamentId, props.match.awayTeamId)?.name ?? 'Visitante'}` : 'Árbitros'))
 
 async function run(fn: () => Promise<MatchReferees>, done: string) {
   busy.value = true

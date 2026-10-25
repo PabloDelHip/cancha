@@ -13,7 +13,7 @@ const { topScorers, playedCount } = useTournamentStats(() => props.id)
     <h2 id="sc-title" class="mb-1 text-xl font-bold">Goleadores</h2>
     <p class="mb-4 text-sm text-zinc-500">Ranking de este torneo · {{ playedCount }} partidos finalizados. Toca un jugador para ver su perfil.</p>
     <div v-if="topScorers.length" class="card overflow-hidden">
-      <TopScorersTable :scorers="topScorers" show-assists />
+      <TopScorersTable :scorers="topScorers" :tournament-id="id" show-assists />
     </div>
     <EmptyState
       v-else

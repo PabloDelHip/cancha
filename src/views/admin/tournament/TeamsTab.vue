@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ExternalLink, Lock, LogOut, Pencil, Plus, RotateCcw, Shield, X } from 'lucide-vue-next'
 import type { Team, TeamInput } from '@/types'
-import { useMatchesStore, usePlayersStore, useTeamsStore, useTournamentsStore } from '@/stores'
+import { useMatchesStore, usePlayersStore, useTeamsStore, useTournamentsStore, useHistoricalNamesStore } from '@/stores'
 import { useTournamentWorkspace } from '@/composables/useTournamentWorkspace'
 import { useEditor } from '@/composables/useEditor'
 import { useConfirm } from '@/composables/useConfirm'
@@ -26,6 +26,8 @@ import EnrollTeamDialog from '@/components/admin/EnrollTeamDialog.vue'
 const props = defineProps<{ id: string }>()
 
 const teams = useTeamsStore()
+/** 10C: dentro de un torneo finalizado, los nombres con que se jugó. */
+const names = useHistoricalNamesStore()
 const tournaments = useTournamentsStore()
 const players = usePlayersStore()
 const matches = useMatchesStore()
@@ -45,7 +47,7 @@ onMounted(() => {
 const enrolled = computed(() =>
   tournaments
     .teamIdsOf(props.id)
-    .map((teamId) => teams.get(teamId))
+    .map((teamId) => names.team(props.id, teamId))
     .filter((t): t is Team => Boolean(t))
     .sort((a, b) => a.name.localeCompare(b.name)),
 )

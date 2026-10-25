@@ -12,6 +12,8 @@ import { MockHttpError } from '@/mocks/session'
  */
 export interface RoundService {
   list(): Promise<Round[]>
+  /** B1: jornadas de un torneo. */
+  listByTournament(tournamentId: ID): Promise<Round[]>
   /** Crea la jornada N o cambia su nombre/fecha (idempotente). */
   save(tournamentId: ID, number: number, input: Pick<RoundInput, 'name' | 'date'>): Promise<Round>
   /** Solo jornadas vacías (409 si tiene partidos). */
@@ -21,6 +23,9 @@ export interface RoundService {
 const http: RoundService = {
   async list() {
     return (await fetchAll<ApiRound>('/rounds')).map(toRound)
+  },
+  async listByTournament(tournamentId) {
+    return (await api.get<ApiRound[]>(`/tournaments/${tournamentId}/rounds`)).data.map(toRound)
   },
   async save(tournamentId, number, input) {
     return toRound((await api.put<ApiRound>(`/tournaments/${tournamentId}/rounds/${number}`, input)).data)
@@ -32,6 +37,7 @@ const http: RoundService = {
 
 const mock: RoundService = {
   list: () => delay(getDb().rounds),
+  listByTournament: (tournamentId) => delay(getDb().rounds.filter((r) => r.tournamentId === tournamentId)),
   save(tournamentId, number, input) {
     const check = () => {
       assertTournamentWritable(tournamentId)

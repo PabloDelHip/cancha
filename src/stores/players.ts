@@ -4,6 +4,7 @@ import type { ID, ISODate, Player, PlayerBlock, PlayerDetails, PlayerInput, Rost
 import { playerService } from '@/services'
 import { POSITION_ORDER } from '@/utils/labels'
 import { createLoader, createOwnership } from './loader'
+import { replaceScope, upsertById } from '@/utils/merge'
 import { belongsOn } from '@/utils/players'
 import { useTournamentsStore } from './tournaments'
 
@@ -23,10 +24,13 @@ const byPositionAndNumber = (a: RosterEntry, b: RosterEntry) =>
 export const usePlayersStore = defineStore('players', () => {
   const items = ref<Player[]>([])
   const memberships = ref<TeamMembership[]>([])
+  /** B1: fichas guardadas con su nombre histórico, a la espera de la actual (ver `upsert`). */
+  const provisional = new Set<ID>()
 
   const { loaded, ensure } = createLoader(async () => {
     const [players, allMemberships] = await Promise.all([playerService.list(), playerService.listMemberships()])
     items.value = players
+    provisional.clear()
     memberships.value = allMemberships
   })
 
@@ -69,6 +73,7 @@ export const usePlayersStore = defineStore('players', () => {
   }
   /** Reemplaza la ficha en memoria (o la agrega: el equipo edita jugadores que no estaban cargados). */
   function replace(updated: Player) {
+    provisional.delete(updated.id)
     items.value = items.value.some((p) => p.id === updated.id) ? items.value.map((p) => (p.id === updated.id ? updated : p)) : [...items.value, updated]
     return updated
   }
@@ -183,6 +188,26 @@ export const usePlayersStore = defineStore('players', () => {
   async function unblock(tournamentId: ID, playerId: ID, reason: string) {
     blocks.value = new Map(blocks.value).set(tournamentId, await playerService.unblock(tournamentId, playerId, reason))
   }
+  /**
+   * B1: fichas que llegan con la carga de un torneo. `historical`: llegan con el nombre con que
+   * jugaron un torneo finalizado (10C): no pisan una ficha ya cargada y quedan como provisionales
+   * hasta que llegue la actual (`isCurrent`), que siempre las reemplaza.
+   */
+  function upsert(list: Player[], historical = false) {
+    if (historical) {
+      const known = new Set(items.value.map((p) => p.id))
+      for (const p of list) if (!known.has(p.id)) provisional.add(p.id)
+    } else for (const p of list) provisional.delete(p.id)
+    items.value = upsertById(items.value, list, historical)
+  }
+  /** ¿Está cargada su ficha actual? (no la provisional de un torneo finalizado). */
+  function isCurrent(id: ID) {
+    return byId.value.has(id) && !provisional.has(id)
+  }
+  /** B1: todas las participaciones de un torneo (también las cerradas), tal como las devolvió el servidor. */
+  function replaceTournamentMemberships(tournamentId: ID, rows: TeamMembership[]) {
+    memberships.value = replaceScope(memberships.value, rows, (m) => m.tournamentId === tournamentId)
+  }
   async function refreshMemberships(playerId: ID) {
     const own = await playerService.listMemberships(playerId)
     memberships.value = [...memberships.value.filter((m) => m.playerId !== playerId), ...own]
@@ -207,6 +232,9 @@ export const usePlayersStore = defineStore('players', () => {
     rosterOf,
     rosterOn,
     participantsOf,
+    upsert,
+    isCurrent,
+    replaceTournamentMemberships,
     create,
     update,
     setPhoto,
